@@ -1,0 +1,525 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CPT Training Dashboard</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.0/dist/chart.umd.js" integrity="sha384-iU8HYtnGQ8Cy4zl7gbNMOhsDTTKX02BTXptVP/vqAWIaTfM7isw76iyZCsjL2eVi" crossorigin="anonymous"></script>
+<style>
+:root { color-scheme: light; }
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+  background: #F2F2F7;
+  color: #1C1C1E;
+  font-size: 14px;
+}
+
+.header {
+  background: #1C1C1E;
+  border-bottom: 3px solid #F26419;
+  padding: 16px 24px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+.header-title { font-size: 19px; font-weight: 700; color: #fff; letter-spacing: -0.4px; }
+.header-title span { color: #F26419; }
+.header-sub { font-size: 12px; color: #888; }
+.badge { font-size: 11px; padding: 3px 8px; border-radius: 4px; font-weight: 500; }
+.badge-orange { background: #F26419; color: white; }
+.badge-dark { background: #333; color: #aaa; }
+.badge-green { background: #1A3A2A; color: #4ADE80; }
+.ml { margin-left: auto; display: flex; gap: 8px; flex-wrap: wrap; }
+
+.container { padding: 18px 24px; }
+.section-label { font-size: 11px; font-weight: 600; color: #8E8E93; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 10px; margin-top: 6px; }
+
+/* KPI */
+.kpi-row { display: grid; grid-template-columns: repeat(6, 1fr); gap: 10px; margin-bottom: 16px; }
+.kpi { background: white; border-radius: 10px; padding: 14px 14px 12px; border: 1px solid #E5E5EA; }
+.kpi-val { font-size: 22px; font-weight: 700; line-height: 1; letter-spacing: -0.5px; }
+.kpi-val.orange { color: #F26419; }
+.kpi-val.green { color: #34C759; }
+.kpi-lbl { font-size: 11px; color: #8E8E93; margin-top: 4px; }
+.kpi-hint { font-size: 11px; color: #F26419; margin-top: 2px; font-weight: 500; }
+
+/* Charts */
+.charts-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px; }
+.chart-card { background: white; border-radius: 10px; padding: 14px; border: 1px solid #E5E5EA; }
+.chart-card.full { grid-column: 1 / -1; }
+.chart-head { font-size: 12px; font-weight: 600; color: #3A3A3C; margin-bottom: 10px; display: flex; align-items: center; gap: 8px; }
+.chart-head .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+.chart-wrap { height: 180px; position: relative; }
+.chart-wrap.md { height: 200px; }
+.chart-wrap.lg { height: 220px; }
+
+/* Table */
+.table-card { background: white; border-radius: 10px; padding: 14px; border: 1px solid #E5E5EA; margin-bottom: 12px; overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: 12.5px; min-width: 580px; }
+th { text-align: left; padding: 6px 10px; font-size: 11px; font-weight: 600; color: #8E8E93; border-bottom: 1.5px solid #E5E5EA; white-space: nowrap; }
+td { padding: 8px 10px; border-bottom: 0.5px solid #F2F2F7; white-space: nowrap; }
+tr:last-child td { border-bottom: none; }
+.hl { font-weight: 700; color: #F26419; }
+.mt { color: #8E8E93; }
+.note { font-size: 11px; color: #8E8E93; margin-top: 8px; }
+
+/* PRs / marks */
+.two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px; }
+.mark-item { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 0.5px solid #F2F2F7; }
+.mark-item:last-child { border-bottom: none; }
+.mark-lbl { font-size: 12px; color: #8E8E93; }
+.mark-ctx { font-size: 11px; color: #C7C7CC; margin-top: 1px; }
+.mark-val { font-size: 14px; font-weight: 700; color: #F26419; text-align: right; }
+.mark-sub { font-size: 11px; color: #8E8E93; text-align: right; }
+
+/* Data quality */
+.dq-card { background: white; border-radius: 10px; padding: 14px; border: 1px solid #E5E5EA; margin-bottom: 12px; }
+.dq-row { display: flex; justify-content: space-between; align-items: center; padding: 6px 0; border-bottom: 0.5px solid #F2F2F7; font-size: 12.5px; }
+.dq-row:last-child { border-bottom: none; }
+.dq-lbl { color: #3A3A3C; }
+.dq-val { font-weight: 600; }
+.removed { color: #FF3B30; }
+.kept { color: #34C759; }
+
+/* Roadmap */
+.phases { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 12px; }
+.phase { background: white; border-radius: 10px; padding: 13px; border: 1px solid #E5E5EA; border-top: 3px solid #E5E5EA; }
+.phase.done { border-top-color: #34C759; }
+.phase.next { border-top-color: #F26419; }
+.phase.later { border-top-color: #8E8E93; }
+.phase.future { border-top-color: #C7C7CC; }
+.phase-name { font-size: 12px; font-weight: 700; margin-bottom: 3px; }
+.phase-tag { font-size: 10px; font-weight: 600; padding: 2px 6px; border-radius: 4px; display: inline-block; margin-bottom: 8px; }
+.tag-done { background: #D1FAE5; color: #065F46; }
+.tag-next { background: #FEF3C7; color: #92400E; }
+.tag-later { background: #F3F4F6; color: #6B7280; }
+.pi { font-size: 11px; color: #3A3A3C; padding: 2px 0; display: flex; gap: 5px; line-height: 1.4; }
+.pi::before { content: '·'; color: #F26419; flex-shrink: 0; }
+
+.footer-note { font-size: 11px; color: #8E8E93; text-align: center; padding: 12px 0 4px; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div>
+    <div class="header-title">🏃 CPT <span>Training</span> Dashboard</div>
+    <div class="header-sub">Jan – Jun 2026 · Diego Xavier · corridapratodos.com.br</div>
+  </div>
+  <div class="ml">
+    <span class="badge badge-orange">MVP Pessoal</span>
+    <span class="badge badge-green">67 corridas reais</span>
+    <span class="badge badge-dark">intervals.icu + Garmin Connect</span>
+  </div>
+</div>
+
+<div class="container">
+
+  <!-- KPIs -->
+  <div class="section-label">Resumo do Período · Jan–Jun 2026</div>
+  <div class="kpi-row">
+    <div class="kpi">
+      <div class="kpi-val orange">67</div>
+      <div class="kpi-lbl">Corridas reais</div>
+      <div class="kpi-hint">246 atividades raw</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-val">536 km</div>
+      <div class="kpi-lbl">Volume total</div>
+      <div class="kpi-hint">~89 km/mês</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-val">139 h</div>
+      <div class="kpi-lbl">Horas ativas</div>
+      <div class="kpi-hint">~23 h/mês</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-val">6:56</div>
+      <div class="kpi-lbl">Pace médio /km</div>
+      <div class="kpi-hint">incluindo treinos leves</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-val">4.530</div>
+      <div class="kpi-lbl">Carga total ATL</div>
+      <div class="kpi-hint">intervals.icu</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-val green">−22,5 kg</div>
+      <div class="kpi-lbl">Perda de peso</div>
+      <div class="kpi-hint">130,6 → 108,1 kg</div>
+    </div>
+  </div>
+
+  <!-- Charts row 1 -->
+  <div class="charts-2">
+    <div class="chart-card">
+      <div class="chart-head">
+        <span class="dot" style="background:#F26419"></span>
+        Volume mensal (km) + número de corridas
+      </div>
+      <div class="chart-wrap md">
+        <canvas id="volumeChart"></canvas>
+      </div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-head">
+        <span class="dot" style="background:#34C759"></span>
+        Evolução de peso (kg) · Nov/25 → Jun/26
+      </div>
+      <div class="chart-wrap md">
+        <canvas id="weightChart"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <!-- Pace chart -->
+  <div class="charts-2">
+    <div class="chart-card full">
+      <div class="chart-head">
+        <span class="dot" style="background:#F26419"></span>
+        Pace médio vs. melhor pace por mês
+        <span style="font-size:11px;color:#8E8E93;font-weight:400">· menor é melhor · eixo Y invertido</span>
+      </div>
+      <div class="chart-wrap lg">
+        <canvas id="paceChart"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <!-- Monthly table -->
+  <div class="section-label">Evolução Mês a Mês</div>
+  <div class="table-card">
+    <table>
+      <thead>
+        <tr>
+          <th>Mês</th>
+          <th style="text-align:center">Corridas</th>
+          <th style="text-align:right">Volume</th>
+          <th style="text-align:right">Pace médio</th>
+          <th style="text-align:right">Melhor pace</th>
+          <th style="text-align:right">~5 km</th>
+          <th style="text-align:right">~10 km</th>
+          <th style="text-align:right">Mais longa</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Janeiro</td>
+          <td style="text-align:center">6</td>
+          <td style="text-align:right">35,1 km</td>
+          <td style="text-align:right">7:20</td>
+          <td class="hl" style="text-align:right">6:39</td>
+          <td style="text-align:right">33:17</td>
+          <td class="mt" style="text-align:right">—</td>
+          <td style="text-align:right">8,2 km</td>
+        </tr>
+        <tr style="background:#FFFBF5">
+          <td>Fevereiro <span style="font-size:10px;background:#FEF3C7;color:#92400E;padding:1px 4px;border-radius:3px;font-weight:600">Garmin</span></td>
+          <td style="text-align:center">7</td>
+          <td style="text-align:right">52,0 km</td>
+          <td style="text-align:right">7:15</td>
+          <td class="hl" style="text-align:right">6:33</td>
+          <td style="text-align:right">34:24</td>
+          <td style="text-align:right">65:34</td>
+          <td style="text-align:right">10,0 km</td>
+        </tr>
+        <tr>
+          <td>Março</td>
+          <td style="text-align:center">14</td>
+          <td style="text-align:right">99,2 km</td>
+          <td style="text-align:right">7:38</td>
+          <td class="hl" style="text-align:right">5:26</td>
+          <td style="text-align:right">27:14</td>
+          <td style="text-align:right">67:04</td>
+          <td style="text-align:right">12,1 km</td>
+        </tr>
+        <tr>
+          <td>Abril</td>
+          <td style="text-align:center">14</td>
+          <td style="text-align:right">102,1 km</td>
+          <td style="text-align:right">6:55</td>
+          <td class="hl" style="text-align:right">5:45</td>
+          <td style="text-align:right">28:46</td>
+          <td style="text-align:right">66:36</td>
+          <td style="text-align:right">12,2 km</td>
+        </tr>
+        <tr>
+          <td>Maio</td>
+          <td style="text-align:center">16</td>
+          <td style="text-align:right">140,1 km</td>
+          <td style="text-align:right">6:36</td>
+          <td class="hl" style="text-align:right">5:34</td>
+          <td style="text-align:right">27:54</td>
+          <td style="text-align:right">57:34</td>
+          <td style="text-align:right">15,0 km</td>
+        </tr>
+        <tr>
+          <td>Junho</td>
+          <td style="text-align:center">10</td>
+          <td style="text-align:right">107,5 km</td>
+          <td style="text-align:right">6:26</td>
+          <td class="hl" style="text-align:right">5:25</td>
+          <td class="mt" style="text-align:right">—</td>
+          <td style="text-align:right">54:10</td>
+          <td style="text-align:right">16,0 km</td>
+        </tr>
+      </tbody>
+    </table>
+    <div class="note">Fevereiro: dados recuperados do Garmin Connect (falha de sync intervals.icu de 15/jan a 02/mar). ~5km = corridas 4,5–6,5km. ~10km = corridas 9–12,5km. Não são splits — intervals.icu exporta apenas resumo por atividade.</div>
+  </div>
+
+  <!-- Marks + PRs -->
+  <div class="section-label">Melhores Marcas</div>
+  <div class="two-col">
+    <div class="chart-card">
+      <div class="chart-head">Melhores marcas do período (Jan–Jun 2026)</div>
+      <div class="mark-item">
+        <div><div class="mark-lbl">Melhor pace</div><div class="mark-ctx">Jun 21 · corrida de 10km</div></div>
+        <div><div class="mark-val">5:25/km</div></div>
+      </div>
+      <div class="mark-item">
+        <div><div class="mark-lbl">Melhor ~5km</div><div class="mark-ctx">Mar 23 · pace 5:26/km</div></div>
+        <div><div class="mark-val">27:14</div></div>
+      </div>
+      <div class="mark-item">
+        <div><div class="mark-lbl">Melhor ~10km</div><div class="mark-ctx">Jun 21 · pace 5:25/km</div></div>
+        <div><div class="mark-val">54:10</div></div>
+      </div>
+      <div class="mark-item">
+        <div><div class="mark-lbl">Corrida mais longa</div><div class="mark-ctx">Jun 06 · pace 6:30/km</div></div>
+        <div><div class="mark-val" style="color:#1C1C1E">16,0 km</div></div>
+      </div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-head">PRs pessoais (Strava / Garmin best efforts)</div>
+      <div class="mark-item">
+        <div class="mark-lbl">400m</div>
+        <div><div class="mark-val">1:54</div><div class="mark-sub">pace 4:45/km</div></div>
+      </div>
+      <div class="mark-item">
+        <div class="mark-lbl">1km</div>
+        <div><div class="mark-val">4:48</div><div class="mark-sub">pace 4:48/km</div></div>
+      </div>
+      <div class="mark-item">
+        <div class="mark-lbl">1 milha</div>
+        <div><div class="mark-val">7:45</div><div class="mark-sub">pace 4:49/km</div></div>
+      </div>
+      <div class="mark-item">
+        <div class="mark-lbl">5km</div>
+        <div><div class="mark-val">24:38</div><div class="mark-sub">pace 4:55/km</div></div>
+      </div>
+      <div class="mark-item">
+        <div class="mark-lbl">10km</div>
+        <div><div class="mark-val">55:16</div><div class="mark-sub">pace 5:31/km</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Data quality -->
+  <div class="section-label">Limpeza de Dados · Pipeline</div>
+  <div class="charts-2">
+    <div class="dq-card">
+      <div class="dq-row"><span class="dq-lbl">intervals.icu (Jan–Jun 2026)</span><span class="dq-val">214 brutas</span></div>
+      <div class="dq-row"><span class="dq-lbl">Garmin Connect (Nov/25–Jun 2026)</span><span class="dq-val">180 atividades</span></div>
+      <div class="dq-row"><span class="dq-lbl">Dataset unificado (após merge)</span><span class="dq-val kept">246 limpas</span></div>
+      <div class="dq-row"><span class="dq-lbl">Testes GPS/carro removidos (pace &lt; 4:30/km)</span><span class="dq-val removed">−61</span></div>
+      <div class="dq-row"><span class="dq-lbl">Fragmentos removidos (&lt;20min ou &lt;2km)</span><span class="dq-val removed">−2</span></div>
+      <div class="dq-row"><span class="dq-lbl">Caminhadas classificadas como corrida</span><span class="dq-val removed">−4</span></div>
+      <div class="dq-row" style="font-weight:600"><span class="dq-lbl">Corridas reais no dataset final</span><span class="dq-val" style="color:#F26419">67</span></div>
+    </div>
+    <div class="dq-card">
+      <div style="font-size:12px;font-weight:600;color:#3A3A3C;margin-bottom:10px">Filtro de corrida real (critérios definitivos)</div>
+      <div style="background:#F2F2F7;border-radius:6px;padding:10px;font-size:12px;font-family:monospace;color:#1C1C1E;line-height:1.8">
+        pace &gt;= 4:30/km <span style="color:#8E8E93">← não é carro/GPS</span><br>
+        pace &lt;= 10:00/km <span style="color:#8E8E93">← não é caminhada</span><br>
+        duração &gt;= 20 minutos<br>
+        distância &gt;= 2 km<br>
+        carga (ATL) &gt;= 5 pts <span style="color:#8E8E93">← intervals.icu</span>
+      </div>
+      <div style="margin-top:10px;font-size:11px;color:#8E8E93">Os testes GPS vieram do desenvolvimento do app CPT: Garmin HRM-Pro capturava FC e o GPS do celular registrava a velocidade do carro durante os testes de integração.</div>
+    </div>
+  </div>
+
+  <!-- Roadmap -->
+  <div class="section-label">Roadmap do Produto</div>
+  <div class="phases">
+    <div class="phase done">
+      <div class="phase-name">Fase 0 · MVP Pessoal</div>
+      <span class="phase-tag tag-done">✓ Concluído</span>
+      <div class="pi">Análise exploratória dos CSVs</div>
+      <div class="pi">Pipeline de limpeza (−67 atividades)</div>
+      <div class="pi">Merge Garmin + fev recuperado (52km)</div>
+      <div class="pi">Dashboard React: KPIs, peso, heatmap, evolução, marcas</div>
+    </div>
+    <div class="phase next">
+      <div class="phase-name">Fase 1 · Produto Mínimo</div>
+      <span class="phase-tag tag-next">Próxima</span>
+      <div class="pi">Parser Python → JS (client-side)</div>
+      <div class="pi">Upload CSV multi-fonte no browser</div>
+      <div class="pi">Export PDF</div>
+      <div class="pi">Deploy dash.corridapratodos.com.br</div>
+      <div class="pi">Paywall Kiwify R$27–47 · custo infra R$0</div>
+    </div>
+    <div class="phase later">
+      <div class="phase-name">Fase 2 · Strava OAuth</div>
+      <span class="phase-tag tag-later">Futuro</span>
+      <div class="pi">Strava OAuth → sync automático</div>
+      <div class="pi">Next.js + NextAuth + provider Strava</div>
+      <div class="pi">Webhook para atividades em tempo real</div>
+      <div class="pi">Firestore (projeto separado do CPT app)</div>
+      <div class="pi">Assinatura mensal · público: todo Strava</div>
+    </div>
+    <div class="phase future">
+      <div class="phase-name">Fase C · CPT App</div>
+      <span class="phase-tag tag-later">Fase C</span>
+      <div class="pi">Feature premium dentro do app CPT</div>
+      <div class="pi">Dados já no Firestore</div>
+      <div class="pi">Sem custo adicional de infra</div>
+      <div class="pi">dash.corridapratodos.com.br como produto separado</div>
+    </div>
+  </div>
+
+  <div class="footer-note">
+    CPT Training Dashboard · MVP pessoal · Stack: React + Recharts · Produto público: Next.js + Vercel + Firestore + Strava API · Custo infra Fase 1–2: R$0/mês
+  </div>
+
+</div>
+
+<script>
+function s2l(sec) {
+  const m = Math.floor(sec / 60), s = sec % 60;
+  return `${m}:${s.toString().padStart(2,'0')}`;
+}
+
+const months = ['Jan','Fev','Mar','Abr','Mai','Jun'];
+const gridColor = '#F2F2F7';
+const tickFont = { size: 11, family: 'system-ui' };
+
+// Volume chart
+new Chart(document.getElementById('volumeChart'), {
+  data: {
+    labels: months,
+    datasets: [
+      {
+        type: 'bar',
+        label: 'Volume (km)',
+        data: [35.1, 52.0, 99.2, 102.1, 140.1, 107.5],
+        backgroundColor: '#F26419',
+        borderRadius: 4,
+        yAxisID: 'y'
+      },
+      {
+        type: 'line',
+        label: 'Corridas',
+        data: [6, 7, 14, 14, 16, 10],
+        borderColor: '#1C1C1E',
+        backgroundColor: 'transparent',
+        pointBackgroundColor: '#1C1C1E',
+        pointRadius: 4,
+        tension: 0.3,
+        yAxisID: 'y2'
+      }
+    ]
+  },
+  options: {
+    responsive: true, maintainAspectRatio: false,
+    plugins: {
+      legend: { position: 'top', labels: { font: { size: 11 }, padding: 8, boxWidth: 12 } },
+      tooltip: { mode: 'index' }
+    },
+    scales: {
+      y: { position: 'left', grid: { color: gridColor }, ticks: { font: tickFont, callback: v => v + ' km' } },
+      y2: { position: 'right', min: 0, max: 20, grid: { display: false }, ticks: { font: tickFont, callback: v => v + 'x' } },
+      x: { grid: { display: false }, ticks: { font: tickFont } }
+    }
+  }
+});
+
+// Weight chart
+new Chart(document.getElementById('weightChart'), {
+  type: 'line',
+  data: {
+    labels: ['Nov/25','Dez/25','Jan','Fev','Mar','Abr','Mai','Jun'],
+    datasets: [{
+      label: 'Peso (kg)',
+      data: [133.0, 131.5, 129.2, 126.8, 122.4, 118.3, 113.1, 108.1],
+      borderColor: '#34C759',
+      backgroundColor: 'rgba(52,199,89,0.1)',
+      fill: true,
+      tension: 0.4,
+      pointBackgroundColor: '#34C759',
+      pointRadius: 4,
+      pointHoverRadius: 6
+    }]
+  },
+  options: {
+    responsive: true, maintainAspectRatio: false,
+    plugins: {
+      legend: { labels: { font: { size: 11 }, padding: 8, boxWidth: 12 } },
+      tooltip: { callbacks: { label: ctx => `${ctx.parsed.y.toFixed(1)} kg` } }
+    },
+    scales: {
+      y: { min: 100, max: 140, grid: { color: gridColor }, ticks: { font: tickFont, callback: v => v + ' kg' } },
+      x: { grid: { display: false }, ticks: { font: tickFont } }
+    }
+  }
+});
+
+// Pace chart (sec/km, Y invertido = menor/melhor em cima)
+new Chart(document.getElementById('paceChart'), {
+  type: 'line',
+  data: {
+    labels: months,
+    datasets: [
+      {
+        label: 'Pace médio',
+        data: [440, 435, 458, 415, 396, 386],
+        borderColor: '#8E8E93',
+        backgroundColor: 'rgba(142,142,147,0.05)',
+        fill: false,
+        tension: 0.35,
+        pointBackgroundColor: '#8E8E93',
+        pointRadius: 5,
+        borderDash: [5, 4]
+      },
+      {
+        label: 'Melhor pace',
+        data: [399, 393, 326, 345, 334, 325],
+        borderColor: '#F26419',
+        backgroundColor: 'rgba(242,100,25,0.08)',
+        fill: false,
+        tension: 0.35,
+        pointBackgroundColor: '#F26419',
+        pointRadius: 5,
+        pointHoverRadius: 7
+      }
+    ]
+  },
+  options: {
+    responsive: true, maintainAspectRatio: false,
+    plugins: {
+      legend: { position: 'top', labels: { font: { size: 11 }, padding: 10, boxWidth: 14 } },
+      tooltip: {
+        callbacks: {
+          label: ctx => `${ctx.dataset.label}: ${s2l(ctx.parsed.y)}/km`
+        }
+      }
+    },
+    scales: {
+      y: {
+        reverse: true,
+        min: 300,
+        max: 480,
+        grid: { color: gridColor },
+        ticks: { font: tickFont, callback: v => s2l(v) + '/km' }
+      },
+      x: { grid: { display: false }, ticks: { font: tickFont } }
+    }
+  }
+});
+</script>
+</body>
+</html>
