@@ -1,4 +1,4 @@
-﻿'use client'
+'use client'
 
 import { signIn } from 'next-auth/react'
 
@@ -39,10 +39,9 @@ export default function LoginPage() {
         </button>
 
         <p className="login-footnote">
-          Lemos apenas os dados necessarios para analise. O app nao publica nada na sua conta.
+          Ao continuar, voce revisara e aceitara a <a href="/privacy">politica de privacidade</a> e os <a href="/terms">termos de uso</a> antes de acessar o painel.
         </p>
       </section>
     </main>
   )
 }
-

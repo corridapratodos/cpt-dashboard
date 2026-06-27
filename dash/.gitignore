@@ -1,4 +1,4 @@
-﻿# dependencies
+# dependencies
 /node_modules
 
 # next.js
@@ -16,3 +16,7 @@
 .DS_Store
 *.log
 .vercel
+
+# secrets / build artifacts
+firebase-env-line.txt
+tsconfig.tsbuildinfo

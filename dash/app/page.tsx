@@ -1,70 +1,55 @@
 ﻿import { getServerSession } from 'next-auth'
 import { redirect } from 'next/navigation'
-import { authOptions } from '@/lib/auth'
-import { activitiesRef, metaRef } from '@/lib/firebase'
 import DashboardClient from '@/components/DashboardClient'
-
-type DashboardActivity = {
-  stravaId: number
-  name: string
-  date: string
-  distanceKm: number
-  durationSec: number
-  paceSec: number | null
-  hrAvg: number | null
-  hrMax: number | null
-  elevationGain: number
-  kudos: number
-  type: string
-}
+import LegalGate from '@/components/LegalGate'
+import { getUserPlan, getUserScope, hasAcceptedLegal, hasAdminAccess } from '@/lib/access'
+import { authOptions } from '@/lib/auth'
+import { buildActivitiesQuery, getVisibleYears, serializeFirestoreValue, toDashboardActivity } from '@/lib/dashboard'
+import { activitiesRef, metaRef, userRef } from '@/lib/firebase'
 
 export const revalidate = 0
 
-function serializeFirestoreValue(value: any): any {
-  if (value == null) return value
-  if (typeof value?.toDate === 'function') return value.toDate().toISOString()
-  if (Array.isArray(value)) return value.map(serializeFirestoreValue)
-  if (typeof value === 'object') {
-    return Object.fromEntries(
-      Object.entries(value).map(([key, nested]) => [key, serializeFirestoreValue(nested)])
-    )
-  }
-  return value
-}
-
 export default async function HomePage() {
   const session = await getServerSession(authOptions)
-  if (!session) redirect('/login')
+  if (!session?.stravaId) redirect('/login')
 
-  const colRef = activitiesRef(session.stravaId)
-  const [snap, metaSnap] = await Promise.all([
-    colRef.orderBy('date', 'desc').get(),
-    metaRef(session.stravaId).get(),
-  ])
+  const userSnap = await userRef(session.stravaId).get()
+  const userData = userSnap.exists ? userSnap.data() : null
 
-  const activities: DashboardActivity[] = snap.docs.map((d) => {
-    const data = d.data()
-    return {
-      stravaId: data.stravaId,
-      name: data.name,
-      date: data.date?.toDate?.()?.toISOString() ?? data.date,
-      distanceKm: data.distanceKm,
-      durationSec: data.durationSec,
-      paceSec: data.paceSec ?? null,
-      hrAvg: data.hrAvg ?? null,
-      hrMax: data.hrMax ?? null,
-      elevationGain: data.elevationGain ?? 0,
-      kudos: data.kudos ?? 0,
-      type: data.type ?? 'Workout',
-    }
-  })
+  if (!hasAcceptedLegal(userData)) {
+    return <LegalGate userName={session.user?.name ?? 'Atleta'} />
+  }
 
+  const scope = getUserScope(session.stravaId, userData)
+  const isAdmin = hasAdminAccess(session.stravaId, userData)
+  const metaSnap = await metaRef(session.stravaId).get()
   const meta = metaSnap.exists ? serializeFirestoreValue(metaSnap.data()) : null
+  const availableYears = getVisibleYears(scope, meta?.availableYears)
+  const initialYear = availableYears[0]
+
+  const initialSnap = await buildActivitiesQuery(activitiesRef(session.stravaId), initialYear, scope)
+    .limit(160)
+    .get()
+
+  const initialActivities = initialSnap.docs.map((doc) => toDashboardActivity(doc.data()))
 
   return (
     <DashboardClient
-      activities={activities}
-      meta={meta}
+      initialActivities={initialActivities}
+      initialYear={initialYear}
+      availableYears={availableYears}
+      isAdmin={isAdmin}
+      meta={{
+        ...meta,
+        viewerRole: scope.role,
+        viewerPlan: getUserPlan(session.stravaId, userData),
+        viewerAdmin: isAdmin,
+        viewerScope: {
+          years: scope.allowedYears,
+          types: scope.allowedTypes,
+          fullAccess: scope.fullAccess,
+        },
+      }}
       userName={session.user?.name ?? 'Atleta'}
     />
   )

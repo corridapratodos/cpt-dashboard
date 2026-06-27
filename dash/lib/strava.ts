@@ -1,4 +1,4 @@
-﻿// Busca atividades do atleta com suporte a sync incremental por data
+// Busca atividades do atleta com suporte a sync incremental por data
 export async function fetchActivities(accessToken: string, after?: number) {
   const activities: any[] = []
   let page = 1

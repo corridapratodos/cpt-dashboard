@@ -1,6 +1,7 @@
-import type { AuthOptions } from 'next-auth'
+﻿import type { AuthOptions } from 'next-auth'
 import StravaProvider from 'next-auth/providers/strava'
-import { userRef } from '@/lib/firebase'
+import { getUserPlan, hasMasterAccess } from '@/lib/access'
+import { getDb, userRef } from '@/lib/firebase'
 
 export const authOptions: AuthOptions = {
   providers: [
@@ -34,7 +35,27 @@ export const authOptions: AuthOptions = {
         token.stravaId = (profile as any)?.id as number
 
         if (token.stravaId && token.accessToken && token.refreshToken && token.expiresAt) {
-          await userRef(token.stravaId as number).set(
+          const ref = userRef(token.stravaId as number)
+          const existingSnap = await ref.get()
+          const existingData = existingSnap.exists ? existingSnap.data() : null
+          let role = existingData?.role ?? null
+
+          if (!role) {
+            const totalUsers = (await getDb().collection('users').count().get()).data().count
+            const shouldBootstrapAdmin = hasMasterAccess(token.stravaId as number, existingData)
+              || (!existingData && totalUsers === 0)
+              || (Boolean(existingData) && totalUsers === 1)
+
+            role = hasMasterAccess(token.stravaId as number, existingData)
+              ? 'master'
+              : shouldBootstrapAdmin
+                ? 'admin'
+                : 'user'
+          }
+
+          const plan = getUserPlan(token.stravaId as number, existingData ?? { role })
+
+          await ref.set(
             {
               stravaId: token.stravaId,
               name:
@@ -45,15 +66,17 @@ export const authOptions: AuthOptions = {
               accessToken: token.accessToken,
               refreshToken: token.refreshToken,
               expiresAt: token.expiresAt,
+              role,
+              plan,
+              createdAt: existingData?.createdAt ?? new Date(),
               updatedAt: new Date(),
             },
             { merge: true }
           )
         }
       }
-      // Token ainda válido
+
       if (Date.now() < (token.expiresAt as number) * 1000) return token
-      // Renovar
       return refreshAccessToken(token)
     },
     async session({ session, token }) {
@@ -105,7 +128,6 @@ async function refreshAccessToken(token: any) {
   }
 }
 
-// Extensão de tipos
 declare module 'next-auth' {
   interface Session {
     accessToken: string

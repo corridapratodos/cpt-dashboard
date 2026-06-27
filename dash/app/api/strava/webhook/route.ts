@@ -1,8 +1,9 @@
 ﻿import { NextRequest } from 'next/server'
-import { fetchActivity, isRealRun, mapActivity } from '@/lib/strava'
-import { activitiesRef, getDb } from '@/lib/firebase'
+import { getUserScope, isActivityAllowedForScope } from '@/lib/access'
+import { buildSyncSummary, toDashboardActivity } from '@/lib/dashboard'
+import { fetchActivity, mapActivity } from '@/lib/strava'
+import { activitiesRef, getDb, metaRef } from '@/lib/firebase'
 
-// GET - verificacao do webhook pelo Strava
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url)
   const mode = searchParams.get('hub.mode')
@@ -16,7 +17,6 @@ export async function GET(req: NextRequest) {
   return Response.json({ error: 'Forbidden' }, { status: 403 })
 }
 
-// POST - evento de nova atividade
 export async function POST(req: NextRequest) {
   const body = await req.json()
 
@@ -60,11 +60,51 @@ export async function POST(req: NextRequest) {
     })
   }
 
+  const scope = getUserScope(ownerId, userData)
   const activity = await fetchActivity(accessToken, activityId)
-  if (!isRealRun(activity)) return Response.json({ ok: true, skipped: true })
+  if (!isActivityAllowedForScope({ type: activity.type, date: activity.start_date }, scope)) {
+    return Response.json({ ok: true, skipped: true, reason: 'outside_plan_scope' })
+  }
 
   const mapped = mapActivity(activity)
   await activitiesRef(ownerId).doc(String(activityId)).set(mapped, { merge: true })
+
+  const activityYear = String(new Date(mapped.date).getUTCFullYear())
+  const currentMetaSnap = await metaRef(ownerId).get()
+  const currentMeta = currentMetaSnap.exists ? currentMetaSnap.data() : null
+  const availableYears = Array.from(new Set([...(currentMeta?.availableYears ?? []), activityYear]))
+    .sort((a, b) => Number(b) - Number(a))
+
+  await metaRef(ownerId).set(
+    {
+      availableYears,
+      newestActivityAt: mapped.date,
+      lastWebhookActivityAt: new Date(),
+      lastWebhookActivityId: activityId,
+      dataScope: {
+        fullAccess: scope.fullAccess,
+        allowedYears: scope.allowedYears,
+        allowedTypes: scope.allowedTypes,
+      },
+    },
+    { merge: true }
+  )
+
+  if ((currentMeta?.totalActivities ?? 0) < 1000) {
+    const snap = await activitiesRef(ownerId).orderBy('date', 'desc').get()
+    const summary = buildSyncSummary(snap.docs.map((doc) => toDashboardActivity(doc.data())))
+
+    await metaRef(ownerId).set(
+      {
+        totalActivities: summary.totalActivities,
+        totalRuns: summary.totalRuns,
+        totalsByType: summary.totalsByType,
+        availableYears: summary.availableYears,
+        newestActivityAt: summary.newestActivityAt,
+      },
+      { merge: true }
+    )
+  }
 
   return Response.json({ ok: true, saved: activityId })
 }
