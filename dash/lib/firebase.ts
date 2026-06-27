@@ -1,17 +1,34 @@
-import { initializeApp, getApps, cert } from 'firebase-admin/app'
+﻿import { cert, getApps, initializeApp } from 'firebase-admin/app'
 import { getFirestore } from 'firebase-admin/firestore'
 
-// Inicializa apenas uma vez (Next.js hot reload safe)
-const app =
-  getApps().length === 0
-    ? initializeApp({ credential: cert(JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT!)) })
-    : getApps()[0]
+function getServiceAccount() {
+  const raw = process.env.FIREBASE_SERVICE_ACCOUNT
 
-export const db = getFirestore(app)
+  if (!raw) {
+    throw new Error('FIREBASE_SERVICE_ACCOUNT is not configured')
+  }
 
-// Helpers de referência (schema do Firestore)
+  try {
+    return JSON.parse(raw)
+  } catch {
+    throw new Error('FIREBASE_SERVICE_ACCOUNT is not valid JSON')
+  }
+}
+
+function getFirebaseApp() {
+  if (getApps().length > 0) return getApps()[0]
+
+  return initializeApp({
+    credential: cert(getServiceAccount()),
+  })
+}
+
+export function getDb() {
+  return getFirestore(getFirebaseApp())
+}
+
 export const userRef = (stravaId: number) =>
-  db.collection('users').doc(String(stravaId))
+  getDb().collection('users').doc(String(stravaId))
 
 export const activitiesRef = (stravaId: number) =>
   userRef(stravaId).collection('activities')

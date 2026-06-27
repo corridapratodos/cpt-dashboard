@@ -10,13 +10,15 @@ type DashboardActivity = {
   date: string
   distanceKm: number
   durationSec: number
-  paceSec: number
+  paceSec: number | null
   hrAvg: number | null
   hrMax: number | null
   elevationGain: number
+  kudos: number
+  type: string
 }
 
-export const revalidate = 0 // sem cache — dados sempre frescos
+export const revalidate = 0
 
 export default async function HomePage() {
   const session = await getServerSession(authOptions)
@@ -24,7 +26,7 @@ export default async function HomePage() {
 
   const colRef = activitiesRef(session.stravaId)
   const [snap, metaSnap] = await Promise.all([
-    colRef.orderBy('date', 'desc').limit(200).get(),
+    colRef.orderBy('date', 'desc').get(),
     metaRef(session.stravaId).get(),
   ])
 
@@ -36,10 +38,12 @@ export default async function HomePage() {
       date: data.date?.toDate?.()?.toISOString() ?? data.date,
       distanceKm: data.distanceKm,
       durationSec: data.durationSec,
-      paceSec: data.paceSec,
+      paceSec: data.paceSec ?? null,
       hrAvg: data.hrAvg ?? null,
       hrMax: data.hrMax ?? null,
       elevationGain: data.elevationGain ?? 0,
+      kudos: data.kudos ?? 0,
+      type: data.type ?? 'Workout',
     }
   })
 
