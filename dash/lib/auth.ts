@@ -1,33 +1,30 @@
 import type { AuthOptions } from 'next-auth'
+import StravaProvider from 'next-auth/providers/strava'
 import { userRef } from '@/lib/firebase'
 
 export const authOptions: AuthOptions = {
   providers: [
-    {
-      id: 'strava',
-      name: 'Strava',
-      type: 'oauth',
+    StravaProvider({
+      clientId: process.env.STRAVA_CLIENT_ID!,
+      clientSecret: process.env.STRAVA_CLIENT_SECRET!,
       authorization: {
-        url: 'https://www.strava.com/oauth/authorize',
         params: {
           scope: 'read,profile:read_all,activity:read_all',
+          approval_prompt: 'auto',
           response_type: 'code',
         },
       },
-      token: 'https://www.strava.com/oauth/token',
-      userinfo: 'https://www.strava.com/api/v3/athlete',
-      clientId: process.env.STRAVA_CLIENT_ID!,
-      clientSecret: process.env.STRAVA_CLIENT_SECRET!,
       profile(profile) {
         return {
           id: String(profile.id),
           name: [profile.firstname, profile.lastname].filter(Boolean).join(' ') || 'Atleta',
-          email: profile.email ?? `${profile.id}@strava.local`,
+          email: `${profile.id}@strava.local`,
           image: profile.profile,
         }
       },
-    },
+    }),
   ],
+
   callbacks: {
     async jwt({ token, account, profile }) {
       if (account) {
@@ -71,12 +68,12 @@ export const authOptions: AuthOptions = {
 
 async function refreshAccessToken(token: any) {
   try {
-    const res = await fetch('https://www.strava.com/oauth/token', {
+    const res = await fetch('https://www.strava.com/api/v3/oauth/token', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        client_id: process.env.STRAVA_CLIENT_ID,
-        client_secret: process.env.STRAVA_CLIENT_SECRET,
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        client_id: process.env.STRAVA_CLIENT_ID ?? '',
+        client_secret: process.env.STRAVA_CLIENT_SECRET ?? '',
         grant_type: 'refresh_token',
         refresh_token: token.refreshToken,
       }),

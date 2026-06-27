@@ -39,12 +39,12 @@ export async function POST(req: NextRequest) {
   // Verifica se o token expirou e renova se necessário
   let { accessToken, refreshToken, expiresAt } = userData
   if (Date.now() > expiresAt * 1000) {
-    const res = await fetch('https://www.strava.com/oauth/token', {
+    const res = await fetch('https://www.strava.com/api/v3/oauth/token', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        client_id: process.env.STRAVA_CLIENT_ID,
-        client_secret: process.env.STRAVA_CLIENT_SECRET,
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        client_id: process.env.STRAVA_CLIENT_ID ?? '',
+        client_secret: process.env.STRAVA_CLIENT_SECRET ?? '',
         grant_type: 'refresh_token',
         refresh_token: refreshToken,
       }),
