@@ -43,7 +43,15 @@ export default async function HomePage() {
     }
   })
 
-  const meta = metaSnap.exists ? metaSnap.data() : null
+  const meta = metaSnap.exists
+    ? (() => {
+        const data = metaSnap.data()
+        return {
+          ...data,
+          lastSync: data?.lastSync?.toDate?.()?.toISOString() ?? data?.lastSync ?? null,
+        }
+      })()
+    : null
 
   return (
     <DashboardClient
