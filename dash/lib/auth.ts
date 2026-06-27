@@ -9,7 +9,10 @@ export const authOptions: AuthOptions = {
       type: 'oauth',
       authorization: {
         url: 'https://www.strava.com/oauth/authorize',
-        params: { scope: 'activity:read_all,read', response_type: 'code' },
+        params: {
+          scope: 'read,profile:read_all,activity:read_all',
+          response_type: 'code',
+        },
       },
       token: 'https://www.strava.com/oauth/token',
       userinfo: 'https://www.strava.com/api/v3/athlete',
@@ -18,7 +21,7 @@ export const authOptions: AuthOptions = {
       profile(profile) {
         return {
           id: String(profile.id),
-          name: `${profile.firstname} ${profile.lastname}`,
+          name: [profile.firstname, profile.lastname].filter(Boolean).join(' ') || 'Atleta',
           email: profile.email ?? `${profile.id}@strava.local`,
           image: profile.profile,
         }
