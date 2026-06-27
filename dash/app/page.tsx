@@ -1,4 +1,4 @@
-import { getServerSession } from 'next-auth'
+﻿import { getServerSession } from 'next-auth'
 import { redirect } from 'next/navigation'
 import { authOptions } from '@/lib/auth'
 import { activitiesRef, metaRef } from '@/lib/firebase'
@@ -19,6 +19,18 @@ type DashboardActivity = {
 }
 
 export const revalidate = 0
+
+function serializeFirestoreValue(value: any): any {
+  if (value == null) return value
+  if (typeof value?.toDate === 'function') return value.toDate().toISOString()
+  if (Array.isArray(value)) return value.map(serializeFirestoreValue)
+  if (typeof value === 'object') {
+    return Object.fromEntries(
+      Object.entries(value).map(([key, nested]) => [key, serializeFirestoreValue(nested)])
+    )
+  }
+  return value
+}
 
 export default async function HomePage() {
   const session = await getServerSession(authOptions)
@@ -47,15 +59,7 @@ export default async function HomePage() {
     }
   })
 
-  const meta = metaSnap.exists
-    ? (() => {
-        const data = metaSnap.data()
-        return {
-          ...data,
-          lastSync: data?.lastSync?.toDate?.()?.toISOString() ?? data?.lastSync ?? null,
-        }
-      })()
-    : null
+  const meta = metaSnap.exists ? serializeFirestoreValue(metaSnap.data()) : null
 
   return (
     <DashboardClient
