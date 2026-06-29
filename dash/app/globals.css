@@ -296,6 +296,22 @@ button {
   color: var(--text);
 }
 
+.period-select {
+  width: 100%;
+  min-height: 44px;
+  border-radius: 14px;
+  border: 1px solid var(--border);
+  background: var(--surface-soft);
+  color: var(--text);
+  padding: 10px 14px;
+  outline: none;
+}
+
+.period-select:focus {
+  border-color: var(--border-strong);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent-2) 18%, transparent);
+}
+
 .pill,
 .sport-chip,
 .sport-tag {

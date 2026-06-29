@@ -43,6 +43,7 @@ import {
 import { CompareTile, DetailItem, InsightItem, MetricCard, Panel, SectionLead } from './dashboard/ui'
 
 type WindowMode = 'year' | 'month' | 'week' | 'rolling28'
+type WindowOption = { key: string; label: string; start: Date; end: Date }
 
 export default function DashboardClient({ initialActivities, initialYear, availableYears, isAdmin, meta, userName }: Props) {
   const actualYears = useMemo(
@@ -68,6 +69,8 @@ export default function DashboardClient({ initialActivities, initialYear, availa
   )
   const [selectedSports, setSelectedSports] = useState<string[]>(['Run'])
   const [windowMode, setWindowMode] = useState<WindowMode>('year')
+  const [selectedMonthKey, setSelectedMonthKey] = useState<string>('')
+  const [selectedWeekKey, setSelectedWeekKey] = useState<string>('')
   const [page, setPage] = useState(1)
   const [selectedActivity, setSelectedActivity] = useState<Activity | null>(null)
 
@@ -265,6 +268,69 @@ export default function DashboardClient({ initialActivities, initialYear, availa
     return mergedActivities.filter((activity) => chosen.has(activity.type))
   }, [allSportsSelected, mergedActivities, selectedSports])
 
+  const monthOptions = useMemo(() => {
+    const map = new Map<string, WindowOption>()
+
+    for (const activity of filteredActivities) {
+      const date = new Date(activity.date)
+      const start = new Date(date.getFullYear(), date.getMonth(), 1)
+      const end = new Date(date.getFullYear(), date.getMonth() + 1, 0, 23, 59, 59, 999)
+      const key = activity.date.slice(0, 7)
+      if (!map.has(key)) {
+        map.set(key, {
+          key,
+          label: start.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' }),
+          start,
+          end,
+        })
+      }
+    }
+
+    return Array.from(map.values()).sort((a, b) => b.key.localeCompare(a.key))
+  }, [filteredActivities])
+
+  const weekOptions = useMemo(() => {
+    const map = new Map<string, WindowOption>()
+
+    for (const activity of filteredActivities) {
+      const start = startOfWeek(new Date(activity.date))
+      const end = new Date(start.getTime() + WEEK_MS - 1)
+      const key = start.toISOString().slice(0, 10)
+      if (!map.has(key)) {
+        map.set(key, {
+          key,
+          label: `${start.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' })} - ${end.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })}`,
+          start,
+          end,
+        })
+      }
+    }
+
+    return Array.from(map.values()).sort((a, b) => b.key.localeCompare(a.key))
+  }, [filteredActivities])
+
+  useEffect(() => {
+    if (!monthOptions.length) {
+      if (selectedMonthKey) setSelectedMonthKey('')
+      return
+    }
+
+    if (!monthOptions.some((option) => option.key == selectedMonthKey)) {
+      setSelectedMonthKey(monthOptions[0].key)
+    }
+  }, [monthOptions, selectedMonthKey])
+
+  useEffect(() => {
+    if (!weekOptions.length) {
+      if (selectedWeekKey) setSelectedWeekKey('')
+      return
+    }
+
+    if (!weekOptions.some((option) => option.key == selectedWeekKey)) {
+      setSelectedWeekKey(weekOptions[0].key)
+    }
+  }, [selectedWeekKey, weekOptions])
+
   const activeWindow = useMemo(() => {
     const baseYearLabel = allYearsSelected ? 'historico completo' : selectedYears.length === 1 ? selectedYears[0] : `${selectedYears.length} anos`
 
@@ -273,6 +339,8 @@ export default function DashboardClient({ initialActivities, initialYear, availa
         activities: [] as Activity[],
         label: baseYearLabel,
         title: 'Ano',
+        start: null as Date | null,
+        end: null as Date | null,
         volumeTitle: 'Volume mensal',
         volumeSubtitle: 'Quilometragem agrupada por mes dentro do recorte ativo',
         comparisonTitle: 'Comparativo 28 dias',
@@ -283,37 +351,42 @@ export default function DashboardClient({ initialActivities, initialYear, availa
     const latestDate = new Date(filteredActivities[0].date)
 
     if (windowMode === 'month') {
-      const start = new Date(latestDate.getFullYear(), latestDate.getMonth(), 1)
-      const end = new Date(latestDate.getFullYear(), latestDate.getMonth() + 1, 1)
+      const selectedMonth = monthOptions.find((option) => option.key === selectedMonthKey) ?? monthOptions[0]
+      const start = selectedMonth?.start ?? new Date(latestDate.getFullYear(), latestDate.getMonth(), 1)
+      const end = selectedMonth?.end ?? new Date(latestDate.getFullYear(), latestDate.getMonth() + 1, 0, 23, 59, 59, 999)
       return {
         activities: filteredActivities.filter((activity) => {
           const date = new Date(activity.date)
-          return date >= start && date < end
+          return date >= start && date <= end
         }),
-        label: latestDate.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' }),
-        title: 'Mes ativo',
+        label: selectedMonth?.label ?? latestDate.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' }),
+        title: 'Mes',
+        start,
+        end,
         volumeTitle: 'Volume diario',
-        volumeSubtitle: 'Quilometragem por dia dentro do mes ativo',
+        volumeSubtitle: 'Quilometragem por dia dentro do mes selecionado',
         comparisonTitle: 'Comparativo mensal',
-        comparisonSubtitle: 'Mes ativo versus o mes imediatamente anterior.',
+        comparisonSubtitle: 'Mes selecionado versus o mes imediatamente anterior.',
       }
     }
 
     if (windowMode === 'week') {
-      const start = startOfWeek(latestDate)
-      const end = new Date(start.getTime() + WEEK_MS)
-      const endDisplay = new Date(end.getTime() - DAY_MS)
+      const selectedWeek = weekOptions.find((option) => option.key === selectedWeekKey) ?? weekOptions[0]
+      const start = selectedWeek?.start ?? startOfWeek(latestDate)
+      const end = selectedWeek?.end ?? new Date(start.getTime() + WEEK_MS - 1)
       return {
         activities: filteredActivities.filter((activity) => {
           const date = new Date(activity.date)
-          return date >= start && date < end
+          return date >= start && date <= end
         }),
-        label: `${start.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })} a ${endDisplay.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })}`,
-        title: 'Semana ativa',
+        label: selectedWeek?.label ?? `${start.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })} a ${end.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })}` ,
+        title: 'Semana',
+        start,
+        end,
         volumeTitle: 'Volume diario',
-        volumeSubtitle: 'Quilometragem por dia dentro da semana ativa',
+        volumeSubtitle: 'Quilometragem por dia dentro da semana selecionada',
         comparisonTitle: 'Comparativo semanal',
-        comparisonSubtitle: 'Semana ativa versus a semana imediatamente anterior.',
+        comparisonSubtitle: 'Semana selecionada versus a semana imediatamente anterior.',
       }
     }
 
@@ -326,6 +399,8 @@ export default function DashboardClient({ initialActivities, initialYear, availa
         }),
         label: `ultimos 28 dias ate ${latestDate.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })}`,
         title: '28 dias',
+        start,
+        end: latestDate,
         volumeTitle: 'Volume diario',
         volumeSubtitle: 'Quilometragem por dia dentro dos ultimos 28 dias',
         comparisonTitle: 'Comparativo 28 dias',
@@ -337,12 +412,14 @@ export default function DashboardClient({ initialActivities, initialYear, availa
       activities: filteredActivities,
       label: baseYearLabel,
       title: 'Ano',
+      start: null as Date | null,
+      end: null as Date | null,
       volumeTitle: 'Volume mensal',
       volumeSubtitle: 'Quilometragem agrupada por mes dentro do recorte ativo',
       comparisonTitle: 'Comparativo 28 dias',
       comparisonSubtitle: 'Janela atual versus as 4 semanas imediatamente anteriores.',
     }
-  }, [allYearsSelected, filteredActivities, selectedYears, windowMode])
+  }, [allYearsSelected, filteredActivities, monthOptions, selectedMonthKey, selectedYears, selectedWeekKey, weekOptions, windowMode])
 
   const activeActivities = activeWindow.activities
 
@@ -446,20 +523,16 @@ export default function DashboardClient({ initialActivities, initialYear, availa
   const periodComparison = useMemo(() => {
     if (!scopedAnalyzedActivities.length) return null
 
-    const latestDate = new Date(scopedAnalyzedActivities[0].date)
-    let currentStart = new Date(latestDate.getTime() - 27 * DAY_MS)
-    let currentEnd = latestDate
+    const latestDate = activeWindow.end ?? new Date(scopedAnalyzedActivities[0].date)
+    let currentStart = activeWindow.start ?? new Date(latestDate.getTime() - 27 * DAY_MS)
+    let currentEnd = activeWindow.end ?? latestDate
     let previousStart = new Date(currentStart.getTime() - 28 * DAY_MS)
     let previousEnd = new Date(currentStart.getTime() - DAY_MS)
 
     if (windowMode === 'month') {
-      currentStart = new Date(latestDate.getFullYear(), latestDate.getMonth(), 1)
-      currentEnd = new Date(latestDate.getFullYear(), latestDate.getMonth() + 1, 0, 23, 59, 59, 999)
-      previousStart = new Date(latestDate.getFullYear(), latestDate.getMonth() - 1, 1)
-      previousEnd = new Date(latestDate.getFullYear(), latestDate.getMonth(), 0, 23, 59, 59, 999)
+      previousStart = new Date(currentStart.getFullYear(), currentStart.getMonth() - 1, 1)
+      previousEnd = new Date(currentStart.getFullYear(), currentStart.getMonth(), 0, 23, 59, 59, 999)
     } else if (windowMode === 'week') {
-      currentStart = startOfWeek(latestDate)
-      currentEnd = new Date(currentStart.getTime() + WEEK_MS - 1)
       previousStart = new Date(currentStart.getTime() - WEEK_MS)
       previousEnd = new Date(currentStart.getTime() - 1)
     }
@@ -486,7 +559,7 @@ export default function DashboardClient({ initialActivities, initialYear, availa
         ? ((previousTotals.avgPace - currentTotals.avgPace) / previousTotals.avgPace) * 100
         : 0,
     }
-  }, [scopedAnalyzedActivities, windowMode])
+  }, [activeWindow.end, activeWindow.start, scopedAnalyzedActivities, windowMode])
 
   const weeklyLoad = useMemo(() => {
     if (!scopedAnalyzedActivities.length) return [] as Array<{ week: string; km: number; sessions: number; load: number }>
@@ -789,8 +862,8 @@ export default function DashboardClient({ initialActivities, initialYear, availa
               <div className="filter-row">
                 {[
                   { key: 'year', label: 'Ano' },
-                  { key: 'month', label: 'Mes ativo' },
-                  { key: 'week', label: 'Semana ativa' },
+                  { key: 'month', label: 'Mes' },
+                  { key: 'week', label: 'Semana' },
                   { key: 'rolling28', label: '28 dias' },
                 ].map((option) => (
                   <button
@@ -805,8 +878,42 @@ export default function DashboardClient({ initialActivities, initialYear, availa
                   </button>
                 ))}
               </div>
-              {windowMode !== 'year' && <p className="filter-helper">A janela ativa usa a atividade mais recente do recorte base como ancora.</p>}
+              {windowMode === 'rolling28' && <p className="filter-helper">A janela de 28 dias continua ancorada na atividade mais recente do recorte base.</p>}
             </div>
+
+            {windowMode === 'month' && monthOptions.length > 0 && (
+              <div className="filter-block">
+                <span className="control-label">Mes selecionado</span>
+                <select
+                  className="period-select"
+                  value={selectedMonthKey}
+                  onChange={(event) => setSelectedMonthKey(event.target.value)}
+                >
+                  {monthOptions.map((option) => (
+                    <option key={option.key} value={option.key}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            {windowMode === 'week' && weekOptions.length > 0 && (
+              <div className="filter-block">
+                <span className="control-label">Semana selecionada</span>
+                <select
+                  className="period-select"
+                  value={selectedWeekKey}
+                  onChange={(event) => setSelectedWeekKey(event.target.value)}
+                >
+                  {weekOptions.map((option) => (
+                    <option key={option.key} value={option.key}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
 
             <div className="filter-summary">
               <span className="pill pill-ghost">Anos: {yearLabel}</span>
