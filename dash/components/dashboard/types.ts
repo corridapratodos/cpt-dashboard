@@ -1,3 +1,10 @@
+export interface BestEffort {
+  name: string
+  distanceKm: number
+  elapsedSec: number
+  movingSec: number | null
+}
+
 export interface Activity {
   stravaId: number
   name: string
@@ -12,6 +19,7 @@ export interface Activity {
   type: string
   excludedFromMetrics: boolean
   qualityFlags: string[]
+  bestEfforts: BestEffort[]
 }
 
 export interface Props {
@@ -50,4 +58,7 @@ export type PeriodTotals = {
 export type RecordEntry = {
   targetKm: number
   activity: Activity
+  displayDurationSec: number
+  displayPaceSec: number | null
+  source: 'strava-best-effort' | 'estimated'
 }

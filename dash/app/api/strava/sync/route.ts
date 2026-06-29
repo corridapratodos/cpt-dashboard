@@ -3,7 +3,7 @@ import { authOptions } from '@/lib/auth'
 import { FULL_SYNC_COOLDOWN_MS, getUserScope, hasAdminAccess, isActivityAllowedForScope, parseStoredDate } from '@/lib/access'
 import { buildSyncSummary, toDashboardActivity } from '@/lib/dashboard'
 import { activitiesRef, metaRef, userRef } from '@/lib/firebase'
-import { fetchActivities, isRealRun, mapActivity } from '@/lib/strava'
+import { fetchActivities, fetchBestEffortsForActivities, isRealRun, mapActivity } from '@/lib/strava'
 
 const SYNC_LOCK_WINDOW_MS = 10 * 60 * 1000
 
@@ -140,7 +140,10 @@ export async function POST(req: Request) {
     const effectiveMode = shouldRunIncremental ? 'incremental' : 'full'
     const incoming = await fetchActivities(session.accessToken, shouldRunIncremental ? incrementalAfter : undefined)
     const scopedIncoming = incoming.filter((activity) => isActivityAllowedForScope({ type: activity.type, date: activity.start_date }, scope))
-    const mappedActivities = scopedIncoming.map(mapActivity)
+    const bestEffortBackfill = await fetchBestEffortsForActivities(session.accessToken, scopedIncoming, effectiveMode)
+    const mappedActivities = scopedIncoming.map((activity) =>
+      mapActivity(activity, { bestEfforts: bestEffortBackfill.byActivityId.get(Number(activity.id)) })
+    )
     const validRuns = scopedIncoming.filter(isRealRun)
 
     for (let i = 0; i < mappedActivities.length; i += 500) {
@@ -185,6 +188,10 @@ export async function POST(req: Request) {
         lastSyncAddedActivities: mappedActivities.length,
         lastSyncAddedQualifiedRuns: validRuns.length,
         lastSyncFetchedActivities: incoming.length,
+        bestEffortEligibleActivities: bestEffortBackfill.eligibleCount,
+        bestEffortFetchedActivities: bestEffortBackfill.fetchedCount,
+        bestEffortEnrichedActivities: bestEffortBackfill.enrichedCount,
+        bestEffortRemainingActivities: bestEffortBackfill.remainingCount,
         historicalBackfillCompleted: true,
         syncInProgress: false,
         syncRequestedMode: effectiveRequestedMode,
@@ -209,6 +216,12 @@ export async function POST(req: Request) {
       admin: isAdmin,
       totalActivities: summary.totalActivities,
       availableYears: summary.availableYears,
+      bestEffortCoverage: {
+        eligible: bestEffortBackfill.eligibleCount,
+        fetched: bestEffortBackfill.fetchedCount,
+        enriched: bestEffortBackfill.enrichedCount,
+        remaining: bestEffortBackfill.remainingCount,
+      },
       scope: {
         fullAccess: scope.fullAccess,
         allowedYears: scope.allowedYears,

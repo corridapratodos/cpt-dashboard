@@ -50,6 +50,7 @@ export default function DashboardClient({ initialActivities, initialYear, availa
 
   const [syncing, setSyncing] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  const [backfilling, setBackfilling] = useState(false)
   const [activityReviewing, setActivityReviewing] = useState(false)
   const [syncMsg, setSyncMsg] = useState('')
   const [theme, setTheme] = useState<ThemeMode>('dark')
@@ -453,11 +454,42 @@ export default function DashboardClient({ initialActivities, initialYear, availa
     const result: RecordEntry[] = []
 
     for (const targetKm of recordTargets) {
+      const officialMatches = candidates
+        .flatMap((activity) =>
+          activity.bestEfforts
+            .filter((effort) => Math.abs(effort.distanceKm - targetKm) <= getDistanceTolerance(targetKm))
+            .map((effort) => ({ activity, effort }))
+        )
+
+      if (officialMatches.length) {
+        const bestOfficial = officialMatches.reduce((winner, current) => {
+          const winnerTime = winner.effort.movingSec ?? winner.effort.elapsedSec
+          const currentTime = current.effort.movingSec ?? current.effort.elapsedSec
+          return currentTime < winnerTime ? current : winner
+        }, officialMatches[0])
+
+        const durationSec = bestOfficial.effort.movingSec ?? bestOfficial.effort.elapsedSec
+        result.push({
+          targetKm,
+          activity: bestOfficial.activity,
+          displayDurationSec: durationSec,
+          displayPaceSec: Math.round(durationSec / targetKm),
+          source: 'strava-best-effort',
+        })
+        continue
+      }
+
       const tolerance = getDistanceTolerance(targetKm)
-      const matches = candidates.filter((activity) => Math.abs(activity.distanceKm - targetKm) <= tolerance)
-      if (!matches.length) continue
-      const best = matches.reduce((winner, activity) => (activity.paceSec ?? Infinity) < (winner.paceSec ?? Infinity) ? activity : winner, matches[0])
-      result.push({ targetKm, activity: best })
+      const estimatedMatches = candidates.filter((activity) => Math.abs(activity.distanceKm - targetKm) <= tolerance)
+      if (!estimatedMatches.length) continue
+      const bestEstimated = estimatedMatches.reduce((winner, activity) => (activity.paceSec ?? Infinity) < (winner.paceSec ?? Infinity) ? activity : winner, estimatedMatches[0])
+      result.push({
+        targetKm,
+        activity: bestEstimated,
+        displayDurationSec: Math.round((bestEstimated.paceSec ?? 0) * targetKm),
+        displayPaceSec: bestEstimated.paceSec,
+        source: 'estimated',
+      })
     }
 
     return result
@@ -662,9 +694,35 @@ export default function DashboardClient({ initialActivities, initialYear, availa
                   <p className="control-label">Ferramentas de administrador</p>
                   <strong>Reconstrucao completa protegida por cooldown</strong>
                 </div>
-                <button onClick={() => handleSync('full')} disabled={syncing || deleting || loadingYears.length > 0} className="btn btn-outline" type="button">
-                  Full sync
-                </button>
+                <div className="admin-actions-row">
+                  <button onClick={() => handleSync('full')} disabled={syncing || deleting || backfilling || loadingYears.length > 0} className="btn btn-outline" type="button">
+                    Full sync
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-outline"
+                    disabled={syncing || deleting || backfilling || loadingYears.length > 0}
+                    onClick={async () => {
+                      setBackfilling(true)
+                      setSyncMsg('')
+                      try {
+                        const res = await fetch('/api/admin/backfill-efforts', { method: 'POST' })
+                        const data = await res.json()
+                        if (!res.ok) throw new Error(data?.error ?? 'Erro no backfill')
+                        setSyncMsg(`Best efforts: ${data.enriched} enriquecidas de ${data.processed} processadas. Restam ${data.remaining}.`)
+                        if (data.remaining === 0 && data.enriched > 0) {
+                          setTimeout(() => window.location.reload(), 1500)
+                        }
+                      } catch (error) {
+                        setSyncMsg(error instanceof Error ? error.message : 'Erro no backfill')
+                      } finally {
+                        setBackfilling(false)
+                      }
+                    }}
+                  >
+                    {backfilling ? 'Buscando best efforts...' : 'Backfill best efforts'}
+                  </button>
+                </div>
               </div>
             )}
 
@@ -804,15 +862,19 @@ export default function DashboardClient({ initialActivities, initialYear, availa
             subtitle="Esses blocos ajudam a interpretar os numeros principais sem transformar o painel em uma planilha crua."
           />
           <section className="insight-grid insight-grid-expanded">
-            <Panel eyebrow="Recordes" title="Melhores marcas do recorte" subtitle="Aproximadas pela atividade inteira mais forte em cada distancia-alvo">
+            <Panel eyebrow="Recordes" title="Melhores marcas do recorte" subtitle="Prioriza best efforts oficiais do Strava. Quando nao houver detalhamento disponivel, cai para aproximacao pela atividade inteira.">
               {records.length ? (
                 <div className="record-grid">
                   {records.map((record) => (
                     <article key={`${record.targetKm}-${record.activity.stravaId}`} className="compare-tile">
                       <p className="metric-label">{record.targetKm} km</p>
-                      <strong>{fmt.pace(record.activity.paceSec)}</strong>
-                      <span className="compare-previous">{getDisplayName(record.activity.name)}</span>
-                      <span className="compare-previous">{fmt.fullDate(record.activity.date)}</span>
+                      <strong>{fmt.clock(record.displayDurationSec)}</strong>
+                      <span className="compare-previous">
+                        {record.source === 'strava-best-effort'
+                          ? `best effort oficial - ${fmt.pace(record.displayPaceSec)}/km`
+                          : `aproximado pela atividade - ${fmt.pace(record.displayPaceSec)}/km`}
+                      </span>
+                      <span className="compare-previous">{getDisplayName(record.activity.name)} | {fmt.fullDate(record.activity.date)}</span>
                     </article>
                   ))}
                 </div>

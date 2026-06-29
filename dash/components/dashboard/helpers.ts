@@ -33,6 +33,16 @@ export const fmt = {
     const m = Math.floor((sec % 3600) / 60)
     return h > 0 ? `${h}h${String(m).padStart(2, '0')}` : `${m}min`
   },
+  clock: (sec: number | null) => {
+    if (sec == null || !Number.isFinite(sec)) return '-'
+    const total = Math.max(0, Math.round(sec))
+    const h = Math.floor(total / 3600)
+    const m = Math.floor((total % 3600) / 60)
+    const s = total % 60
+    return h > 0
+      ? `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
+      : `${m}:${String(s).padStart(2, '0')}`
+  },
   date: (iso: string) => new Date(iso).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' }),
   fullDate: (iso: string) => new Date(iso).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' }),
   month: (iso: string) => new Date(iso).toLocaleDateString('pt-BR', { month: 'short', year: '2-digit' }),

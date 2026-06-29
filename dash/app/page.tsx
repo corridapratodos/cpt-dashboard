@@ -35,7 +35,8 @@ export default async function HomePage() {
   const shouldRepairYears =
     scope.fullAccess &&
     Number(meta?.totalActivities ?? 0) > 0 &&
-    availableYears.length <= 1
+    availableYears.length <= 1 &&
+    !meta?.metadataRepairedAt
 
   if (shouldRepairYears) {
     const repairSnap = await activitiesRef(session.stravaId).orderBy('date', 'desc').get()

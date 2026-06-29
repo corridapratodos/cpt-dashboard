@@ -1,6 +1,13 @@
 import { Query } from 'firebase-admin/firestore'
 import { FREE_PLAN_YEAR, FREE_PLAN_TYPES, type UserScope } from '@/lib/access'
 
+export type StoredBestEffort = {
+  name: string
+  distanceKm: number
+  elapsedSec: number
+  movingSec: number | null
+}
+
 type StoredActivity = {
   stravaId: number
   name: string
@@ -15,6 +22,7 @@ type StoredActivity = {
   type: string
   excludedFromMetrics: boolean
   qualityFlags: string[]
+  bestEfforts: StoredBestEffort[]
 }
 
 type SyncSummary = {
@@ -53,6 +61,16 @@ export function toDashboardActivity(data: any): StoredActivity {
     type: String(data.type ?? 'Workout'),
     excludedFromMetrics: data.excludedFromMetrics === true,
     qualityFlags: Array.isArray(data.qualityFlags) ? data.qualityFlags.map(String) : [],
+    bestEfforts: Array.isArray(data.bestEfforts)
+      ? data.bestEfforts
+          .map((effort: any) => ({
+            name: String(effort?.name ?? 'Best effort'),
+            distanceKm: Number(effort?.distanceKm ?? 0),
+            elapsedSec: Number(effort?.elapsedSec ?? 0),
+            movingSec: effort?.movingSec == null ? null : Number(effort.movingSec),
+          }))
+          .filter((effort: StoredBestEffort) => effort.distanceKm > 0 && effort.elapsedSec > 0)
+      : [],
   }
 }
 
@@ -158,4 +176,3 @@ export function buildActivitiesQuery(baseQuery: Query, year: string, scope?: Use
 
   return query.orderBy('date', 'desc')
 }
-
