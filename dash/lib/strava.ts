@@ -1,3 +1,5 @@
+import { normalizeTextValue } from '@/lib/text'
+
 // Busca atividades do atleta com suporte a sync incremental por data
 export async function fetchActivities(accessToken: string, after?: number) {
   const activities: any[] = []
@@ -64,7 +66,7 @@ export function mapActivity(a: any) {
 
   return {
     stravaId: a.id,
-    name: a.name,
+    name: String(normalizeTextValue(a.name) ?? 'Atividade'),
     date: new Date(a.start_date),
     distanceKm: parseFloat(distKm.toFixed(2)),
     durationSec: a.moving_time,
@@ -77,4 +79,3 @@ export function mapActivity(a: any) {
     syncedAt: new Date(),
   }
 }
-

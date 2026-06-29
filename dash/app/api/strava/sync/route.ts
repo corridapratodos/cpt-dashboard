@@ -1,4 +1,4 @@
-﻿import { getServerSession } from 'next-auth'
+import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { FULL_SYNC_COOLDOWN_MS, getUserScope, hasAdminAccess, isActivityAllowedForScope, parseStoredDate } from '@/lib/access'
 import { buildSyncSummary, toDashboardActivity } from '@/lib/dashboard'
@@ -6,6 +6,65 @@ import { activitiesRef, metaRef, userRef } from '@/lib/firebase'
 import { fetchActivities, isRealRun, mapActivity } from '@/lib/strava'
 
 const SYNC_LOCK_WINDOW_MS = 10 * 60 * 1000
+
+type StoredScope = {
+  fullAccess?: boolean
+  allowedYears?: string[] | 'all'
+  allowedTypes?: string[] | 'all'
+} | null | undefined
+
+type StoredMeta = {
+  lastFullSyncAt?: unknown
+  syncInProgress?: boolean
+  syncLockUntil?: unknown
+  historicalBackfillCompleted?: boolean
+  dataScope?: StoredScope
+  totalActivities?: number
+  totalRuns?: number
+  totalsByType?: Record<string, number>
+  availableYears?: string[]
+  newestActivityAt?: string | null
+} | null
+
+function hasWiderYears(current: string[] | 'all', previous: string[] | 'all') {
+  if (current === 'all' && previous !== 'all') return true
+  if (current === 'all' || previous === 'all') return false
+  return current.some((year) => !previous.includes(year))
+}
+
+function hasWiderTypes(current: string[] | 'all', previous: string[] | 'all') {
+  if (current === 'all' && previous !== 'all') return true
+  if (current === 'all' || previous === 'all') return false
+  return current.some((type) => !previous.includes(type))
+}
+
+function scopeNeedsFullRebuild(current: ReturnType<typeof getUserScope>, previous: StoredScope) {
+  if (!previous) return false
+  if (current.fullAccess && !previous.fullAccess) return true
+  return (
+    hasWiderYears(current.allowedYears, previous.allowedYears ?? []) ||
+    hasWiderTypes(current.allowedTypes, previous.allowedTypes ?? [])
+  )
+}
+
+function mergeTypeTotals(current: Record<string, number> | undefined, added: Record<string, number>) {
+  const next = { ...(current ?? {}) }
+  for (const [type, count] of Object.entries(added)) {
+    next[type] = (next[type] ?? 0) + count
+  }
+  return next
+}
+
+function mergeYears(current: string[] | undefined, added: string[]) {
+  return Array.from(new Set([...(current ?? []), ...added])).sort((a, b) => Number(b) - Number(a))
+}
+
+function getNewestDate(current: string | null | undefined, incoming: string[]) {
+  const candidates = [...incoming]
+  if (current) candidates.push(current)
+  if (!candidates.length) return null
+  return candidates.sort((a, b) => b.localeCompare(a))[0] ?? null
+}
 
 export async function POST(req: Request) {
   const session = await getServerSession(authOptions)
@@ -29,15 +88,18 @@ export async function POST(req: Request) {
     return Response.json({ error: 'Full sync restrito ao administrador.' }, { status: 403 })
   }
 
-  const metaData = metaSnap.exists ? metaSnap.data() : null
+  const metaData = (metaSnap.exists ? metaSnap.data() : null) as StoredMeta
   const now = Date.now()
   const lockUntil = parseStoredDate(metaData?.syncLockUntil)
   if (metaData?.syncInProgress && lockUntil && lockUntil.getTime() > now) {
     return Response.json({ error: 'Ja existe uma sincronizacao em andamento para esta conta.' }, { status: 409 })
   }
 
+  const widenedScope = scopeNeedsFullRebuild(scope, metaData?.dataScope)
+  const effectiveRequestedMode = widenedScope ? 'full' : requestedMode
   const lastFullSyncAt = parseStoredDate(metaData?.lastFullSyncAt)
   if (
+    effectiveRequestedMode === 'full' &&
     requestedMode === 'full' &&
     lastFullSyncAt &&
     now - lastFullSyncAt.getTime() < FULL_SYNC_COOLDOWN_MS
@@ -52,7 +114,7 @@ export async function POST(req: Request) {
   await metaRef(session.stravaId).set(
     {
       syncInProgress: true,
-      syncRequestedMode: requestedMode,
+      syncRequestedMode: effectiveRequestedMode,
       syncStartedAt: new Date(),
       syncLockUntil: new Date(now + SYNC_LOCK_WINDOW_MS),
     },
@@ -74,7 +136,7 @@ export async function POST(req: Request) {
         ? Math.floor(new Date(latestSavedDate).getTime() / 1000)
         : undefined
 
-    const shouldRunIncremental = requestedMode !== 'full' && historicalBackfillCompleted && incrementalAfter != null
+    const shouldRunIncremental = effectiveRequestedMode !== 'full' && historicalBackfillCompleted && incrementalAfter != null
     const effectiveMode = shouldRunIncremental ? 'incremental' : 'full'
     const incoming = await fetchActivities(session.accessToken, shouldRunIncremental ? incrementalAfter : undefined)
     const scopedIncoming = incoming.filter((activity) => isActivityAllowedForScope({ type: activity.type, date: activity.start_date }, scope))
@@ -91,9 +153,23 @@ export async function POST(req: Request) {
       await batch.commit()
     }
 
-    const fullSnapshot = await colRef.orderBy('date', 'desc').get()
-    const allActivities = fullSnapshot.docs.map((doc) => toDashboardActivity(doc.data()))
-    const summary = buildSyncSummary(allActivities)
+    let summary: ReturnType<typeof buildSyncSummary>
+
+    if (effectiveMode === 'incremental') {
+      const incomingActivities = mappedActivities.map((activity) => toDashboardActivity(activity))
+      const incomingSummary = buildSyncSummary(incomingActivities)
+      summary = {
+        availableYears: mergeYears(metaData?.availableYears, incomingSummary.availableYears),
+        totalActivities: Number(metaData?.totalActivities ?? 0) + mappedActivities.length,
+        totalRuns: Number(metaData?.totalRuns ?? 0) + validRuns.length,
+        totalsByType: mergeTypeTotals(metaData?.totalsByType, incomingSummary.totalsByType),
+        newestActivityAt: getNewestDate(metaData?.newestActivityAt ?? null, incomingActivities.map((activity) => activity.date)),
+      }
+    } else {
+      const fullSnapshot = await colRef.orderBy('date', 'desc').get()
+      const allActivities = fullSnapshot.docs.map((doc) => toDashboardActivity(doc.data()))
+      summary = buildSyncSummary(allActivities)
+    }
 
     await metaRef(session.stravaId).set(
       {
@@ -111,7 +187,7 @@ export async function POST(req: Request) {
         lastSyncFetchedActivities: incoming.length,
         historicalBackfillCompleted: true,
         syncInProgress: false,
-        syncRequestedMode: requestedMode,
+        syncRequestedMode: effectiveRequestedMode,
         syncFinishedAt: new Date(),
         syncLockUntil: null,
         dataScope: {
@@ -138,6 +214,7 @@ export async function POST(req: Request) {
         allowedYears: scope.allowedYears,
         allowedTypes: scope.allowedTypes,
       },
+      widenedScope,
     })
   } catch (error) {
     await metaRef(session.stravaId).set(

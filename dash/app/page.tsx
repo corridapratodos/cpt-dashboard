@@ -1,10 +1,16 @@
-﻿import { getServerSession } from 'next-auth'
+import { getServerSession } from 'next-auth'
 import { redirect } from 'next/navigation'
 import DashboardClient from '@/components/DashboardClient'
 import LegalGate from '@/components/LegalGate'
 import { getUserPlan, getUserScope, hasAcceptedLegal, hasAdminAccess } from '@/lib/access'
 import { authOptions } from '@/lib/auth'
-import { buildActivitiesQuery, getVisibleYears, serializeFirestoreValue, toDashboardActivity } from '@/lib/dashboard'
+import {
+  buildActivitiesQuery,
+  buildSyncSummary,
+  getVisibleYears,
+  serializeFirestoreValue,
+  toDashboardActivity,
+} from '@/lib/dashboard'
 import { activitiesRef, metaRef, userRef } from '@/lib/firebase'
 
 export const revalidate = 0
@@ -23,8 +29,44 @@ export default async function HomePage() {
   const scope = getUserScope(session.stravaId, userData)
   const isAdmin = hasAdminAccess(session.stravaId, userData)
   const metaSnap = await metaRef(session.stravaId).get()
-  const meta = metaSnap.exists ? serializeFirestoreValue(metaSnap.data()) : null
-  const availableYears = getVisibleYears(scope, meta?.availableYears)
+  let meta = metaSnap.exists ? serializeFirestoreValue(metaSnap.data()) : null
+  let availableYears = getVisibleYears(scope, meta?.availableYears)
+
+  const shouldRepairYears =
+    scope.fullAccess &&
+    Number(meta?.totalActivities ?? 0) > 0 &&
+    availableYears.length <= 1
+
+  if (shouldRepairYears) {
+    const repairSnap = await activitiesRef(session.stravaId).orderBy('date', 'desc').get()
+    const repairActivities = repairSnap.docs.map((doc) => toDashboardActivity(doc.data()))
+    const repairSummary = buildSyncSummary(repairActivities)
+
+    if (repairSummary.availableYears.length) {
+      availableYears = repairSummary.availableYears
+      meta = {
+        ...meta,
+        availableYears: repairSummary.availableYears,
+        totalActivities: repairSummary.totalActivities,
+        totalRuns: repairSummary.totalRuns,
+        totalsByType: repairSummary.totalsByType,
+        newestActivityAt: repairSummary.newestActivityAt,
+      }
+
+      await metaRef(session.stravaId).set(
+        {
+          availableYears: repairSummary.availableYears,
+          totalActivities: repairSummary.totalActivities,
+          totalRuns: repairSummary.totalRuns,
+          totalsByType: repairSummary.totalsByType,
+          newestActivityAt: repairSummary.newestActivityAt,
+          metadataRepairedAt: new Date(),
+        },
+        { merge: true }
+      )
+    }
+  }
+
   const initialYear = availableYears[0]
 
   const initialSnap = await buildActivitiesQuery(activitiesRef(session.stravaId), initialYear, scope)
@@ -54,3 +96,4 @@ export default async function HomePage() {
     />
   )
 }
+

@@ -1,4 +1,4 @@
-﻿import { Query } from 'firebase-admin/firestore'
+import { Query } from 'firebase-admin/firestore'
 import { FREE_PLAN_YEAR, FREE_PLAN_TYPES, type UserScope } from '@/lib/access'
 
 type StoredActivity = {
@@ -13,6 +13,8 @@ type StoredActivity = {
   elevationGain: number
   kudos: number
   type: string
+  excludedFromMetrics: boolean
+  qualityFlags: string[]
 }
 
 type SyncSummary = {
@@ -49,11 +51,14 @@ export function toDashboardActivity(data: any): StoredActivity {
     elevationGain: Number(data.elevationGain ?? 0),
     kudos: Number(data.kudos ?? 0),
     type: String(data.type ?? 'Workout'),
+    excludedFromMetrics: data.excludedFromMetrics === true,
+    qualityFlags: Array.isArray(data.qualityFlags) ? data.qualityFlags.map(String) : [],
   }
 }
 
 export function isQualifiedRun(activity: StoredActivity) {
   return (
+    !activity.excludedFromMetrics &&
     activity.type === 'Run' &&
     activity.distanceKm >= 2 &&
     activity.durationSec >= 20 * 60 &&
@@ -63,13 +68,8 @@ export function isQualifiedRun(activity: StoredActivity) {
   )
 }
 
-export function buildSyncSummary(activities: StoredActivity[]): SyncSummary {
-  const totalsByType = activities.reduce<Record<string, number>>((acc, activity) => {
-    acc[activity.type] = (acc[activity.type] ?? 0) + 1
-    return acc
-  }, {})
-
-  const availableYears = Array.from(
+export function extractAvailableYears(activities: Array<{ date: string }>) {
+  return Array.from(
     new Set(
       activities
         .map((activity) => new Date(activity.date).getFullYear())
@@ -77,6 +77,15 @@ export function buildSyncSummary(activities: StoredActivity[]): SyncSummary {
         .map(String)
     )
   ).sort((a, b) => Number(b) - Number(a))
+}
+
+export function buildSyncSummary(activities: StoredActivity[]): SyncSummary {
+  const totalsByType = activities.reduce<Record<string, number>>((acc, activity) => {
+    acc[activity.type] = (acc[activity.type] ?? 0) + 1
+    return acc
+  }, {})
+
+  const availableYears = extractAvailableYears(activities)
 
   const newestActivityAt = [...activities]
     .sort((a, b) => b.date.localeCompare(a.date))[0]?.date ?? null
@@ -149,3 +158,4 @@ export function buildActivitiesQuery(baseQuery: Query, year: string, scope?: Use
 
   return query.orderBy('date', 'desc')
 }
+

@@ -17,161 +17,54 @@ import {
   XAxis,
   YAxis,
 } from 'recharts'
-
-interface Activity {
-  stravaId: number
-  name: string
-  date: string
-  distanceKm: number
-  durationSec: number
-  paceSec: number | null
-  hrAvg: number | null
-  hrMax: number | null
-  elevationGain: number
-  kudos: number
-  type: string
-}
-
-interface Props {
-  initialActivities: Activity[]
-  initialYear: string
-  availableYears: string[]
-  isAdmin: boolean
-  meta: DashboardMeta | null
-  userName: string
-}
-
-type ThemeMode = 'dark' | 'light'
-type SyncMode = 'incremental' | 'full'
-
-type DashboardMeta = {
-  totalActivities?: number
-  lastSync?: string
-  lastSyncMode?: string
-  viewerRole?: string
-  viewerPlan?: string
-  viewerAdmin?: boolean
-  viewerScope?: {
-    years?: string[] | 'all'
-    types?: string[] | 'all'
-    fullAccess?: boolean
-  }
-}
-
-type PeriodTotals = {
-  distance: number
-  durationSec: number
-  sessions: number
-  avgPace: number | null
-}
-
-const DAY_MS = 24 * 60 * 60 * 1000
-const WEEK_MS = 7 * DAY_MS
-const ROWS_STEP = 24
-const focusOrder = ['Run', 'Ride', 'Walk', 'Hike', 'Workout']
-
-const sportMeta: Record<string, { label: string; accent: string; chip: string }> = {
-  Run: { label: 'Corrida', accent: 'var(--accent)', chip: 'var(--chip-run)' },
-  Ride: { label: 'Ciclismo', accent: 'var(--accent-2)', chip: 'var(--chip-ride)' },
-  Walk: { label: 'Caminhada', accent: 'var(--accent-3)', chip: 'var(--chip-walk)' },
-  Hike: { label: 'Trilha', accent: 'var(--accent-4)', chip: 'var(--chip-hike)' },
-  Workout: { label: 'Treino', accent: 'var(--chip-neutral)', chip: 'var(--chip-neutral)' },
-}
-
-const fmt = {
-  pace: (sec: number | null) => {
-    if (sec == null || !Number.isFinite(sec)) return '-'
-    return `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')}`
-  },
-  speed: (km: number, sec: number) => {
-    if (!sec) return '-'
-    return `${(km / (sec / 3600)).toFixed(1)} km/h`
-  },
-  dist: (km: number) => km.toFixed(1),
-  dur: (sec: number) => {
-    const h = Math.floor(sec / 3600)
-    const m = Math.floor((sec % 3600) / 60)
-    return h > 0 ? `${h}h${String(m).padStart(2, '0')}` : `${m}min`
-  },
-  date: (iso: string) => new Date(iso).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' }),
-  fullDate: (iso: string) => new Date(iso).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' }),
-  month: (iso: string) => new Date(iso).toLocaleDateString('pt-BR', { month: 'short', year: '2-digit' }),
-  pct: (value: number) => `${value > 0 ? '+' : ''}${value.toFixed(0)}%`,
-}
-
-function getSportLabel(type: string) {
-  return sportMeta[type]?.label ?? type
-}
-
-function getSportAccent(type: string) {
-  return sportMeta[type]?.accent ?? 'var(--accent)'
-}
-
-function getMetricMode(filter: string) {
-  if (filter === 'Ride') return 'speed'
-  if (filter === 'All') return 'mixed'
-  return 'pace'
-}
-
-function applyTheme(mode: ThemeMode) {
-  document.documentElement.dataset.theme = mode
-  localStorage.setItem('cpt-theme', mode)
-}
-
-function getPeriodTotals(items: Activity[]): PeriodTotals {
-  const sessions = items.length
-  const distance = items.reduce((sum, item) => sum + item.distanceKm, 0)
-  const durationSec = items.reduce((sum, item) => sum + item.durationSec, 0)
-  const valid = items.filter((item) => item.paceSec != null)
-  const avgPace = valid.length
-    ? Math.round(valid.reduce((sum, item) => sum + (item.paceSec ?? 0), 0) / valid.length)
-    : null
-
-  return { distance, durationSec, sessions, avgPace }
-}
-
-function pctChange(current: number, previous: number) {
-  if (!previous && !current) return 0
-  if (!previous) return 100
-  return ((current - previous) / previous) * 100
-}
-
-function startOfWeek(date: Date) {
-  const value = new Date(date)
-  const day = value.getDay()
-  const diff = day === 0 ? -6 : 1 - day
-  value.setHours(0, 0, 0, 0)
-  value.setDate(value.getDate() + diff)
-  return value
-}
-
-const chartTooltip = {
-  background: 'var(--surface-elevated)',
-  border: '1px solid var(--border-strong)',
-  borderRadius: 18,
-  color: 'var(--text)',
-  boxShadow: '0 18px 45px rgba(0, 0, 0, 0.18)',
-}
-
-const readingLayers = [
-  { title: 'Resumo', copy: 'leitura rapida do recorte ativo' },
-  { title: 'Volume', copy: 'distancia, tempo e frequencia' },
-  { title: 'Desempenho', copy: 'pace, velocidade e tendencia' },
-  { title: 'Comparativo', copy: 'janela atual versus periodo anterior' },
-  { title: 'Consistencia', copy: 'carga sustentada e deload' },
-]
+import type { Activity, Props, RecordEntry, SyncMode, ThemeMode } from './dashboard/types'
+import {
+  DAY_MS,
+  ROWS_STEP,
+  WEEK_MS,
+  applyTheme,
+  chartTooltip,
+  focusOrder,
+  fmt,
+  getDisplayName,
+  getDistanceTolerance,
+  getMetricMode,
+  getPeriodTotals,
+  getSportAccent,
+  getSportLabel,
+  isReliablePaceActivity,
+  pctChange,
+  performanceTypes,
+  readingLayers,
+  recordTargets,
+  sportMeta,
+  startOfWeek,
+} from './dashboard/helpers'
+import { CompareTile, DetailItem, InsightItem, MetricCard, Panel, SectionLead } from './dashboard/ui'
 
 export default function DashboardClient({ initialActivities, initialYear, availableYears, isAdmin, meta, userName }: Props) {
+  const actualYears = useMemo(
+    () => [...availableYears].filter((year) => year !== 'all').sort((a, b) => Number(b) - Number(a)),
+    [availableYears]
+  )
+
   const [syncing, setSyncing] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  const [activityReviewing, setActivityReviewing] = useState(false)
   const [syncMsg, setSyncMsg] = useState('')
   const [theme, setTheme] = useState<ThemeMode>('dark')
-  const [sportFilter, setSportFilter] = useState('Run')
-  const [yearFilter, setYearFilter] = useState(initialYear)
-  const [loadedYear, setLoadedYear] = useState(initialYear)
-  const [activities, setActivities] = useState<Activity[]>(initialActivities)
-  const [loadingActivities, setLoadingActivities] = useState(false)
-  const [visibleRows, setVisibleRows] = useState(ROWS_STEP)
+  const [yearActivities, setYearActivities] = useState<Record<string, Activity[]>>(
+    initialYear !== 'all' ? { [initialYear]: initialActivities } : {}
+  )
+  const [partialYears, setPartialYears] = useState<Record<string, boolean>>(
+    initialYear !== 'all' ? { [initialYear]: true } : {}
+  )
+  const [loadingYears, setLoadingYears] = useState<string[]>([])
+  const [selectedYears, setSelectedYears] = useState<string[]>(
+    initialYear !== 'all' ? [initialYear] : actualYears
+  )
+  const [selectedSports, setSelectedSports] = useState<string[]>(['Run'])
+  const [page, setPage] = useState(1)
   const [selectedActivity, setSelectedActivity] = useState<Activity | null>(null)
 
   useEffect(() => {
@@ -182,39 +75,70 @@ export default function DashboardClient({ initialActivities, initialYear, availa
   }, [])
 
   useEffect(() => {
-    setVisibleRows(ROWS_STEP)
-  }, [sportFilter, yearFilter])
+    if (!selectedYears.length && actualYears.length) {
+      setSelectedYears([actualYears[0]])
+    }
+  }, [actualYears, selectedYears.length])
 
   useEffect(() => {
-    if (yearFilter === loadedYear) return
+    setPage(1)
+  }, [selectedYears, selectedSports])
+
+  useEffect(() => {
+    if (!selectedYears.length) return
 
     let active = true
+    const yearsToLoad = selectedYears.filter((year) => !yearActivities[year] || partialYears[year])
 
-    async function loadActivities() {
-      setLoadingActivities(true)
+    if (!yearsToLoad.length) return
+
+    async function loadYears() {
+      setLoadingYears(yearsToLoad)
       setSyncMsg('')
 
       try {
-        const res = await fetch(`/api/activities?year=${encodeURIComponent(yearFilter)}`)
-        const data = await res.json()
-        if (!res.ok) throw new Error(data?.error ?? 'Nao foi possivel carregar as atividades.')
+        const responses = await Promise.all(
+          yearsToLoad.map(async (year) => {
+            const res = await fetch(`/api/activities?year=${encodeURIComponent(year)}`)
+            const data = await res.json()
+            if (!res.ok) {
+              throw new Error(data?.error ?? `Nao foi possivel carregar ${year}.`)
+            }
+            return { year, activities: (data.activities ?? []) as Activity[] }
+          })
+        )
+
         if (!active) return
-        setActivities(data.activities ?? [])
-        setLoadedYear(yearFilter)
+
+        setYearActivities((current) => {
+          const next = { ...current }
+          for (const response of responses) {
+            next[response.year] = response.activities
+          }
+          return next
+        })
+
+        setPartialYears((current) => {
+          const next = { ...current }
+          for (const response of responses) {
+            next[response.year] = false
+          }
+          return next
+        })
       } catch (error) {
         if (!active) return
         setSyncMsg(error instanceof Error ? error.message : 'Nao foi possivel carregar as atividades.')
       } finally {
-        if (active) setLoadingActivities(false)
+        if (active) setLoadingYears([])
       }
     }
 
-    void loadActivities()
+    void loadYears()
 
     return () => {
       active = false
     }
-  }, [loadedYear, yearFilter])
+  }, [partialYears, selectedYears, yearActivities])
 
   const handleThemeToggle = () => {
     const next: ThemeMode = theme === 'dark' ? 'light' : 'dark'
@@ -263,58 +187,115 @@ export default function DashboardClient({ initialActivities, initialYear, availa
     }
   }
 
-  const yearOptions = useMemo(() => {
-    const merged = Array.from(new Set(['all', ...availableYears, ...activities.map((activity) => String(new Date(activity.date).getFullYear()))]))
-    const allFirst = merged.filter((year) => year === 'all')
-    const sortedYears = merged
-      .filter((year) => year !== 'all')
-      .sort((a, b) => Number(b) - Number(a))
-    return [...allFirst, ...sortedYears]
-  }, [activities, availableYears])
+
+  function applyActivityUpdate(updated: Activity) {
+    setYearActivities((current) => {
+      const next: Record<string, Activity[]> = {}
+
+      for (const [year, activities] of Object.entries(current)) {
+        next[year] = activities.map((activity) => activity.stravaId === updated.stravaId ? updated : activity)
+      }
+
+      return next
+    })
+
+    setSelectedActivity((current) => current?.stravaId === updated.stravaId ? updated : current)
+  }
+
+  async function handleActivityExclusion(excludedFromMetrics: boolean) {
+    if (!selectedActivity) return
+
+    setActivityReviewing(true)
+    setSyncMsg('')
+
+    try {
+      const res = await fetch(`/api/activities/${selectedActivity.stravaId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ excludedFromMetrics }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data?.error ?? 'Nao foi possivel atualizar a atividade.')
+      applyActivityUpdate(data.activity as Activity)
+    } catch (error) {
+      setSyncMsg(error instanceof Error ? error.message : 'Nao foi possivel atualizar a atividade.')
+    } finally {
+      setActivityReviewing(false)
+    }
+  }
+  const mergedActivities = useMemo(() => {
+    const deduped = new Map<number, Activity>()
+
+    for (const year of selectedYears) {
+      for (const activity of yearActivities[year] ?? []) {
+        deduped.set(activity.stravaId, activity)
+      }
+    }
+
+    return Array.from(deduped.values()).sort((a, b) => b.date.localeCompare(a.date))
+  }, [selectedYears, yearActivities])
 
   const availableSports = useMemo(() => {
-    const fromData = Array.from(new Set(activities.map((activity) => activity.type)))
+    const fromData = Array.from(new Set(mergedActivities.map((activity) => activity.type)))
     const ordered = focusOrder.filter((type) => fromData.includes(type))
     const remaining = fromData.filter((type) => !ordered.includes(type)).sort()
-    return ['All', ...ordered, ...remaining]
-  }, [activities])
+    return [...ordered, ...remaining]
+  }, [mergedActivities])
 
   useEffect(() => {
-    if (!availableSports.includes(sportFilter)) {
-      setSportFilter(availableSports.includes('Run') ? 'Run' : 'All')
-    }
-  }, [availableSports, sportFilter])
+    if (!availableSports.length) return
+
+    setSelectedSports((current) => {
+      const valid = current.filter((sport) => availableSports.includes(sport))
+      if (valid.length) return valid
+      if (availableSports.includes('Run')) return ['Run']
+      return [...availableSports]
+    })
+  }, [availableSports])
+  const allSportsSelected = availableSports.length > 0 && selectedSports.length === availableSports.length
+  const allYearsSelected = actualYears.length > 0 && selectedYears.length === actualYears.length
 
   const filteredActivities = useMemo(() => {
-    if (sportFilter === 'All') return activities
-    return activities.filter((activity) => activity.type === sportFilter)
-  }, [activities, sportFilter])
+    if (!selectedSports.length || allSportsSelected) return mergedActivities
+    const chosen = new Set(selectedSports)
+    return mergedActivities.filter((activity) => chosen.has(activity.type))
+  }, [allSportsSelected, mergedActivities, selectedSports])
 
-  const validPaceActivities = useMemo(
-    () => filteredActivities.filter((activity) => activity.paceSec != null && activity.distanceKm > 0),
+  const analyzedActivities = useMemo(
+    () => filteredActivities.filter((activity) => !activity.excludedFromMetrics),
     [filteredActivities]
   )
 
-  const stats = useMemo(() => {
-    if (!filteredActivities.length) return null
+  const ignoredCount = filteredActivities.length - analyzedActivities.length
 
-    const totalDist = filteredActivities.reduce((sum, activity) => sum + activity.distanceKm, 0)
-    const totalDur = filteredActivities.reduce((sum, activity) => sum + activity.durationSec, 0)
-    const longest = filteredActivities.reduce((max, activity) => activity.distanceKm > max.distanceKm ? activity : max, filteredActivities[0])
-    const mode = getMetricMode(sportFilter)
-    const avgPace = validPaceActivities.length
-      ? Math.round(validPaceActivities.reduce((sum, activity) => sum + (activity.paceSec ?? 0), 0) / validPaceActivities.length)
+  const reliablePaceActivities = useMemo(
+    () => analyzedActivities.filter(isReliablePaceActivity),
+    [analyzedActivities]
+  )
+
+  const primarySport = selectedSports.length === 1 ? selectedSports[0] : 'All'
+
+  const stats = useMemo(() => {
+    if (!analyzedActivities.length) return null
+
+    const totalDist = analyzedActivities.reduce((sum, activity) => sum + activity.distanceKm, 0)
+    const totalDur = analyzedActivities.reduce((sum, activity) => sum + activity.durationSec, 0)
+    const mode = getMetricMode(primarySport)
+    const longestSource = mode === 'pace' && reliablePaceActivities.length ? reliablePaceActivities : analyzedActivities
+    const longest = longestSource.reduce((max, activity) => activity.distanceKm > max.distanceKm ? activity : max, longestSource[0])
+    const avgPace = reliablePaceActivities.length
+      ? Math.round(reliablePaceActivities.reduce((sum, activity) => sum + (activity.paceSec ?? 0), 0) / reliablePaceActivities.length)
       : null
-    const fastest = validPaceActivities.length
-      ? validPaceActivities.reduce((min, activity) => (activity.paceSec ?? Infinity) < (min.paceSec ?? Infinity) ? activity : min, validPaceActivities[0])
+    const fastest = reliablePaceActivities.length
+      ? reliablePaceActivities.reduce((min, activity) => (activity.paceSec ?? Infinity) < (min.paceSec ?? Infinity) ? activity : min, reliablePaceActivities[0])
       : null
     const avgSpeed = totalDur > 0 ? totalDist / (totalDur / 3600) : 0
-    const fastestSpeed = filteredActivities.reduce((best, activity) => {
+    const fastestSpeed = analyzedActivities.reduce((best, activity) => {
       const bestSpeed = best.durationSec > 0 ? best.distanceKm / (best.durationSec / 3600) : 0
       const currentSpeed = activity.durationSec > 0 ? activity.distanceKm / (activity.durationSec / 3600) : 0
       return currentSpeed > bestSpeed ? activity : best
-    }, filteredActivities[0])
-    const totalsByType = filteredActivities.reduce<Record<string, number>>((acc, activity) => {
+    }, analyzedActivities[0])
+    const totalsByType = analyzedActivities.reduce<Record<string, number>>((acc, activity) => {
       acc[activity.type] = (acc[activity.type] ?? 0) + 1
       return acc
     }, {})
@@ -329,17 +310,17 @@ export default function DashboardClient({ initialActivities, initialYear, availa
       avgSpeed,
       fastestSpeed,
       dominantSport,
-      count: filteredActivities.length,
-      shareRun: filteredActivities.length
-        ? Math.round((filteredActivities.filter((activity) => activity.type === 'Run').length / filteredActivities.length) * 100)
+      count: analyzedActivities.length,
+      shareRun: analyzedActivities.length
+        ? Math.round((analyzedActivities.filter((activity) => activity.type === 'Run').length / analyzedActivities.length) * 100)
         : 0,
       mode,
     }
-  }, [filteredActivities, sportFilter, validPaceActivities])
+  }, [analyzedActivities, primarySport, reliablePaceActivities])
 
   const monthly = useMemo(() => {
     const map = new Map<string, { month: string; km: number; sessions: number }>()
-    filteredActivities.forEach((activity) => {
+    analyzedActivities.forEach((activity) => {
       const key = activity.date.slice(0, 7)
       const current = map.get(key) ?? { month: fmt.month(activity.date), km: 0, sessions: 0 }
       map.set(key, {
@@ -351,11 +332,12 @@ export default function DashboardClient({ initialActivities, initialYear, availa
     return Array.from(map.entries())
       .sort(([a], [b]) => a.localeCompare(b))
       .map(([, value]) => ({ ...value, km: Number(value.km.toFixed(1)) }))
-  }, [filteredActivities])
+  }, [analyzedActivities])
 
   const performanceTimeline = useMemo(() => {
-    const recent = [...filteredActivities].reverse().slice(-24)
-    const mode = getMetricMode(sportFilter)
+    const mode = getMetricMode(primarySport)
+    const source = mode === 'speed' ? analyzedActivities : reliablePaceActivities
+    const recent = [...source].reverse().slice(-24)
     return recent
       .map((activity) => {
         const speed = activity.durationSec > 0 ? activity.distanceKm / (activity.durationSec / 3600) : 0
@@ -368,20 +350,20 @@ export default function DashboardClient({ initialActivities, initialYear, availa
         }
       })
       .filter((item) => item.metricValue != null)
-  }, [filteredActivities, sportFilter])
+  }, [analyzedActivities, primarySport, reliablePaceActivities])
 
   const periodComparison = useMemo(() => {
-    if (!filteredActivities.length) return null
-    const latestDate = new Date(filteredActivities[0].date)
+    if (!analyzedActivities.length) return null
+    const latestDate = new Date(analyzedActivities[0].date)
     const currentStart = new Date(latestDate.getTime() - 27 * DAY_MS)
     const previousEnd = new Date(currentStart.getTime() - DAY_MS)
     const previousStart = new Date(previousEnd.getTime() - 27 * DAY_MS)
 
-    const current = filteredActivities.filter((activity) => {
+    const current = analyzedActivities.filter((activity) => {
       const date = new Date(activity.date)
       return date >= currentStart && date <= latestDate
     })
-    const previous = filteredActivities.filter((activity) => {
+    const previous = analyzedActivities.filter((activity) => {
       const date = new Date(activity.date)
       return date >= previousStart && date <= previousEnd
     })
@@ -399,22 +381,22 @@ export default function DashboardClient({ initialActivities, initialYear, availa
         ? ((previousTotals.avgPace - currentTotals.avgPace) / previousTotals.avgPace) * 100
         : 0,
     }
-  }, [filteredActivities])
+  }, [analyzedActivities])
 
   const weeklyLoad = useMemo(() => {
-    if (!filteredActivities.length) return [] as Array<{ week: string; km: number; sessions: number; load: number }>
-    const latestDate = new Date(filteredActivities[0].date)
+    if (!analyzedActivities.length) return [] as Array<{ week: string; km: number; sessions: number; load: number }>
+    const latestDate = new Date(analyzedActivities[0].date)
     const currentWeekStart = startOfWeek(latestDate)
 
     return Array.from({ length: 8 }, (_, index) => {
       const weekStart = new Date(currentWeekStart.getTime() - (7 - index) * WEEK_MS)
       const weekEnd = new Date(weekStart.getTime() + WEEK_MS)
-      const items = filteredActivities.filter((activity) => {
+      const items = analyzedActivities.filter((activity) => {
         const date = new Date(activity.date)
         return date >= weekStart && date < weekEnd
       })
       const km = items.reduce((sum, item) => sum + item.distanceKm, 0)
-      const avgPaceItems = items.filter((item) => item.paceSec != null)
+      const avgPaceItems = items.filter(isReliablePaceActivity)
       const avgPace = avgPaceItems.length
         ? avgPaceItems.reduce((sum, item) => sum + (item.paceSec ?? 0), 0) / avgPaceItems.length
         : null
@@ -426,7 +408,7 @@ export default function DashboardClient({ initialActivities, initialYear, availa
         load: Number((km * paceFactor).toFixed(1)),
       }
     })
-  }, [filteredActivities])
+  }, [analyzedActivities])
 
   const loadInsight = useMemo(() => {
     if (weeklyLoad.length < 5) return null
@@ -464,10 +446,27 @@ export default function DashboardClient({ initialActivities, initialYear, availa
     }
   }, [weeklyLoad])
 
-  const effortHighlights = useMemo(() => activities.slice(0, 4), [activities])
-  const visibleActivities = filteredActivities.slice(0, visibleRows)
-  const activeAccent = sportFilter === 'All' ? 'var(--accent)' : getSportAccent(sportFilter)
-  const yearLabel = yearFilter === 'all' ? 'historico completo' : yearFilter
+  const effortHighlights = useMemo(() => analyzedActivities.slice(0, 4), [analyzedActivities])
+
+  const records = useMemo(() => {
+    const candidates = analyzedActivities.filter((activity) => performanceTypes.has(activity.type) && isReliablePaceActivity(activity))
+    const result: RecordEntry[] = []
+
+    for (const targetKm of recordTargets) {
+      const tolerance = getDistanceTolerance(targetKm)
+      const matches = candidates.filter((activity) => Math.abs(activity.distanceKm - targetKm) <= tolerance)
+      if (!matches.length) continue
+      const best = matches.reduce((winner, activity) => (activity.paceSec ?? Infinity) < (winner.paceSec ?? Infinity) ? activity : winner, matches[0])
+      result.push({ targetKm, activity: best })
+    }
+
+    return result
+  }, [analyzedActivities])
+
+  const pageCount = Math.max(1, Math.ceil(filteredActivities.length / ROWS_STEP))
+  const visibleActivities = filteredActivities.slice((page - 1) * ROWS_STEP, page * ROWS_STEP)
+  const activeAccent = allSportsSelected ? 'var(--accent)' : getSportAccent(primarySport)
+  const yearLabel = allYearsSelected ? 'historico completo' : selectedYears.length === 1 ? selectedYears[0] : `${selectedYears.length} anos`
   const totalActivities = Number(meta?.totalActivities ?? 0)
   const viewerRole = String(meta?.viewerRole ?? 'unknown')
   const viewerPlan = String(meta?.viewerPlan ?? 'unknown')
@@ -475,15 +474,52 @@ export default function DashboardClient({ initialActivities, initialYear, availa
   const viewerScopeLabel = meta?.viewerScope?.fullAccess
     ? 'all'
     : `${Array.isArray(meta?.viewerScope?.types) ? meta.viewerScope.types.join(', ') : '-'} | ${Array.isArray(meta?.viewerScope?.years) ? meta.viewerScope.years.join(', ') : '-'}`
-  const mode = getMetricMode(sportFilter)
-  const focusLabel = sportFilter === 'All' ? 'visao multiesporte' : getSportLabel(sportFilter)
+  const mode = getMetricMode(primarySport)
+  const focusLabel = allSportsSelected ? 'visao multiesporte' : selectedSports.length === 1 ? getSportLabel(selectedSports[0]) : `${selectedSports.length} esportes`
   const methodologyCopy = mode === 'mixed'
     ? 'Neste recorte misto, os KPIs de topo priorizam composicao, volume e dominancia do esporte.'
     : mode === 'speed'
       ? 'Neste recorte, desempenho e lido por velocidade. Volume e consistencia permanecem comparaveis.'
       : 'Neste recorte, desempenho e lido por pace. Volume e consistencia permanecem comparaveis.'
 
-  if (!totalActivities && !activities.length) {
+  const loadingLabel = loadingYears.length
+    ? loadingYears.length === 1
+      ? `Carregando recorte de ${loadingYears[0]}...`
+      : `Carregando ${loadingYears.length} anos selecionados...`
+    : ''
+
+  function toggleYear(year: string) {
+    if (year === 'all') {
+      setSelectedYears(allYearsSelected ? [actualYears[0]] : actualYears)
+      return
+    }
+
+    setSelectedYears((current) => {
+      const exists = current.includes(year)
+      if (exists) {
+        const next = current.filter((item) => item !== year)
+        return next.length ? next : [year]
+      }
+      return [...current, year].sort((a, b) => Number(b) - Number(a))
+    })
+  }
+
+  function toggleSport(type: string) {
+    if (type === 'All') {
+      setSelectedSports(allSportsSelected ? (availableSports.includes('Run') ? ['Run'] : [availableSports[0]]) : availableSports)
+      return
+    }
+
+    setSelectedSports((current) => {
+      const exists = current.includes(type)
+      if (exists) {
+        const next = current.filter((item) => item !== type)
+        return next.length ? next : [type]
+      }
+      return [...current, type]
+    })
+  }
+  if (!totalActivities && !mergedActivities.length) {
     return (
       <main className="shell">
         <section className="hero hero-empty">
@@ -519,7 +555,9 @@ export default function DashboardClient({ initialActivities, initialYear, availa
               <span className="pill pill-ghost">Atleta: {userName}</span>
               <span className="pill pill-ghost">Foco: {focusLabel}</span>
               <span className="pill pill-ghost">Ano: {yearLabel}</span>
-              <span className="pill pill-ghost">Base ativa: {activities.length} atividades</span>
+              <span className="pill pill-ghost">Base analitica: {analyzedActivities.length} atividades</span>
+              <span className="pill pill-ghost">Base bruta: {mergedActivities.length} atividades</span>
+              {ignoredCount > 0 && <span className="pill pill-ghost">Ignoradas: {ignoredCount}</span>}
               <span className="pill pill-ghost">Base total: {totalActivities}</span>
               <span className="pill pill-ghost">Role: {viewerRole}</span>
               <span className="pill pill-ghost">Plan: {viewerPlan}</span>
@@ -543,7 +581,7 @@ export default function DashboardClient({ initialActivities, initialYear, availa
             <div className="control-header">
               <div>
                 <p className="control-label">Leitura principal</p>
-                <strong>{sportFilter === 'All' ? 'Tudo no radar' : getSportLabel(sportFilter)}</strong>
+                <strong>{allSportsSelected ? 'Tudo no radar' : focusLabel}</strong>
               </div>
               <button onClick={handleThemeToggle} className="btn btn-ghost" type="button">
                 {theme === 'dark' ? 'Modo claro' : 'Modo escuro'}
@@ -553,16 +591,25 @@ export default function DashboardClient({ initialActivities, initialYear, availa
             <div className="filter-block">
               <span className="control-label">Esporte</span>
               <div className="filter-row">
+                <button
+                  type="button"
+                  className="sport-chip"
+                  data-active={allSportsSelected}
+                  onClick={() => toggleSport('All')}
+                  style={{ ['--chip-accent' as string]: 'var(--accent)' }}
+                >
+                  Tudo
+                </button>
                 {availableSports.map((type) => (
                   <button
                     key={type}
                     type="button"
                     className="sport-chip"
-                    data-active={type === sportFilter}
-                    onClick={() => setSportFilter(type)}
-                    style={{ ['--chip-accent' as string]: type === 'All' ? 'var(--accent)' : getSportAccent(type) }}
+                    data-active={selectedSports.includes(type)}
+                    onClick={() => toggleSport(type)}
+                    style={{ ['--chip-accent' as string]: getSportAccent(type) }}
                   >
-                    {type === 'All' ? 'Tudo' : getSportLabel(type)}
+                    {getSportLabel(type)}
                   </button>
                 ))}
               </div>
@@ -571,23 +618,37 @@ export default function DashboardClient({ initialActivities, initialYear, availa
             <div className="filter-block">
               <span className="control-label">Ano</span>
               <div className="filter-row">
-                {yearOptions.map((year) => (
+                <button
+                  type="button"
+                  className="sport-chip year-chip"
+                  data-active={allYearsSelected}
+                  onClick={() => toggleYear('all')}
+                  style={{ ['--chip-accent' as string]: 'var(--accent-2)' }}
+                >
+                  Tudo
+                </button>
+                {actualYears.map((year) => (
                   <button
                     key={year}
                     type="button"
                     className="sport-chip year-chip"
-                    data-active={year === yearFilter}
-                    onClick={() => setYearFilter(year)}
+                    data-active={selectedYears.includes(year)}
+                    onClick={() => toggleYear(year)}
                     style={{ ['--chip-accent' as string]: 'var(--accent-2)' }}
                   >
-                    {year === 'all' ? 'Tudo' : year}
+                    {year}
                   </button>
                 ))}
               </div>
             </div>
 
+            <div className="filter-summary">
+              <span className="pill pill-ghost">Anos: {yearLabel}</span>
+              <span className="pill pill-ghost">Esportes: {focusLabel}</span>
+            </div>
+
             <div className="action-row">
-              <button onClick={() => handleSync('incremental')} disabled={syncing || deleting || loadingActivities} className="btn btn-primary" type="button">
+              <button onClick={() => handleSync('incremental')} disabled={syncing || deleting || loadingYears.length > 0} className="btn btn-primary" type="button">
                 {syncing ? 'Sincronizando...' : 'Atualizar dados'}
               </button>
               <button onClick={() => signOut({ callbackUrl: '/login' })} className="btn btn-outline" type="button">
@@ -601,19 +662,19 @@ export default function DashboardClient({ initialActivities, initialYear, availa
                   <p className="control-label">Ferramentas de administrador</p>
                   <strong>Reconstrucao completa protegida por cooldown</strong>
                 </div>
-                <button onClick={() => handleSync('full')} disabled={syncing || deleting || loadingActivities} className="btn btn-outline" type="button">
+                <button onClick={() => handleSync('full')} disabled={syncing || deleting || loadingYears.length > 0} className="btn btn-outline" type="button">
                   Full sync
                 </button>
               </div>
             )}
 
-            {loadingActivities && <p className="sync-message">Carregando recorte de {yearLabel}...</p>}
+            {loadingLabel && <p className="sync-message">{loadingLabel}</p>}
             {syncMsg && <p className="sync-message">{syncMsg}</p>}
           </div>
         </div>
       </section>
 
-      {!filteredActivities.length && !loadingActivities ? (
+      {!filteredActivities.length && !loadingYears.length ? (
         <section className="panel">
           <div className="panel-header compact">
             <div>
@@ -633,7 +694,7 @@ export default function DashboardClient({ initialActivities, initialYear, availa
                 subtitle="Aqui entram os numeros de topo. Eles resumem a janela filtrada antes de abrir a analise detalhada."
               />
               <section className="kpi-grid">
-                <MetricCard label="Sessoes ativas" value={String(stats.count)} sub={`${yearLabel} | ${sportFilter === 'All' ? 'todos os esportes' : getSportLabel(sportFilter)}`} accent={activeAccent} />
+                <MetricCard label="Sessoes ativas" value={String(stats.count)} sub={`${yearLabel} | ${focusLabel}`} accent={activeAccent} />
                 <MetricCard label="Distancia" value={`${fmt.dist(stats.totalDist)} km`} sub="volume no recorte ativo" accent={activeAccent} />
                 <MetricCard label="Tempo ativo" value={fmt.dur(stats.totalDur)} sub="movimento no recorte ativo" accent={activeAccent} />
                 <MetricCard
@@ -675,7 +736,7 @@ export default function DashboardClient({ initialActivities, initialYear, availa
               </ResponsiveContainer>
             </Panel>
 
-            <Panel eyebrow="Desempenho" title={getMetricMode(sportFilter) === 'speed' ? 'Velocidade recente' : 'Evolucao recente'} subtitle="Janela curta para acompanhar tendencia do bloco atual">
+            <Panel eyebrow="Desempenho" title={getMetricMode(primarySport) === 'speed' ? 'Velocidade recente' : 'Evolucao recente'} subtitle="Janela curta para acompanhar tendencia do bloco atual">
               <ResponsiveContainer width="100%" height={260}>
                 <LineChart data={performanceTimeline} margin={{ top: 8, right: 8, bottom: 4, left: -16 }}>
                   <CartesianGrid strokeDasharray="4 4" stroke="var(--grid)" />
@@ -684,14 +745,14 @@ export default function DashboardClient({ initialActivities, initialYear, availa
                     tick={{ fill: 'var(--text-muted)', fontSize: 11 }}
                     axisLine={false}
                     tickLine={false}
-                    reversed={getMetricMode(sportFilter) !== 'speed'}
-                    tickFormatter={(value) => getMetricMode(sportFilter) === 'speed' ? `${Number(value).toFixed(0)} km/h` : fmt.pace(Number(value))}
+                    reversed={getMetricMode(primarySport) !== 'speed'}
+                    tickFormatter={(value) => getMetricMode(primarySport) === 'speed' ? `${Number(value).toFixed(0)} km/h` : fmt.pace(Number(value))}
                   />
                   <Tooltip
                     contentStyle={chartTooltip}
                     formatter={(_value: number, _name: string, item: any) => [
-                      getMetricMode(sportFilter) === 'speed' ? item.payload.speedLabel : item.payload.paceLabel,
-                      getMetricMode(sportFilter) === 'speed' ? 'Velocidade' : 'Pace',
+                      getMetricMode(primarySport) === 'speed' ? item.payload.speedLabel : item.payload.paceLabel,
+                      getMetricMode(primarySport) === 'speed' ? 'Velocidade' : 'Pace',
                     ]}
                   />
                   <Line type="monotone" dataKey="metricValue" stroke={activeAccent} strokeWidth={3} dot={false} />
@@ -711,7 +772,6 @@ export default function DashboardClient({ initialActivities, initialYear, availa
                 <p className="empty-copy">Ainda nao ha dados suficientes para comparar os ultimos 28 dias.</p>
               )}
             </Panel>
-
             <Panel eyebrow="Consistencia" title="Carga semanal" subtitle="Heuristica de volume recente e manutencao de carga">
               <ResponsiveContainer width="100%" height={240}>
                 <AreaChart data={weeklyLoad} margin={{ top: 8, right: 8, bottom: 4, left: -16 }}>
@@ -740,14 +800,31 @@ export default function DashboardClient({ initialActivities, initialYear, availa
 
           <SectionLead
             eyebrow="Leitura de apoio"
-            title="Contexto de produto e leitura qualitativa"
+            title="Contexto de produto, recordes e leitura qualitativa"
             subtitle="Esses blocos ajudam a interpretar os numeros principais sem transformar o painel em uma planilha crua."
           />
-          <section className="insight-grid">
+          <section className="insight-grid insight-grid-expanded">
+            <Panel eyebrow="Recordes" title="Melhores marcas do recorte" subtitle="Aproximadas pela atividade inteira mais forte em cada distancia-alvo">
+              {records.length ? (
+                <div className="record-grid">
+                  {records.map((record) => (
+                    <article key={`${record.targetKm}-${record.activity.stravaId}`} className="compare-tile">
+                      <p className="metric-label">{record.targetKm} km</p>
+                      <strong>{fmt.pace(record.activity.paceSec)}</strong>
+                      <span className="compare-previous">{getDisplayName(record.activity.name)}</span>
+                      <span className="compare-previous">{fmt.fullDate(record.activity.date)}</span>
+                    </article>
+                  ))}
+                </div>
+              ) : (
+                <p className="empty-copy">Ainda nao ha atividades proximas das distancias de referencia neste recorte.</p>
+              )}
+            </Panel>
+
             <Panel eyebrow="Produto" title="Leituras rapidas" subtitle="Como interpretar o recorte e a estrutura atual da home">
               <div className="insight-list">
-                <InsightItem title="Volume nao e desempenho">Distancia, tempo e sessoes mostram carga externa. Pace e velocidade vivem em outra camada de leitura.</InsightItem>
-                <InsightItem title="Ano e esporte definem o contexto">Os comparativos sempre respondem ao filtro ativo. O painel nao deve ser lido fora desse contexto.</InsightItem>
+                <InsightItem title="2026 agora carrega completo">O primeiro ano selecionado deixa de ficar preso ao recorte inicial de 160 atividades e passa a buscar o ano inteiro sob demanda.</InsightItem>
+                <InsightItem title="Filtros agora podem se combinar">Voce pode ler mais de um ano e mais de um esporte ao mesmo tempo, em vez de trocar a lente inteira a cada clique.</InsightItem>
                 <InsightItem title="Carga atual e heuristica">A leitura semanal serve para consistencia e deload, nao como equivalencia cientifica de TRIMP ou TSS.</InsightItem>
               </div>
             </Panel>
@@ -760,7 +837,7 @@ export default function DashboardClient({ initialActivities, initialYear, availa
                       <span className="sport-tag" style={{ background: sportMeta[activity.type]?.chip ?? 'var(--chip-neutral)' }}>{getSportLabel(activity.type)}</span>
                       <span>{fmt.date(activity.date)}</span>
                     </div>
-                    <h4>{activity.name}</h4>
+                    <h4>{getDisplayName(activity.name)}</h4>
                     <div className="mini-metrics">
                       <span>{fmt.dist(activity.distanceKm)} km</span>
                       <span>{fmt.dur(activity.durationSec)}</span>
@@ -783,7 +860,7 @@ export default function DashboardClient({ initialActivities, initialYear, availa
                 <p className="panel-eyebrow">Historico filtrado</p>
                 <h3>Atividades recentes</h3>
               </div>
-              <span className="pill pill-ghost">{filteredActivities.length} itens na lente ativa</span>
+              <span className="pill pill-ghost">{filteredActivities.length} itens no historico filtrado</span>
             </div>
 
             <div className="table-wrap">
@@ -800,7 +877,12 @@ export default function DashboardClient({ initialActivities, initialYear, availa
                       <tr key={activity.stravaId}>
                         <td>{fmt.date(activity.date)}</td>
                         <td><span className="sport-tag" style={{ background: sportMeta[activity.type]?.chip ?? 'var(--chip-neutral)' }}>{getSportLabel(activity.type)}</span></td>
-                        <td className="truncate-cell">{activity.name}</td>
+                        <td className="truncate-cell">
+                          <div className="activity-name-cell">
+                            <span>{getDisplayName(activity.name)}</span>
+                            {activity.excludedFromMetrics && <span className="analysis-badge">Ignorada</span>}
+                          </div>
+                        </td>
                         <td>{fmt.dist(activity.distanceKm)} km</td>
                         <td>{fmt.dur(activity.durationSec)}</td>
                         <td className="metric-emphasis">{activity.type === 'Ride' ? `${speed.toFixed(1)} km/h` : `${fmt.pace(activity.paceSec)}/km`}</td>
@@ -818,13 +900,15 @@ export default function DashboardClient({ initialActivities, initialYear, availa
               </table>
             </div>
 
-            {visibleRows < filteredActivities.length && (
-              <div className="table-actions">
-                <button onClick={() => setVisibleRows((current) => current + ROWS_STEP)} className="btn btn-ghost" type="button">
-                  Ver mais atividades
-                </button>
-              </div>
-            )}
+            <div className="table-actions table-actions-spread">
+              <button type="button" className="btn btn-ghost" disabled={page <= 1} onClick={() => setPage((current) => Math.max(1, current - 1))}>
+                Pagina anterior
+              </button>
+              <span className="pill pill-ghost">Pagina {page} de {pageCount}</span>
+              <button type="button" className="btn btn-ghost" disabled={page >= pageCount} onClick={() => setPage((current) => Math.min(pageCount, current + 1))}>
+                Proxima pagina
+              </button>
+            </div>
           </section>
         </>
       )}
@@ -848,14 +932,16 @@ export default function DashboardClient({ initialActivities, initialYear, availa
 
         <p className="legal-footnote">A exclusao remove seu historico salvo do Firestore. Se quiser encerrar o acesso de origem, revogue tambem o app nas configuracoes do Strava.</p>
       </section>
-
       {selectedActivity && (
         <div className="modal-scrim" onClick={() => setSelectedActivity(null)}>
           <div className="modal-card" onClick={(event) => event.stopPropagation()}>
             <div className="panel-header compact">
               <div>
                 <p className="panel-eyebrow">Detalhe da atividade</p>
-                <h3>{selectedActivity.name}</h3>
+                <div className="modal-title-row">
+                  <h3>{getDisplayName(selectedActivity.name)}</h3>
+                  {selectedActivity.excludedFromMetrics && <span className="analysis-badge">Ignorada nas analises</span>}
+                </div>
               </div>
               <button type="button" className="btn btn-ghost btn-inline" onClick={() => setSelectedActivity(null)}>Fechar</button>
             </div>
@@ -870,6 +956,21 @@ export default function DashboardClient({ initialActivities, initialYear, availa
               <DetailItem label="FC maxima" value={selectedActivity.hrMax ? `${Math.round(selectedActivity.hrMax)} bpm` : '-'} />
               <DetailItem label="Kudos" value={String(selectedActivity.kudos ?? 0)} />
               <DetailItem label="Strava ID" value={String(selectedActivity.stravaId)} />
+              <DetailItem label="Analise" value={selectedActivity.excludedFromMetrics ? 'Ignorada nas analises' : 'Ativa nas analises'} />
+            </div>
+            <div className="modal-actions-row">
+              <button
+                type="button"
+                className={`btn ${selectedActivity.excludedFromMetrics ? 'btn-ghost' : 'btn-outline'}`}
+                disabled={activityReviewing}
+                onClick={() => handleActivityExclusion(!selectedActivity.excludedFromMetrics)}
+              >
+                {activityReviewing
+                  ? 'Atualizando...'
+                  : selectedActivity.excludedFromMetrics
+                    ? 'Reativar nas analises'
+                    : 'Ignorar nas analises'}
+              </button>
             </div>
           </div>
         </div>
@@ -878,70 +979,16 @@ export default function DashboardClient({ initialActivities, initialYear, availa
   )
 }
 
-function MetricCard({ label, value, sub, accent }: { label: string; value: string; sub: string; accent: string }) {
-  return (
-    <article className="metric-card" style={{ ['--metric-accent' as string]: accent }}>
-      <p className="metric-label">{label}</p>
-      <strong className="metric-value">{value}</strong>
-      <span className="metric-sub">{sub}</span>
-    </article>
-  )
-}
 
-function CompareTile({ label, current, previous, delta, positive }: { label: string; current: string; previous: string; delta: string; positive: boolean }) {
-  return (
-    <article className="compare-tile">
-      <p className="metric-label">{label}</p>
-      <strong>{current}</strong>
-      <span className="compare-previous">antes: {previous}</span>
-      <span className="compare-delta" data-positive={positive}>{delta}</span>
-    </article>
-  )
-}
 
-function Panel({ eyebrow = 'Analise', title, subtitle, children }: { eyebrow?: string; title: string; subtitle: string; children: ReactNode }) {
-  return (
-    <section className="panel">
-      <div className="panel-header compact">
-        <div>
-          <p className="panel-eyebrow">{eyebrow}</p>
-          <h3>{title}</h3>
-        </div>
-        <span className="panel-subtitle">{subtitle}</span>
-      </div>
-      {children}
-    </section>
-  )
-}
 
-function SectionLead({ eyebrow, title, subtitle }: { eyebrow: string; title: string; subtitle: string }) {
-  return (
-    <section className="section-lead">
-      <div>
-        <p className="panel-eyebrow">{eyebrow}</p>
-        <h2>{title}</h2>
-      </div>
-      <p>{subtitle}</p>
-    </section>
-  )
-}
 
-function InsightItem({ title, children }: { title: string; children: ReactNode }) {
-  return (
-    <article className="insight-item">
-      <strong>{title}</strong>
-      <p>{children}</p>
-    </article>
-  )
-}
 
-function DetailItem({ label, value }: { label: string; value: string }) {
-  return (
-    <article className="detail-item">
-      <span className="metric-label">{label}</span>
-      <strong>{value}</strong>
-    </article>
-  )
-}
+
+
+
+
+
+
 
 
