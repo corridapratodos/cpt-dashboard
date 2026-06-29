@@ -1,4 +1,4 @@
-﻿import { getServerSession } from 'next-auth'
+import { getServerSession } from 'next-auth'
 import { getUserScope } from '@/lib/access'
 import { authOptions } from '@/lib/auth'
 import { activitiesRef, userRef } from '@/lib/firebase'

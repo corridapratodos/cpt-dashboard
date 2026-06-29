@@ -1,8 +1,8 @@
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
-import { activitiesRef, userRef } from '@/lib/firebase'
+import { activitiesRef, metaRef, userRef } from '@/lib/firebase'
 import { getUserScope } from '@/lib/access'
-import { toDashboardActivity } from '@/lib/dashboard'
+import { isQualifiedRun, toDashboardActivity } from '@/lib/dashboard'
 
 export async function PATCH(req: Request, context: { params: Promise<{ stravaId: string }> }) {
   const session = await getServerSession(authOptions)
@@ -26,31 +26,70 @@ export async function PATCH(req: Request, context: { params: Promise<{ stravaId:
   const note = typeof body?.note === 'string' ? body.note.trim().slice(0, 120) : ''
 
   const ref = activitiesRef(session.stravaId).doc(String(activityId))
-  const snap = await ref.get()
-  if (!snap.exists) {
-    return Response.json({ error: 'Activity not found' }, { status: 404 })
-  }
+  const metaDocRef = metaRef(session.stravaId)
 
-  const current = snap.data() ?? {}
-  const currentFlags = Array.isArray(current.qualityFlags) ? current.qualityFlags.map(String) : []
-  const nextFlags = excludedFromMetrics
-    ? Array.from(new Set([...currentFlags, 'manual-ignore']))
-    : currentFlags.filter((flag) => flag !== 'manual-ignore')
+  const updatedActivity = await ref.firestore.runTransaction(async (transaction) => {
+    const activitySnap = await transaction.get(ref)
+    if (!activitySnap.exists) {
+      throw new Error('Activity not found')
+    }
 
-  await ref.set(
-    {
+    const metaSnap = await transaction.get(metaDocRef)
+    const current = activitySnap.data() ?? {}
+    const currentFlags = Array.isArray(current.qualityFlags) ? current.qualityFlags.map(String) : []
+    const nextFlags = excludedFromMetrics
+      ? Array.from(new Set([...currentFlags, 'manual-ignore']))
+      : currentFlags.filter((flag) => flag !== 'manual-ignore')
+
+    const nextActivity = {
+      ...current,
       excludedFromMetrics,
       qualityFlags: nextFlags,
       reviewNote: note || null,
       reviewedAt: new Date(),
       reviewedBy: session.stravaId,
-    },
-    { merge: true }
-  )
+    }
 
-  const updatedSnap = await ref.get()
+    const previousQualified = isQualifiedRun(toDashboardActivity(current))
+    const nextQualified = isQualifiedRun(toDashboardActivity(nextActivity))
+    const totalRunsDelta = Number(nextQualified) - Number(previousQualified)
+    const currentTotalRuns = Number(metaSnap.data()?.totalRuns ?? 0)
+
+    transaction.set(
+      ref,
+      {
+        excludedFromMetrics,
+        qualityFlags: nextFlags,
+        reviewNote: note || null,
+        reviewedAt: new Date(),
+        reviewedBy: session.stravaId,
+      },
+      { merge: true }
+    )
+
+    transaction.set(
+      metaDocRef,
+      {
+        lastActivityReviewAt: new Date(),
+        totalRuns: Math.max(0, currentTotalRuns + totalRunsDelta),
+      },
+      { merge: true }
+    )
+
+    return nextActivity
+  }).catch((error: Error) => {
+    if (error.message === 'Activity not found') {
+      return null
+    }
+    throw error
+  })
+
+  if (!updatedActivity) {
+    return Response.json({ error: 'Activity not found' }, { status: 404 })
+  }
+
   return Response.json({
     ok: true,
-    activity: toDashboardActivity(updatedSnap.data()),
+    activity: toDashboardActivity(updatedActivity),
   })
 }

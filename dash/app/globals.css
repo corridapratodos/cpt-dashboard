@@ -613,17 +613,51 @@ button {
 
   .display {
     font-size: clamp(2.5rem, 16vw, 4.2rem);
+    max-width: 100%;
+  }
+
+  .hero-copy,
+  .hero-methodology {
+    font-size: 15px;
   }
 
   .kpi-grid,
   .recent-grid,
-  .reading-grid {
+  .reading-grid,
+  .athlete-insight-grid {
     grid-template-columns: 1fr;
   }
 
   .control-header,
-  .panel-header {
+  .panel-header,
+  .action-row,
+  .admin-actions-row,
+  .legal-actions-grid,
+  .modal-actions-row {
     flex-direction: column;
+  }
+
+  .action-row .btn,
+  .admin-actions-row .btn,
+  .legal-actions-grid .btn,
+  .modal-actions-row .btn {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .filter-row {
+    gap: 8px;
+    margin-top: 12px;
+  }
+
+  .sport-chip {
+    min-height: 42px;
+  }
+
+  .window-chip,
+  .year-chip {
+    min-width: 0;
+    flex: 1 1 calc(50% - 8px);
   }
 }
 
@@ -640,6 +674,17 @@ button {
 .year-chip {
   min-width: 72px;
   justify-content: center;
+}
+
+.window-chip {
+  min-width: 116px;
+  justify-content: center;
+}
+
+.filter-helper {
+  color: var(--text-soft);
+  font-size: 12px;
+  line-height: 1.45;
 }
 
 .comparison-grid {
@@ -872,6 +917,10 @@ button {
 
 .insight-grid-expanded {
   grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.athlete-insight-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .record-grid {

@@ -42,6 +42,8 @@ import {
 } from './dashboard/helpers'
 import { CompareTile, DetailItem, InsightItem, MetricCard, Panel, SectionLead } from './dashboard/ui'
 
+type WindowMode = 'year' | 'month' | 'week' | 'rolling28'
+
 export default function DashboardClient({ initialActivities, initialYear, availableYears, isAdmin, meta, userName }: Props) {
   const actualYears = useMemo(
     () => [...availableYears].filter((year) => year !== 'all').sort((a, b) => Number(b) - Number(a)),
@@ -65,6 +67,7 @@ export default function DashboardClient({ initialActivities, initialYear, availa
     initialYear !== 'all' ? [initialYear] : actualYears
   )
   const [selectedSports, setSelectedSports] = useState<string[]>(['Run'])
+  const [windowMode, setWindowMode] = useState<WindowMode>('year')
   const [page, setPage] = useState(1)
   const [selectedActivity, setSelectedActivity] = useState<Activity | null>(null)
 
@@ -83,7 +86,7 @@ export default function DashboardClient({ initialActivities, initialYear, availa
 
   useEffect(() => {
     setPage(1)
-  }, [selectedYears, selectedSports])
+  }, [selectedYears, selectedSports, windowMode])
 
   useEffect(() => {
     if (!selectedYears.length) return
@@ -262,12 +265,98 @@ export default function DashboardClient({ initialActivities, initialYear, availa
     return mergedActivities.filter((activity) => chosen.has(activity.type))
   }, [allSportsSelected, mergedActivities, selectedSports])
 
-  const analyzedActivities = useMemo(
+  const activeWindow = useMemo(() => {
+    const baseYearLabel = allYearsSelected ? 'historico completo' : selectedYears.length === 1 ? selectedYears[0] : `${selectedYears.length} anos`
+
+    if (!filteredActivities.length) {
+      return {
+        activities: [] as Activity[],
+        label: baseYearLabel,
+        title: 'Ano',
+        volumeTitle: 'Volume mensal',
+        volumeSubtitle: 'Quilometragem agrupada por mes dentro do recorte ativo',
+        comparisonTitle: 'Comparativo 28 dias',
+        comparisonSubtitle: 'Janela atual versus as 4 semanas imediatamente anteriores.',
+      }
+    }
+
+    const latestDate = new Date(filteredActivities[0].date)
+
+    if (windowMode === 'month') {
+      const start = new Date(latestDate.getFullYear(), latestDate.getMonth(), 1)
+      const end = new Date(latestDate.getFullYear(), latestDate.getMonth() + 1, 1)
+      return {
+        activities: filteredActivities.filter((activity) => {
+          const date = new Date(activity.date)
+          return date >= start && date < end
+        }),
+        label: latestDate.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' }),
+        title: 'Mes ativo',
+        volumeTitle: 'Volume diario',
+        volumeSubtitle: 'Quilometragem por dia dentro do mes ativo',
+        comparisonTitle: 'Comparativo mensal',
+        comparisonSubtitle: 'Mes ativo versus o mes imediatamente anterior.',
+      }
+    }
+
+    if (windowMode === 'week') {
+      const start = startOfWeek(latestDate)
+      const end = new Date(start.getTime() + WEEK_MS)
+      const endDisplay = new Date(end.getTime() - DAY_MS)
+      return {
+        activities: filteredActivities.filter((activity) => {
+          const date = new Date(activity.date)
+          return date >= start && date < end
+        }),
+        label: `${start.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })} a ${endDisplay.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })}`,
+        title: 'Semana ativa',
+        volumeTitle: 'Volume diario',
+        volumeSubtitle: 'Quilometragem por dia dentro da semana ativa',
+        comparisonTitle: 'Comparativo semanal',
+        comparisonSubtitle: 'Semana ativa versus a semana imediatamente anterior.',
+      }
+    }
+
+    if (windowMode === 'rolling28') {
+      const start = new Date(latestDate.getTime() - 27 * DAY_MS)
+      return {
+        activities: filteredActivities.filter((activity) => {
+          const date = new Date(activity.date)
+          return date >= start && date <= latestDate
+        }),
+        label: `ultimos 28 dias ate ${latestDate.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })}`,
+        title: '28 dias',
+        volumeTitle: 'Volume diario',
+        volumeSubtitle: 'Quilometragem por dia dentro dos ultimos 28 dias',
+        comparisonTitle: 'Comparativo 28 dias',
+        comparisonSubtitle: 'Janela atual versus as 4 semanas imediatamente anteriores.',
+      }
+    }
+
+    return {
+      activities: filteredActivities,
+      label: baseYearLabel,
+      title: 'Ano',
+      volumeTitle: 'Volume mensal',
+      volumeSubtitle: 'Quilometragem agrupada por mes dentro do recorte ativo',
+      comparisonTitle: 'Comparativo 28 dias',
+      comparisonSubtitle: 'Janela atual versus as 4 semanas imediatamente anteriores.',
+    }
+  }, [allYearsSelected, filteredActivities, selectedYears, windowMode])
+
+  const activeActivities = activeWindow.activities
+
+  const scopedAnalyzedActivities = useMemo(
     () => filteredActivities.filter((activity) => !activity.excludedFromMetrics),
     [filteredActivities]
   )
 
-  const ignoredCount = filteredActivities.length - analyzedActivities.length
+  const analyzedActivities = useMemo(
+    () => activeActivities.filter((activity) => !activity.excludedFromMetrics),
+    [activeActivities]
+  )
+
+  const ignoredCount = activeActivities.length - analyzedActivities.length
 
   const reliablePaceActivities = useMemo(
     () => analyzedActivities.filter(isReliablePaceActivity),
@@ -317,15 +406,16 @@ export default function DashboardClient({ initialActivities, initialYear, availa
         : 0,
       mode,
     }
-  }, [analyzedActivities, primarySport, reliablePaceActivities])
+  }, [analyzedActivities, primarySport, reliablePaceActivities, windowMode])
 
-  const monthly = useMemo(() => {
-    const map = new Map<string, { month: string; km: number; sessions: number }>()
+  const volumeSeries = useMemo(() => {
+    const map = new Map<string, { label: string; km: number; sessions: number }>()
     analyzedActivities.forEach((activity) => {
-      const key = activity.date.slice(0, 7)
-      const current = map.get(key) ?? { month: fmt.month(activity.date), km: 0, sessions: 0 }
+      const key = windowMode === 'year' ? activity.date.slice(0, 7) : activity.date.slice(0, 10)
+      const label = windowMode === 'year' ? fmt.month(activity.date) : fmt.date(activity.date)
+      const current = map.get(key) ?? { label, km: 0, sessions: 0 }
       map.set(key, {
-        month: current.month,
+        label: current.label,
         km: current.km + activity.distanceKm,
         sessions: current.sessions + 1,
       })
@@ -333,12 +423,12 @@ export default function DashboardClient({ initialActivities, initialYear, availa
     return Array.from(map.entries())
       .sort(([a], [b]) => a.localeCompare(b))
       .map(([, value]) => ({ ...value, km: Number(value.km.toFixed(1)) }))
-  }, [analyzedActivities])
+  }, [analyzedActivities, windowMode])
 
   const performanceTimeline = useMemo(() => {
     const mode = getMetricMode(primarySport)
     const source = mode === 'speed' ? analyzedActivities : reliablePaceActivities
-    const recent = [...source].reverse().slice(-24)
+    const recent = windowMode === 'year' ? [...source].reverse().slice(-24) : [...source].reverse().slice(-42)
     return recent
       .map((activity) => {
         const speed = activity.durationSec > 0 ? activity.distanceKm / (activity.durationSec / 3600) : 0
@@ -351,20 +441,34 @@ export default function DashboardClient({ initialActivities, initialYear, availa
         }
       })
       .filter((item) => item.metricValue != null)
-  }, [analyzedActivities, primarySport, reliablePaceActivities])
+  }, [analyzedActivities, primarySport, reliablePaceActivities, windowMode])
 
   const periodComparison = useMemo(() => {
-    if (!analyzedActivities.length) return null
-    const latestDate = new Date(analyzedActivities[0].date)
-    const currentStart = new Date(latestDate.getTime() - 27 * DAY_MS)
-    const previousEnd = new Date(currentStart.getTime() - DAY_MS)
-    const previousStart = new Date(previousEnd.getTime() - 27 * DAY_MS)
+    if (!scopedAnalyzedActivities.length) return null
 
-    const current = analyzedActivities.filter((activity) => {
+    const latestDate = new Date(scopedAnalyzedActivities[0].date)
+    let currentStart = new Date(latestDate.getTime() - 27 * DAY_MS)
+    let currentEnd = latestDate
+    let previousStart = new Date(currentStart.getTime() - 28 * DAY_MS)
+    let previousEnd = new Date(currentStart.getTime() - DAY_MS)
+
+    if (windowMode === 'month') {
+      currentStart = new Date(latestDate.getFullYear(), latestDate.getMonth(), 1)
+      currentEnd = new Date(latestDate.getFullYear(), latestDate.getMonth() + 1, 0, 23, 59, 59, 999)
+      previousStart = new Date(latestDate.getFullYear(), latestDate.getMonth() - 1, 1)
+      previousEnd = new Date(latestDate.getFullYear(), latestDate.getMonth(), 0, 23, 59, 59, 999)
+    } else if (windowMode === 'week') {
+      currentStart = startOfWeek(latestDate)
+      currentEnd = new Date(currentStart.getTime() + WEEK_MS - 1)
+      previousStart = new Date(currentStart.getTime() - WEEK_MS)
+      previousEnd = new Date(currentStart.getTime() - 1)
+    }
+
+    const current = scopedAnalyzedActivities.filter((activity) => {
       const date = new Date(activity.date)
-      return date >= currentStart && date <= latestDate
+      return date >= currentStart && date <= currentEnd
     })
-    const previous = analyzedActivities.filter((activity) => {
+    const previous = scopedAnalyzedActivities.filter((activity) => {
       const date = new Date(activity.date)
       return date >= previousStart && date <= previousEnd
     })
@@ -382,17 +486,17 @@ export default function DashboardClient({ initialActivities, initialYear, availa
         ? ((previousTotals.avgPace - currentTotals.avgPace) / previousTotals.avgPace) * 100
         : 0,
     }
-  }, [analyzedActivities])
+  }, [scopedAnalyzedActivities, windowMode])
 
   const weeklyLoad = useMemo(() => {
-    if (!analyzedActivities.length) return [] as Array<{ week: string; km: number; sessions: number; load: number }>
-    const latestDate = new Date(analyzedActivities[0].date)
+    if (!scopedAnalyzedActivities.length) return [] as Array<{ week: string; km: number; sessions: number; load: number }>
+    const latestDate = new Date(scopedAnalyzedActivities[0].date)
     const currentWeekStart = startOfWeek(latestDate)
 
     return Array.from({ length: 8 }, (_, index) => {
       const weekStart = new Date(currentWeekStart.getTime() - (7 - index) * WEEK_MS)
       const weekEnd = new Date(weekStart.getTime() + WEEK_MS)
-      const items = analyzedActivities.filter((activity) => {
+      const items = scopedAnalyzedActivities.filter((activity) => {
         const date = new Date(activity.date)
         return date >= weekStart && date < weekEnd
       })
@@ -409,7 +513,7 @@ export default function DashboardClient({ initialActivities, initialYear, availa
         load: Number((km * paceFactor).toFixed(1)),
       }
     })
-  }, [analyzedActivities])
+  }, [scopedAnalyzedActivities])
 
   const loadInsight = useMemo(() => {
     if (weeklyLoad.length < 5) return null
@@ -495,10 +599,11 @@ export default function DashboardClient({ initialActivities, initialYear, availa
     return result
   }, [analyzedActivities])
 
-  const pageCount = Math.max(1, Math.ceil(filteredActivities.length / ROWS_STEP))
-  const visibleActivities = filteredActivities.slice((page - 1) * ROWS_STEP, page * ROWS_STEP)
+  const pageCount = Math.max(1, Math.ceil(activeActivities.length / ROWS_STEP))
+  const visibleActivities = activeActivities.slice((page - 1) * ROWS_STEP, page * ROWS_STEP)
   const activeAccent = allSportsSelected ? 'var(--accent)' : getSportAccent(primarySport)
   const yearLabel = allYearsSelected ? 'historico completo' : selectedYears.length === 1 ? selectedYears[0] : `${selectedYears.length} anos`
+  const windowLabel = activeWindow.label
   const totalActivities = Number(meta?.totalActivities ?? 0)
   const viewerRole = String(meta?.viewerRole ?? 'unknown')
   const viewerPlan = String(meta?.viewerPlan ?? 'unknown')
@@ -506,6 +611,7 @@ export default function DashboardClient({ initialActivities, initialYear, availa
   const viewerScopeLabel = meta?.viewerScope?.fullAccess
     ? 'all'
     : `${Array.isArray(meta?.viewerScope?.types) ? meta.viewerScope.types.join(', ') : '-'} | ${Array.isArray(meta?.viewerScope?.years) ? meta.viewerScope.years.join(', ') : '-'}`
+  const showOperatorNotes = viewerAdmin
   const mode = getMetricMode(primarySport)
   const focusLabel = allSportsSelected ? 'visao multiesporte' : selectedSports.length === 1 ? getSportLabel(selectedSports[0]) : `${selectedSports.length} esportes`
   const methodologyCopy = mode === 'mixed'
@@ -586,27 +692,31 @@ export default function DashboardClient({ initialActivities, initialYear, availa
             <div className="hero-meta-row">
               <span className="pill pill-ghost">Atleta: {userName}</span>
               <span className="pill pill-ghost">Foco: {focusLabel}</span>
-              <span className="pill pill-ghost">Ano: {yearLabel}</span>
+              <span className="pill pill-ghost">Recorte base: {yearLabel}</span>
+              <span className="pill pill-ghost">Janela: {windowLabel}</span>
               <span className="pill pill-ghost">Base analitica: {analyzedActivities.length} atividades</span>
-              <span className="pill pill-ghost">Base bruta: {mergedActivities.length} atividades</span>
+              <span className="pill pill-ghost">Base bruta: {activeActivities.length} atividades</span>
+              <span className="pill pill-ghost">Escopo carregado: {filteredActivities.length} atividades</span>
               {ignoredCount > 0 && <span className="pill pill-ghost">Ignoradas: {ignoredCount}</span>}
               <span className="pill pill-ghost">Base total: {totalActivities}</span>
-              <span className="pill pill-ghost">Role: {viewerRole}</span>
-              <span className="pill pill-ghost">Plan: {viewerPlan}</span>
-              <span className="pill pill-ghost">Admin: {viewerAdmin ? 'sim' : 'nao'}</span>
-              <span className="pill pill-ghost">Scope: {viewerScopeLabel}</span>
+              {showOperatorNotes && <span className="pill pill-ghost">Role: {viewerRole}</span>}
+              {showOperatorNotes && <span className="pill pill-ghost">Plan: {viewerPlan}</span>}
+              {showOperatorNotes && <span className="pill pill-ghost">Admin: {viewerAdmin ? 'sim' : 'nao'}</span>}
+              {showOperatorNotes && <span className="pill pill-ghost">Scope: {viewerScopeLabel}</span>}
               {meta?.lastSync && <span className="pill pill-ghost">Ultimo sync: {new Date(meta.lastSync).toLocaleDateString('pt-BR')}{meta?.lastSyncMode ? ` | ${meta.lastSyncMode}` : ''}</span>}
             </div>
-            <p className="hero-methodology">{methodologyCopy}</p>
-            <div className="reading-grid">
-              {readingLayers.map((layer) => (
-                <article key={layer.title} className="reading-card">
-                  <span className="metric-label">{layer.title}</span>
-                  <strong>{layer.title}</strong>
-                  <p>{layer.copy}</p>
-                </article>
-              ))}
-            </div>
+            {showOperatorNotes && <p className="hero-methodology">{methodologyCopy}</p>}
+            {showOperatorNotes && (
+              <div className="reading-grid">
+                {readingLayers.map((layer) => (
+                  <article key={layer.title} className="reading-card">
+                    <span className="metric-label">{layer.title}</span>
+                    <strong>{layer.title}</strong>
+                    <p>{layer.copy}</p>
+                  </article>
+                ))}
+              </div>
+            )}
           </div>
 
           <div className="control-panel">
@@ -674,8 +784,33 @@ export default function DashboardClient({ initialActivities, initialYear, availa
               </div>
             </div>
 
+            <div className="filter-block">
+              <span className="control-label">Janela</span>
+              <div className="filter-row">
+                {[
+                  { key: 'year', label: 'Ano' },
+                  { key: 'month', label: 'Mes ativo' },
+                  { key: 'week', label: 'Semana ativa' },
+                  { key: 'rolling28', label: '28 dias' },
+                ].map((option) => (
+                  <button
+                    key={option.key}
+                    type="button"
+                    className="sport-chip window-chip"
+                    data-active={windowMode === option.key}
+                    onClick={() => setWindowMode(option.key as WindowMode)}
+                    style={{ ['--chip-accent' as string]: 'var(--accent-3)' }}
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+              {windowMode !== 'year' && <p className="filter-helper">A janela ativa usa a atividade mais recente do recorte base como ancora.</p>}
+            </div>
+
             <div className="filter-summary">
               <span className="pill pill-ghost">Anos: {yearLabel}</span>
+              <span className="pill pill-ghost">Janela: {activeWindow.title} - {windowLabel}</span>
               <span className="pill pill-ghost">Esportes: {focusLabel}</span>
             </div>
 
@@ -732,14 +867,14 @@ export default function DashboardClient({ initialActivities, initialYear, availa
         </div>
       </section>
 
-      {!filteredActivities.length && !loadingYears.length ? (
+      {!activeActivities.length && !loadingYears.length ? (
         <section className="panel">
           <div className="panel-header compact">
             <div>
               <p className="panel-eyebrow">Recorte vazio</p>
               <h3>Sem atividades para este filtro</h3>
             </div>
-            <span className="panel-subtitle">Troque o esporte ou o ano para continuar a analise.</span>
+            <span className="panel-subtitle">Troque o esporte, o ano ou a janela para continuar a analise.</span>
           </div>
         </section>
       ) : (
@@ -752,7 +887,7 @@ export default function DashboardClient({ initialActivities, initialYear, availa
                 subtitle="Aqui entram os numeros de topo. Eles resumem a janela filtrada antes de abrir a analise detalhada."
               />
               <section className="kpi-grid">
-                <MetricCard label="Sessoes ativas" value={String(stats.count)} sub={`${yearLabel} | ${focusLabel}`} accent={activeAccent} />
+                <MetricCard label="Sessoes ativas" value={String(stats.count)} sub={`${activeWindow.title} | ${focusLabel}`} accent={activeAccent} />
                 <MetricCard label="Distancia" value={`${fmt.dist(stats.totalDist)} km`} sub="volume no recorte ativo" accent={activeAccent} />
                 <MetricCard label="Tempo ativo" value={fmt.dur(stats.totalDur)} sub="movimento no recorte ativo" accent={activeAccent} />
                 <MetricCard
@@ -778,16 +913,16 @@ export default function DashboardClient({ initialActivities, initialYear, availa
             subtitle="Os paineis abaixo ja nao misturam tudo na mesma camada. Cada bloco responde uma pergunta diferente."
           />
           <section className="dashboard-grid">
-            <Panel eyebrow="Volume" title="Volume mensal" subtitle="Quilometragem agrupada por mes dentro do ano filtrado">
+            <Panel eyebrow="Volume" title={activeWindow.volumeTitle} subtitle={activeWindow.volumeSubtitle}>
               <ResponsiveContainer width="100%" height={260}>
-                <BarChart data={monthly} margin={{ top: 8, right: 4, bottom: 4, left: -16 }}>
+                <BarChart data={volumeSeries} margin={{ top: 8, right: 4, bottom: 4, left: -16 }}>
                   <CartesianGrid strokeDasharray="4 4" stroke="var(--grid)" />
-                  <XAxis dataKey="month" tick={{ fill: 'var(--text-muted)', fontSize: 11 }} axisLine={false} tickLine={false} />
+                  <XAxis dataKey="label" tick={{ fill: 'var(--text-muted)', fontSize: 11 }} axisLine={false} tickLine={false} />
                   <YAxis tick={{ fill: 'var(--text-muted)', fontSize: 11 }} axisLine={false} tickLine={false} />
                   <Tooltip contentStyle={chartTooltip} formatter={(value: number) => [`${value} km`, 'Distancia']} />
                   <Bar dataKey="km" radius={[8, 8, 0, 0]}>
-                    {monthly.map((entry, index) => (
-                      <Cell key={`${entry.month}-${index}`} fill={activeAccent} fillOpacity={0.95 - index * 0.015} />
+                    {volumeSeries.map((entry, index) => (
+                      <Cell key={`${entry.label}-${index}`} fill={activeAccent} fillOpacity={0.95 - index * 0.015} />
                     ))}
                   </Bar>
                 </BarChart>
@@ -818,7 +953,7 @@ export default function DashboardClient({ initialActivities, initialYear, availa
               </ResponsiveContainer>
             </Panel>
 
-            <Panel eyebrow="Comparativo" title="Comparativo 28 dias" subtitle="Janela atual versus as 4 semanas imediatamente anteriores">
+            <Panel eyebrow="Comparativo" title={activeWindow.comparisonTitle} subtitle={activeWindow.comparisonSubtitle}>
               {periodComparison ? (
                 <div className="comparison-grid">
                   <CompareTile label="Distancia" current={`${fmt.dist(periodComparison.current.distance)} km`} previous={`${fmt.dist(periodComparison.previous.distance)} km`} delta={fmt.pct(periodComparison.distanceChange)} positive={periodComparison.distanceChange >= 0} />
@@ -827,7 +962,7 @@ export default function DashboardClient({ initialActivities, initialYear, availa
                   <CompareTile label="Pace" current={fmt.pace(periodComparison.current.avgPace)} previous={fmt.pace(periodComparison.previous.avgPace)} delta={fmt.pct(periodComparison.paceChange)} positive={periodComparison.paceChange >= 0} />
                 </div>
               ) : (
-                <p className="empty-copy">Ainda nao ha dados suficientes para comparar os ultimos 28 dias.</p>
+                <p className="empty-copy">Ainda nao ha dados suficientes para comparar a janela ativa com o periodo anterior equivalente.</p>
               )}
             </Panel>
             <Panel eyebrow="Consistencia" title="Carga semanal" subtitle="Heuristica de volume recente e manutencao de carga">
@@ -858,10 +993,10 @@ export default function DashboardClient({ initialActivities, initialYear, availa
 
           <SectionLead
             eyebrow="Leitura de apoio"
-            title="Contexto de produto, recordes e leitura qualitativa"
-            subtitle="Esses blocos ajudam a interpretar os numeros principais sem transformar o painel em uma planilha crua."
+            title={showOperatorNotes ? 'Contexto de produto, recordes e leitura qualitativa' : 'Recordes e leitura qualitativa'}
+            subtitle={showOperatorNotes ? 'Esses blocos ajudam a interpretar os numeros principais sem transformar o painel em uma planilha crua.' : 'Blocos de apoio para interpretar a fase atual sem mergulhar direto no bruto.'}
           />
-          <section className="insight-grid insight-grid-expanded">
+          <section className={`insight-grid ${showOperatorNotes ? 'insight-grid-expanded' : 'athlete-insight-grid'}`}>
             <Panel eyebrow="Recordes" title="Melhores marcas do recorte" subtitle="Prioriza best efforts oficiais do Strava. Quando nao houver detalhamento disponivel, cai para aproximacao pela atividade inteira.">
               {records.length ? (
                 <div className="record-grid">
@@ -883,13 +1018,15 @@ export default function DashboardClient({ initialActivities, initialYear, availa
               )}
             </Panel>
 
-            <Panel eyebrow="Produto" title="Leituras rapidas" subtitle="Como interpretar o recorte e a estrutura atual da home">
-              <div className="insight-list">
-                <InsightItem title="2026 agora carrega completo">O primeiro ano selecionado deixa de ficar preso ao recorte inicial de 160 atividades e passa a buscar o ano inteiro sob demanda.</InsightItem>
-                <InsightItem title="Filtros agora podem se combinar">Voce pode ler mais de um ano e mais de um esporte ao mesmo tempo, em vez de trocar a lente inteira a cada clique.</InsightItem>
-                <InsightItem title="Carga atual e heuristica">A leitura semanal serve para consistencia e deload, nao como equivalencia cientifica de TRIMP ou TSS.</InsightItem>
-              </div>
-            </Panel>
+            {showOperatorNotes && (
+              <Panel eyebrow="Produto" title="Leituras rapidas" subtitle="Como interpretar o recorte e a estrutura atual da home">
+                <div className="insight-list">
+                  <InsightItem title="Janelas agora mudam a leitura">Voce pode alternar entre ano, mes ativo, semana ativa e 28 dias sem perder o mesmo recorte base de esporte e ano.</InsightItem>
+                  <InsightItem title="2026 agora carrega completo">O primeiro ano selecionado deixa de ficar preso ao recorte inicial de 160 atividades e passa a buscar o ano inteiro sob demanda.</InsightItem>
+                  <InsightItem title="Carga atual e heuristica">A leitura semanal serve para consistencia e deload, nao como equivalencia cientifica de TRIMP ou TSS.</InsightItem>
+                </div>
+              </Panel>
+            )}
 
             <Panel eyebrow="Qualitativo" title="Ultimos treinos" subtitle="Amostra recente para leitura qualitativa">
               <div className="recent-grid">
@@ -922,7 +1059,7 @@ export default function DashboardClient({ initialActivities, initialYear, availa
                 <p className="panel-eyebrow">Historico filtrado</p>
                 <h3>Atividades recentes</h3>
               </div>
-              <span className="pill pill-ghost">{filteredActivities.length} itens no historico filtrado</span>
+              <span className="pill pill-ghost">{activeActivities.length} itens na janela ativa</span>
             </div>
 
             <div className="table-wrap">

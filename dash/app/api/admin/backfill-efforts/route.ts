@@ -1,10 +1,10 @@
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { hasAdminAccess } from '@/lib/access'
+import { isRunLikeType } from '@/lib/activity-types'
 import { activitiesRef, metaRef, userRef } from '@/lib/firebase'
 import { extractBestEfforts, fetchActivity } from '@/lib/strava'
 
-const RUN_LIKE_TYPES = new Set(['Run', 'TrailRun', 'VirtualRun'])
 const BATCH_LIMIT = 60
 const CONCURRENCY = 3
 
@@ -13,7 +13,7 @@ function isEligibleForBestEfforts(data: Record<string, unknown>) {
   const distanceKm = Number(data.distanceKm ?? 0)
   const durationSec = Number(data.durationSec ?? 0)
 
-  return RUN_LIKE_TYPES.has(type) && distanceKm >= 3 && durationSec >= 20 * 60
+  return isRunLikeType(type) && distanceKm >= 3 && durationSec >= 20 * 60
 }
 
 function hasBestEfforts(data: Record<string, unknown>) {
@@ -43,32 +43,32 @@ export async function POST() {
   })
 
   const limited = candidates.slice(0, BATCH_LIMIT)
+  const workerCount = Math.min(CONCURRENCY, limited.length)
+  const workerBatches = Array.from({ length: workerCount }, () => [] as typeof limited)
   let enrichedCount = 0
   let errorCount = 0
-  let cursor = 0
 
-  async function worker() {
-    while (cursor < limited.length) {
-      const doc = limited[cursor]
-      cursor += 1
-
-      try {
-        const stravaId = Number(doc.data().stravaId)
-        const detail = await fetchActivity(session!.accessToken!, stravaId)
-        const bestEfforts = extractBestEfforts(detail)
-
-        if (bestEfforts.length) {
-          await doc.ref.set({ bestEfforts }, { merge: true })
-          enrichedCount += 1
-        }
-      } catch {
-        errorCount += 1
-      }
-    }
-  }
+  limited.forEach((doc, index) => {
+    workerBatches[index % workerCount]?.push(doc)
+  })
 
   await Promise.all(
-    Array.from({ length: Math.min(CONCURRENCY, limited.length) }, () => worker())
+    workerBatches.map(async (batch) => {
+      for (const doc of batch) {
+        try {
+          const stravaId = Number(doc.data().stravaId)
+          const detail = await fetchActivity(session.accessToken, stravaId)
+          const bestEfforts = extractBestEfforts(detail)
+
+          if (bestEfforts.length) {
+            await doc.ref.set({ bestEfforts }, { merge: true })
+            enrichedCount += 1
+          }
+        } catch {
+          errorCount += 1
+        }
+      }
+    })
   )
 
   await metaRef(session.stravaId).set(

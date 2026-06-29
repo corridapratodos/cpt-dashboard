@@ -1,9 +1,4 @@
-export interface BestEffort {
-  name: string
-  distanceKm: number
-  elapsedSec: number
-  movingSec: number | null
-}
+import type { BestEffort } from '@/lib/activity-types'
 
 export interface Activity {
   stravaId: number

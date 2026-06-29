@@ -1,12 +1,6 @@
 import { Query } from 'firebase-admin/firestore'
 import { FREE_PLAN_YEAR, FREE_PLAN_TYPES, type UserScope } from '@/lib/access'
-
-export type StoredBestEffort = {
-  name: string
-  distanceKm: number
-  elapsedSec: number
-  movingSec: number | null
-}
+import type { StoredBestEffort } from '@/lib/activity-types'
 
 type StoredActivity = {
   stravaId: number

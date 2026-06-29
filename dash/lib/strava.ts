@@ -1,19 +1,12 @@
 import { normalizeTextValue } from '@/lib/text'
+import { isRunLikeType, type StoredBestEffort } from '@/lib/activity-types'
 
 const TRACKED_BEST_EFFORTS_KM = [3, 5, 10, 15, 21.1, 30]
-const RUN_LIKE_TYPES = new Set(['Run', 'TrailRun', 'VirtualRun'])
 const BEST_EFFORT_FETCH_LIMIT = {
   incremental: 24,
   full: 80,
 } as const
 const BEST_EFFORT_CONCURRENCY = 4
-
-export type StoredBestEffort = {
-  name: string
-  distanceKm: number
-  elapsedSec: number
-  movingSec: number | null
-}
 
 // Busca atividades do atleta com suporte a sync incremental por data
 export async function fetchActivities(accessToken: string, after?: number) {
@@ -100,7 +93,7 @@ function shouldFetchBestEfforts(activity: any) {
   const distanceKm = Number(activity?.distance ?? 0) / 1000
   const movingTime = Number(activity?.moving_time ?? 0)
 
-  return RUN_LIKE_TYPES.has(type) && distanceKm >= 3 && movingTime >= 20 * 60
+  return isRunLikeType(type) && distanceKm >= 3 && movingTime >= 20 * 60
 }
 
 export async function fetchBestEffortsForActivities(
@@ -111,28 +104,27 @@ export async function fetchBestEffortsForActivities(
   const eligible = activities.filter(shouldFetchBestEfforts)
   const limited = eligible.slice(0, BEST_EFFORT_FETCH_LIMIT[mode])
   const byActivityId = new Map<number, StoredBestEffort[]>()
+  const workerCount = Math.min(BEST_EFFORT_CONCURRENCY, limited.length)
+  const workerBatches = Array.from({ length: workerCount }, () => [] as typeof limited)
 
-  let cursor = 0
-
-  async function worker() {
-    while (cursor < limited.length) {
-      const current = limited[cursor]
-      cursor += 1
-
-      try {
-        const detail = await fetchActivity(accessToken, Number(current.id))
-        const bestEfforts = extractBestEfforts(detail)
-        if (bestEfforts.length) {
-          byActivityId.set(Number(current.id), bestEfforts)
-        }
-      } catch {
-        // Best effort backfill e oportunistico; falhas nao bloqueiam o sync principal.
-      }
-    }
-  }
+  limited.forEach((activity, index) => {
+    workerBatches[index % workerCount]?.push(activity)
+  })
 
   await Promise.all(
-    Array.from({ length: Math.min(BEST_EFFORT_CONCURRENCY, limited.length) }, () => worker())
+    workerBatches.map(async (batch) => {
+      for (const current of batch) {
+        try {
+          const detail = await fetchActivity(accessToken, Number(current.id))
+          const bestEfforts = extractBestEfforts(detail)
+          if (bestEfforts.length) {
+            byActivityId.set(Number(current.id), bestEfforts)
+          }
+        } catch {
+          // Best effort backfill e oportunistico; falhas nao bloqueiam o sync principal.
+        }
+      }
+    })
   )
 
   return {

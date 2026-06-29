@@ -1,4 +1,4 @@
-﻿import type { AuthOptions } from 'next-auth'
+import type { AuthOptions } from 'next-auth'
 import StravaProvider from 'next-auth/providers/strava'
 import { getUserPlan, hasMasterAccess } from '@/lib/access'
 import { getDb, userRef } from '@/lib/firebase'

@@ -1,7 +1,7 @@
-﻿import { NextRequest } from 'next/server'
+import { NextRequest } from 'next/server'
 import { getUserScope, isActivityAllowedForScope } from '@/lib/access'
 import { buildSyncSummary, toDashboardActivity } from '@/lib/dashboard'
-import { fetchActivity, mapActivity } from '@/lib/strava'
+import { extractBestEfforts, fetchActivity, mapActivity } from '@/lib/strava'
 import { activitiesRef, getDb, metaRef } from '@/lib/firebase'
 
 export async function GET(req: NextRequest) {
@@ -66,7 +66,7 @@ export async function POST(req: NextRequest) {
     return Response.json({ ok: true, skipped: true, reason: 'outside_plan_scope' })
   }
 
-  const mapped = mapActivity(activity)
+  const mapped = mapActivity(activity, { bestEfforts: extractBestEfforts(activity) })
   await activitiesRef(ownerId).doc(String(activityId)).set(mapped, { merge: true })
 
   const activityYear = String(new Date(mapped.date).getUTCFullYear())

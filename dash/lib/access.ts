@@ -1,4 +1,4 @@
-﻿const DAY_MS = 24 * 60 * 60 * 1000
+const DAY_MS = 24 * 60 * 60 * 1000
 
 export const LEGAL_VERSION = '2026-06-27'
 export const FULL_SYNC_COOLDOWN_MS = 7 * DAY_MS
