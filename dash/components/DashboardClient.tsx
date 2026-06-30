@@ -71,6 +71,7 @@ export default function DashboardClient({ initialActivities, initialYear, availa
   const [windowMode, setWindowMode] = useState<WindowMode>('year')
   const [selectedMonthKey, setSelectedMonthKey] = useState<string>('')
   const [selectedWeekKey, setSelectedWeekKey] = useState<string>('')
+  const [previewMode, setPreviewMode] = useState<'admin' | 'athlete'>('admin')
   const [page, setPage] = useState(1)
   const [selectedActivity, setSelectedActivity] = useState<Activity | null>(null)
 
@@ -684,7 +685,7 @@ export default function DashboardClient({ initialActivities, initialYear, availa
   const viewerScopeLabel = meta?.viewerScope?.fullAccess
     ? 'all'
     : `${Array.isArray(meta?.viewerScope?.types) ? meta.viewerScope.types.join(', ') : '-'} | ${Array.isArray(meta?.viewerScope?.years) ? meta.viewerScope.years.join(', ') : '-'}`
-  const showOperatorNotes = viewerAdmin
+  const showOperatorNotes = viewerAdmin && previewMode === 'admin'
   const mode = getMetricMode(primarySport)
   const focusLabel = allSportsSelected ? 'visao multiesporte' : selectedSports.length === 1 ? getSportLabel(selectedSports[0]) : `${selectedSports.length} esportes`
   const methodologyCopy = mode === 'mixed'
@@ -802,6 +803,35 @@ export default function DashboardClient({ initialActivities, initialYear, availa
                 {theme === 'dark' ? 'Modo claro' : 'Modo escuro'}
               </button>
             </div>
+
+            {viewerAdmin && (
+              <div className="preview-toolbar">
+                <div>
+                  <p className="control-label">Preview de interface</p>
+                  <strong>{previewMode === 'admin' ? 'Visualizando modo admin' : 'Visualizando modo atleta'}</strong>
+                </div>
+                <div className="preview-toggle">
+                  <button
+                    type="button"
+                    className="sport-chip preview-chip"
+                    data-active={previewMode === 'admin'}
+                    style={{ ['--chip-accent' as string]: 'var(--accent-4)' }}
+                    onClick={() => setPreviewMode('admin')}
+                  >
+                    Ver admin
+                  </button>
+                  <button
+                    type="button"
+                    className="sport-chip preview-chip"
+                    data-active={previewMode === 'athlete'}
+                    style={{ ['--chip-accent' as string]: 'var(--accent-2)' }}
+                    onClick={() => setPreviewMode('athlete')}
+                  >
+                    Ver atleta
+                  </button>
+                </div>
+              </div>
+            )}
 
             <div className="filter-block">
               <span className="control-label">Esporte</span>
@@ -930,7 +960,7 @@ export default function DashboardClient({ initialActivities, initialYear, availa
               </button>
             </div>
 
-            {viewerAdmin && (
+            {showOperatorNotes && (
               <div className="admin-tools">
                 <div>
                   <p className="control-label">Ferramentas de administrador</p>

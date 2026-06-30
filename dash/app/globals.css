@@ -349,6 +349,29 @@ button {
   color: var(--text-muted);
 }
 
+.preview-toolbar {
+  margin-top: 18px;
+  padding: 14px 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface-soft);
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+}
+
+.preview-toggle {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.preview-chip {
+  min-width: 116px;
+  justify-content: center;
+}
+
 .kpi-grid,
 .dashboard-grid,
 .insight-grid,
@@ -649,14 +672,17 @@ button {
   .action-row,
   .admin-actions-row,
   .legal-actions-grid,
-  .modal-actions-row {
+  .modal-actions-row,
+  .preview-toolbar {
     flex-direction: column;
   }
 
   .action-row .btn,
   .admin-actions-row .btn,
   .legal-actions-grid .btn,
-  .modal-actions-row .btn {
+  .modal-actions-row .btn,
+  .preview-toggle,
+  .preview-chip {
     width: 100%;
     justify-content: center;
   }
