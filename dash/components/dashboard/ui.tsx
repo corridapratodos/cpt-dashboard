@@ -21,6 +21,16 @@ export function CompareTile({ label, current, previous, delta, positive }: { lab
   )
 }
 
+export function AnalysisTile({ label, value, meta }: { label: string; value: string; meta: string }) {
+  return (
+    <article className="analysis-tile">
+      <p className="metric-label">{label}</p>
+      <strong>{value}</strong>
+      <span className="analysis-meta">{meta}</span>
+    </article>
+  )
+}
+
 export function Panel({ eyebrow = 'Analise', title, subtitle, children }: { eyebrow?: string; title: string; subtitle: string; children: ReactNode }) {
   return (
     <section className="panel">

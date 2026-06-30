@@ -735,6 +735,34 @@ button {
   gap: 12px;
 }
 
+.analysis-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.analysis-grid-compact {
+  margin-top: 14px;
+}
+
+.analysis-tile {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface-soft);
+  padding: 14px 16px;
+  display: grid;
+  gap: 6px;
+}
+
+.analysis-tile strong {
+  font-size: 1.25rem;
+}
+
+.analysis-meta {
+  color: var(--text-soft);
+  font-size: 12px;
+}
+
 .compare-tile {
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
@@ -793,7 +821,8 @@ button {
 }
 
 @media (max-width: 720px) {
-  .comparison-grid {
+  .comparison-grid,
+  .analysis-grid {
     grid-template-columns: 1fr;
   }
 }

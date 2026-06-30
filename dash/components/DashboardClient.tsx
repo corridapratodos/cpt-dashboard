@@ -40,7 +40,7 @@ import {
   sportMeta,
   startOfWeek,
 } from './dashboard/helpers'
-import { CompareTile, DetailItem, InsightItem, MetricCard, Panel, SectionLead } from './dashboard/ui'
+import { AnalysisTile, CompareTile, DetailItem, InsightItem, MetricCard, Panel, SectionLead } from './dashboard/ui'
 
 type WindowMode = 'year' | 'month' | 'week' | 'rolling28'
 type WindowOption = { key: string; label: string; start: Date; end: Date }
@@ -625,6 +625,168 @@ export default function DashboardClient({ initialActivities, initialYear, availa
     }
   }, [weeklyLoad])
 
+  const periodContext = useMemo(() => {
+    if (!stats || !analyzedActivities.length) return null
+
+    const activeDays = new Set(analyzedActivities.map((activity) => activity.date.slice(0, 10))).size
+    const activeWeeks = new Set(analyzedActivities.map((activity) => startOfWeek(new Date(activity.date)).toISOString().slice(0, 10))).size
+    const oldest = analyzedActivities[analyzedActivities.length - 1]
+    const newest = analyzedActivities[0]
+    const spanStart = activeWindow.start ?? new Date(oldest.date)
+    const spanEnd = activeWindow.end ?? new Date(newest.date)
+    const spanDays = Math.max(1, Math.round((spanEnd.getTime() - spanStart.getTime()) / DAY_MS) + 1)
+    const densityPct = Math.round((activeDays / spanDays) * 100)
+    const avgSessionKm = stats.totalDist / stats.count
+    const avgSessionMinutes = stats.totalDur / stats.count / 60
+    const longestSharePct = stats.totalDist > 0 ? Math.round((stats.longest.distanceKm / stats.totalDist) * 100) : 0
+    const sessionsPerWeek = activeWeeks ? stats.count / activeWeeks : stats.count
+
+    return {
+      activeDays,
+      spanDays,
+      densityPct,
+      avgSessionKm: Number(avgSessionKm.toFixed(1)),
+      avgSessionMinutes: Math.round(avgSessionMinutes),
+      longestSharePct,
+      sessionsPerWeek: Number(sessionsPerWeek.toFixed(1)),
+    }
+  }, [activeWindow.end, activeWindow.start, analyzedActivities, stats])
+
+  const periodBenchmark = useMemo(() => {
+    if (!scopedAnalyzedActivities.length || (windowMode !== 'month' && windowMode !== 'week')) return null
+
+    const groups = new Map<string, { label: string; distance: number; sessions: number; paceValues: number[] }>()
+
+    for (const activity of scopedAnalyzedActivities) {
+      const key = windowMode === 'month'
+        ? activity.date.slice(0, 7)
+        : startOfWeek(new Date(activity.date)).toISOString().slice(0, 10)
+
+      const label = windowMode === 'month'
+        ? new Date(`${key}-01T00:00:00`).toLocaleDateString('pt-BR', { month: 'short', year: 'numeric' })
+        : (() => {
+            const weekStart = new Date(`${key}T00:00:00`)
+            const weekEnd = new Date(weekStart.getTime() + WEEK_MS - 1)
+            return `${weekStart.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })} - ${weekEnd.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })}`
+          })()
+
+      const current = groups.get(key) ?? { label, distance: 0, sessions: 0, paceValues: [] }
+      current.distance += activity.distanceKm
+      current.sessions += 1
+      if (isReliablePaceActivity(activity) && activity.paceSec != null) {
+        current.paceValues.push(activity.paceSec)
+      }
+      groups.set(key, current)
+    }
+
+    const rows = Array.from(groups.entries()).map(([key, value]) => ({
+      key,
+      label: value.label,
+      distance: Number(value.distance.toFixed(1)),
+      sessions: value.sessions,
+      avgPace: value.paceValues.length
+        ? Math.round(value.paceValues.reduce((sum, pace) => sum + pace, 0) / value.paceValues.length)
+        : null,
+    }))
+
+    const currentKey = windowMode === 'month' ? selectedMonthKey : selectedWeekKey
+    const current = rows.find((row) => row.key === currentKey)
+    if (!current || rows.length < 2) return null
+
+    const byDistance = [...rows].sort((a, b) => b.distance - a.distance)
+    const rank = byDistance.findIndex((row) => row.key === current.key) + 1
+    const avgDistance = rows.reduce((sum, row) => sum + row.distance, 0) / rows.length
+    const avgSessions = rows.reduce((sum, row) => sum + row.sessions, 0) / rows.length
+    const paceRows = rows.filter((row) => row.avgPace != null)
+    const avgPace = paceRows.length
+      ? Math.round(paceRows.reduce((sum, row) => sum + (row.avgPace ?? 0), 0) / paceRows.length)
+      : null
+    const paceDelta = current.avgPace != null && avgPace != null
+      ? ((avgPace - current.avgPace) / avgPace) * 100
+      : null
+
+    return {
+      rank,
+      total: rows.length,
+      averageDistance: Number(avgDistance.toFixed(1)),
+      averageSessions: Number(avgSessions.toFixed(1)),
+      best: byDistance[0],
+      current,
+      paceDelta,
+      label: windowMode === 'month' ? 'meses' : 'semanas',
+    }
+  }, [scopedAnalyzedActivities, selectedMonthKey, selectedWeekKey, windowMode])
+
+  const analysisInsights = useMemo(() => {
+    const insights: Array<{ title: string; copy: string }> = []
+
+    if (periodComparison) {
+      if (periodComparison.distanceChange >= 12) {
+        insights.push({
+          title: 'Volume acima do bloco anterior',
+          copy: `A distancia subiu ${fmt.pct(periodComparison.distanceChange)} e a frequencia mudou ${fmt.pct(periodComparison.sessionChange)} frente ao periodo anterior equivalente.`,
+        })
+      } else if (periodComparison.distanceChange <= -12) {
+        insights.push({
+          title: 'Volume abaixo do bloco anterior',
+          copy: `A distancia caiu ${Math.abs(periodComparison.distanceChange).toFixed(0)}% contra o bloco anterior. Isso pode indicar deload, pausa ou quebra de consistencia.`,
+        })
+      } else {
+        insights.push({
+          title: 'Volume em faixa parecida',
+          copy: `O recorte atual esta perto do bloco anterior: distancia em ${fmt.pct(periodComparison.distanceChange)} e sessoes em ${fmt.pct(periodComparison.sessionChange)}.`,
+        })
+      }
+
+      if (periodComparison.current.avgPace && periodComparison.previous.avgPace) {
+        const improved = periodComparison.paceChange >= 2
+        const regressed = periodComparison.paceChange <= -2
+        insights.push({
+          title: improved ? 'Desempenho ganhou eficiencia' : regressed ? 'Desempenho perdeu eficiencia' : 'Ritmo muito proximo do bloco anterior',
+          copy: improved
+            ? `O pace medio melhorou ${fmt.pct(periodComparison.paceChange)} contra o periodo anterior.`
+            : regressed
+              ? `O pace medio piorou ${Math.abs(periodComparison.paceChange).toFixed(0)}% contra o periodo anterior.`
+              : 'O pace medio variou pouco, o que sugere estabilidade de intensidade neste recorte.',
+        })
+      }
+    }
+
+    if (periodBenchmark) {
+      insights.push({
+        title: `Posicao do ${windowMode === 'month' ? 'mes' : 'bloco semanal'} no historico filtrado`,
+        copy: `Este recorte ocupa a posicao ${periodBenchmark.rank} de ${periodBenchmark.total} em volume dentro das ${periodBenchmark.label} carregadas. Melhor janela: ${fmt.dist(periodBenchmark.best.distance)} km em ${periodBenchmark.best.label}.`,
+      })
+
+      if (periodBenchmark.paceDelta != null) {
+        insights.push({
+          title: periodBenchmark.paceDelta >= 2 ? 'Ritmo acima da media comparavel' : periodBenchmark.paceDelta <= -2 ? 'Ritmo abaixo da media comparavel' : 'Ritmo em linha com a media comparavel',
+          copy: periodBenchmark.paceDelta >= 2
+            ? `O pace do periodo esta ${fmt.pct(periodBenchmark.paceDelta)} melhor que a media das ${periodBenchmark.label} equivalentes do recorte.`
+            : periodBenchmark.paceDelta <= -2
+              ? `O pace do periodo esta ${Math.abs(periodBenchmark.paceDelta).toFixed(0)}% abaixo da media das ${periodBenchmark.label} equivalentes do recorte.`
+              : `O pace do periodo esta praticamente alinhado com a media das ${periodBenchmark.label} equivalentes do recorte.`,
+        })
+      }
+    }
+
+    if (periodContext) {
+      insights.push({
+        title: 'Densidade de treino do recorte',
+        copy: `${periodContext.activeDays} dias ativos em ${periodContext.spanDays} dias de janela, com densidade de ${periodContext.densityPct}% e media de ${periodContext.sessionsPerWeek} sessoes por semana ativa.`,
+      })
+    }
+
+    if (loadInsight) {
+      insights.push({
+        title: 'Consistencia recente da carga',
+        copy: `${loadInsight.recommendation} Hoje o bloco carrega ${loadInsight.stableWeeks} semanas consecutivas dentro da mesma faixa de manutencao.`,
+      })
+    }
+
+    return insights.slice(0, 4)
+  }, [loadInsight, periodBenchmark, periodComparison, periodContext, windowMode])
+
   const effortHighlights = useMemo(() => analyzedActivities.slice(0, 4), [analyzedActivities])
 
   const records = useMemo(() => {
@@ -1123,6 +1285,46 @@ export default function DashboardClient({ initialActivities, initialYear, availa
                   <strong>{loadInsight.stableWeeks} semanas sustentando a faixa de carga</strong>
                   <p>{loadInsight.recommendation}</p>
                   <span>Semana atual: {fmt.dist(loadInsight.currentWeek.km)} km | referencia recente: {loadInsight.avgLoad} de carga</span>
+                </div>
+              )}
+            </Panel>
+          </section>
+
+          <SectionLead
+            eyebrow="Leitura comparativa"
+            title="Periodo em contexto e interpretacao automatica"
+            subtitle="Aqui o recorte atual deixa de ser so numero absoluto e passa a ser lido contra o bloco anterior e contra o proprio historico carregado."
+          />
+          <section className="dashboard-grid">
+            <Panel eyebrow="Contexto" title="Leituras do periodo" subtitle="Composicao do bloco atual alem dos KPIs de topo">
+              {periodContext && stats ? (
+                <div className="analysis-grid">
+                  <AnalysisTile label="Densidade" value={`${periodContext.densityPct}%`} meta={`${periodContext.activeDays} dias ativos em ${periodContext.spanDays} dias`} />
+                  <AnalysisTile label="Sessao media" value={`${fmt.dist(periodContext.avgSessionKm)} km`} meta={`${periodContext.avgSessionMinutes} min por sessao`} />
+                  <AnalysisTile label="Peso do longao" value={`${periodContext.longestSharePct}%`} meta={`${fmt.dist(stats.longest.distanceKm)} km do volume total`} />
+                  <AnalysisTile label="Cadencia" value={`${periodContext.sessionsPerWeek.toFixed(1)}/sem`} meta="sessoes por semana ativa" />
+                </div>
+              ) : (
+                <p className="empty-copy">Ainda nao ha base suficiente para contextualizar a janela ativa.</p>
+              )}
+            </Panel>
+
+            <Panel eyebrow="Leitura automatica" title="Comparativos do recorte" subtitle="Resumo interpretado do bloco atual contra referencias equivalentes">
+              {analysisInsights.length ? (
+                <div className="insight-list">
+                  {analysisInsights.map((insight) => (
+                    <InsightItem key={insight.title} title={insight.title}>{insight.copy}</InsightItem>
+                  ))}
+                </div>
+              ) : (
+                <p className="empty-copy">Ainda nao ha comparativos suficientes para gerar leitura automatica deste recorte.</p>
+              )}
+              {periodBenchmark && (
+                <div className="analysis-grid analysis-grid-compact">
+                  <AnalysisTile label="Posicao em volume" value={`#${periodBenchmark.rank}/${periodBenchmark.total}`} meta={`${periodBenchmark.label} do recorte`} />
+                  <AnalysisTile label="Media comparavel" value={`${fmt.dist(periodBenchmark.averageDistance)} km`} meta={`${periodBenchmark.averageSessions.toFixed(1)} sessoes por periodo`} />
+                  <AnalysisTile label="Melhor janela" value={`${fmt.dist(periodBenchmark.best.distance)} km`} meta={periodBenchmark.best.label} />
+                  <AnalysisTile label="Janela atual" value={`${fmt.dist(periodBenchmark.current.distance)} km`} meta={periodBenchmark.current.label} />
                 </div>
               )}
             </Panel>
