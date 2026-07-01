@@ -947,7 +947,7 @@ export default function DashboardClient({ initialActivities, initialYear, availa
     <div className="app-layout">
       <Sidebar
         meta={meta}
-        isAdmin={viewerAdmin}
+        isAdmin={showOperatorNotes}
       />
 
       <div className="app-main">
@@ -1067,7 +1067,7 @@ export default function DashboardClient({ initialActivities, initialYear, availa
         <main className="shell">
 
         {showOperatorNotes && (
-        <div className="control-panel">
+        <div id="admin" className="control-panel">
               <div className="admin-tools">
                 <div>
                   <p className="control-label">Ferramentas de administrador</p>
@@ -1089,8 +1089,12 @@ export default function DashboardClient({ initialActivities, initialYear, availa
                         const data = await res.json()
                         if (!res.ok) throw new Error(data?.error ?? 'Erro no backfill')
                         setSyncMsg(`Best efforts: ${data.enriched} enriquecidas de ${data.processed} processadas. Restam ${data.remaining}.`)
-                        if (data.remaining === 0 && data.enriched > 0) {
-                          setTimeout(() => window.location.reload(), 1500)
+                        if (data.enriched > 0) {
+                          setPartialYears((current) => {
+                            const next = { ...current }
+                            for (const year of selectedYears) next[year] = true
+                            return next
+                          })
                         }
                       } catch (error) {
                         setSyncMsg(error instanceof Error ? error.message : 'Erro no backfill')
@@ -1173,6 +1177,7 @@ export default function DashboardClient({ initialActivities, initialYear, availa
           {stats && (
             <>
               <SectionLead
+                id="resumo"
                 eyebrow="Resumo executivo"
                 title="Primeira leitura do recorte ativo"
                 subtitle="Aqui entram os numeros de topo. Eles resumem a janela filtrada antes de abrir a analise detalhada."
@@ -1199,6 +1204,7 @@ export default function DashboardClient({ initialActivities, initialYear, availa
           )}
 
           <SectionLead
+            id="volume"
             eyebrow="Leitura analitica"
             title="Volume, desempenho, comparacao e consistencia"
             subtitle="Os paineis abaixo ja nao misturam tudo na mesma camada. Cada bloco responde uma pergunta diferente."
@@ -1283,6 +1289,7 @@ export default function DashboardClient({ initialActivities, initialYear, availa
           </section>
 
           <SectionLead
+            id="comparativo"
             eyebrow="Leitura comparativa"
             title="Periodo em contexto e interpretacao automatica"
             subtitle="Aqui o recorte atual deixa de ser so numero absoluto e passa a ser lido contra o bloco anterior e contra o proprio historico carregado."
@@ -1405,7 +1412,7 @@ export default function DashboardClient({ initialActivities, initialYear, availa
             const lastWeight = weightSmoothed[weightSmoothed.length - 1]
 
             return (
-              <>
+              <section id="saude" className="dashboard-health">
                 {sleepFiltered.length > 0 && (
                   <SectionLead
                     eyebrow="Saude & Recuperacao"
@@ -1469,11 +1476,12 @@ export default function DashboardClient({ initialActivities, initialYear, availa
                       )}
                     </Panel>
                   )}
-              </>
+              </section>
             )
           })()}
 
           <SectionLead
+            id="historico"
             eyebrow="Dado bruto"
             title="Historico navegavel do recorte"
             subtitle="Aqui ficam os registros individuais. Eles explicam os KPIs, mas nao devem ser a primeira camada de leitura."

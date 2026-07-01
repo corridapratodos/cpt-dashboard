@@ -47,9 +47,9 @@ export function Panel({ eyebrow = 'Analise', title, subtitle, right, children }:
   )
 }
 
-export function SectionLead({ eyebrow, title, subtitle }: { eyebrow: string; title: string; subtitle?: string }) {
+export function SectionLead({ id, eyebrow, title, subtitle }: { id?: string; eyebrow: string; title: string; subtitle?: string }) {
   return (
-    <div className="section-lead">
+    <div id={id} className="section-lead">
       <div className="section-lead-left">
         <span className="section-lead-code">// {eyebrow}</span>
         <h2>{title}</h2>

@@ -1,9 +1,11 @@
 'use client'
 
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { signOut } from 'next-auth/react'
 
 export default function LegalGate({ userName }: { userName: string }) {
+  const router = useRouter()
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
 
@@ -15,7 +17,7 @@ export default function LegalGate({ userName }: { userName: string }) {
       const res = await fetch('/api/legal/accept', { method: 'POST' })
       const data = await res.json()
       if (!res.ok) throw new Error(data?.error ?? 'Nao foi possivel registrar o aceite.')
-      window.location.reload()
+      router.refresh()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Nao foi possivel registrar o aceite.')
     } finally {

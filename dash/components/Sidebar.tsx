@@ -12,27 +12,27 @@ interface SidebarProps {
   isAdmin?: boolean
 }
 
-const groups = [
-  {
-    label: 'DASHBOARD',
-    items: [
-      { icon: BarChart3, label: 'Visão Geral', href: '#resumo', active: true },
-      { icon: Activity, label: 'Volume & Pace', href: '#volume' },
-      { icon: Calendar, label: 'Comparativo', href: '#comparativo' },
-    ],
-  },
-  {
-    label: 'DADOS',
-    items: [
-      { icon: Zap, label: 'Strava Sync', href: '#' },
-      { icon: Heart, label: 'Saúde', href: '#saude' },
-      { icon: Database, label: 'Histórico', href: '#historico' },
-    ],
-  },
-]
-
 export function Sidebar({ meta, isAdmin }: SidebarProps) {
   const [open, setOpen] = useState(false)
+
+  const groups = [
+    {
+      label: 'DASHBOARD',
+      items: [
+        { icon: BarChart3, label: 'Visão Geral', href: '#resumo', active: true },
+        { icon: Activity, label: 'Volume & Pace', href: '#volume' },
+        { icon: Calendar, label: 'Comparativo', href: '#comparativo' },
+      ],
+    },
+    {
+      label: 'DADOS',
+      items: [
+        { icon: Zap, label: 'Strava Sync', href: '#resumo' },
+        { icon: Heart, label: 'Saúde', href: '#saude' },
+        { icon: Database, label: 'Histórico', href: '#historico' },
+      ],
+    },
+  ]
 
   const syncDate = meta?.lastSync
     ? new Date(meta.lastSync).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }) +
@@ -64,7 +64,6 @@ export function Sidebar({ meta, isAdmin }: SidebarProps) {
       {open && <div className="sidebar-overlay" onClick={() => setOpen(false)} />}
 
       <aside className={`sidebar${open ? ' sidebar-open' : ''}`}>
-        {/* Logo */}
         <div className="sidebar-logo">
           <div className="sidebar-logo-mark">C</div>
           <div className="sidebar-logo-text">
@@ -73,13 +72,12 @@ export function Sidebar({ meta, isAdmin }: SidebarProps) {
           </div>
         </div>
 
-        {/* Nav */}
         <nav className="sidebar-nav">
-          {adminGroups.map((g) => (
-            <div key={g.label} className="sidebar-section">
-              <p className="sidebar-section-label">{g.label}</p>
+          {adminGroups.map((group) => (
+            <div key={group.label} className="sidebar-section">
+              <p className="sidebar-section-label">{group.label}</p>
               <ul>
-                {g.items.map((item) => {
+                {group.items.map((item) => {
                   const Icon = item.icon
                   return (
                     <li key={item.label}>
@@ -99,7 +97,6 @@ export function Sidebar({ meta, isAdmin }: SidebarProps) {
           ))}
         </nav>
 
-        {/* Status */}
         <div className="sidebar-status">
           <div className="sidebar-status-row">
             <span>STATUS</span>
@@ -115,7 +112,7 @@ export function Sidebar({ meta, isAdmin }: SidebarProps) {
           {meta?.viewerRole && (
             <div className="sidebar-status-row">
               <span>PLANO</span>
-              <span>{meta.viewerRole?.toUpperCase()} · {meta.viewerPlan?.toUpperCase()}</span>
+              <span>{meta.viewerRole?.toUpperCase()} {'·'} {meta.viewerPlan?.toUpperCase()}</span>
             </div>
           )}
         </div>
