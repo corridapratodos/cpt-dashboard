@@ -18,6 +18,7 @@ import {
   YAxis,
 } from 'recharts'
 import type { Activity, Props, RecordEntry, SleepRecord, SyncMode, ThemeMode, WeightRecord } from './dashboard/types'
+import { Sidebar } from './Sidebar'
 import {
   DAY_MS,
   ROWS_STEP,
@@ -943,19 +944,23 @@ export default function DashboardClient({ initialActivities, initialYear, availa
   }
 
   return (
-    <main className="shell">
-      <section className="hero">
-        <div className="hero-bar">
-          <div className="hero-identity">
-            <p className="eyebrow">CPT Performance Lab</p>
+    <div className="app-layout">
+      <Sidebar
+        meta={meta}
+        isAdmin={viewerAdmin}
+        onSync={() => handleSync('incremental')}
+        syncing={syncing}
+      />
+
+      <div className="app-main">
+        {/* Sticky header */}
+        <header className="app-header">
+          <div className="app-header-identity">
+            {meta && <p className="app-header-role eyebrow">{viewerRole} · {viewerPlan}</p>}
             <h1 className="hero-name">{userName}</h1>
           </div>
-          <div className="hero-actions">
-            {meta?.lastSync && (
-              <span className="pill pill-ghost">Sync {new Date(meta.lastSync).toLocaleDateString('pt-BR')}</span>
-            )}
+          <div className="app-header-actions">
             {ignoredCount > 0 && <span className="pill pill-ghost">{ignoredCount} ignoradas</span>}
-            {showOperatorNotes && <span className="pill pill-ghost">{viewerRole} · {viewerPlan}</span>}
             {viewerAdmin && (
               <button
                 type="button"
@@ -973,82 +978,88 @@ export default function DashboardClient({ initialActivities, initialYear, availa
             <button onClick={() => handleSync('incremental')} disabled={syncing || deleting || loadingYears.length > 0} className="btn btn-primary" type="button">
               {syncing ? 'Sincronizando...' : 'Atualizar'}
             </button>
-            <button onClick={() => signOut({ callbackUrl: '/login' })} className="btn btn-outline" type="button">
+            <button onClick={() => signOut({ callbackUrl: '/login' })} className="btn btn-ghost" type="button">
               Sair
             </button>
           </div>
-        </div>
 
-        <div className="filter-strip">
-          <button
-            type="button"
-            className="sport-chip"
-            data-active={allSportsSelected}
-            onClick={() => toggleSport('All')}
-            style={{ ['--chip-accent' as string]: 'var(--accent)' }}
-          >
-            Tudo
-          </button>
-          {availableSports.map((type) => (
+          {/* Filter strip inside header */}
+          <div className="filter-strip">
+            <span className="filter-label">Esporte</span>
             <button
-              key={type}
               type="button"
               className="sport-chip"
-              data-active={selectedSports.includes(type)}
-              onClick={() => toggleSport(type)}
-              style={{ ['--chip-accent' as string]: getSportAccent(type) }}
+              data-active={allSportsSelected}
+              onClick={() => toggleSport('All')}
+              style={{ ['--chip-accent' as string]: 'var(--accent)' }}
             >
-              {getSportLabel(type)}
+              Tudo
             </button>
-          ))}
-          <span className="filter-divider" />
-          {actualYears.map((year) => (
-            <button
-              key={year}
-              type="button"
-              className="sport-chip year-chip"
-              data-active={selectedYears.includes(year)}
-              onClick={() => toggleYear(year)}
-              style={{ ['--chip-accent' as string]: 'var(--accent-2)' }}
-            >
-              {year}
-            </button>
-          ))}
-          <span className="filter-divider" />
-          {([
-            { key: 'year', label: 'Ano' },
-            { key: 'month', label: 'Mes' },
-            { key: 'week', label: 'Semana' },
-            { key: 'rolling28', label: '28d' },
-          ] as const).map((option) => (
-            <button
-              key={option.key}
-              type="button"
-              className="sport-chip window-chip"
-              data-active={windowMode === option.key}
-              onClick={() => setWindowMode(option.key)}
-              style={{ ['--chip-accent' as string]: 'var(--accent-3)' }}
-            >
-              {option.label}
-            </button>
-          ))}
-          {windowMode === 'month' && monthOptions.length > 0 && (
-            <>
-              <span className="filter-divider" />
-              <select className="period-select" value={selectedMonthKey} onChange={(e) => setSelectedMonthKey(e.target.value)}>
-                {monthOptions.map((o) => <option key={o.key} value={o.key}>{o.label}</option>)}
-              </select>
-            </>
-          )}
-          {windowMode === 'week' && weekOptions.length > 0 && (
-            <>
-              <span className="filter-divider" />
-              <select className="period-select" value={selectedWeekKey} onChange={(e) => setSelectedWeekKey(e.target.value)}>
-                {weekOptions.map((o) => <option key={o.key} value={o.key}>{o.label}</option>)}
-              </select>
-            </>
-          )}
-        </div>
+            {availableSports.map((type) => (
+              <button
+                key={type}
+                type="button"
+                className="sport-chip"
+                data-active={selectedSports.includes(type)}
+                onClick={() => toggleSport(type)}
+                style={{ ['--chip-accent' as string]: getSportAccent(type) }}
+              >
+                {getSportLabel(type)}
+              </button>
+            ))}
+            <span className="filter-divider" />
+            <span className="filter-label">Ano</span>
+            {actualYears.map((year) => (
+              <button
+                key={year}
+                type="button"
+                className="sport-chip year-chip"
+                data-active={selectedYears.includes(year)}
+                onClick={() => toggleYear(year)}
+                style={{ ['--chip-accent' as string]: 'var(--accent-2)' }}
+              >
+                {year}
+              </button>
+            ))}
+            <span className="filter-divider" />
+            <span className="filter-label">Janela</span>
+            {([
+              { key: 'year', label: 'Ano' },
+              { key: 'month', label: 'Mes' },
+              { key: 'week', label: 'Semana' },
+              { key: 'rolling28', label: '28d' },
+            ] as const).map((option) => (
+              <button
+                key={option.key}
+                type="button"
+                className="sport-chip window-chip"
+                data-active={windowMode === option.key}
+                onClick={() => setWindowMode(option.key)}
+                style={{ ['--chip-accent' as string]: 'var(--accent-3)' }}
+              >
+                {option.label}
+              </button>
+            ))}
+            {windowMode === 'month' && monthOptions.length > 0 && (
+              <>
+                <span className="filter-divider" />
+                <select className="period-select" value={selectedMonthKey} onChange={(e) => setSelectedMonthKey(e.target.value)}>
+                  {monthOptions.map((o) => <option key={o.key} value={o.key}>{o.label}</option>)}
+                </select>
+              </>
+            )}
+            {windowMode === 'week' && weekOptions.length > 0 && (
+              <>
+                <span className="filter-divider" />
+                <select className="period-select" value={selectedWeekKey} onChange={(e) => setSelectedWeekKey(e.target.value)}>
+                  {weekOptions.map((o) => <option key={o.key} value={o.key}>{o.label}</option>)}
+                </select>
+              </>
+            )}
+          </div>
+        </header>
+
+        <main className="shell">
 
         {showOperatorNotes && (
         <div className="control-panel">
@@ -1141,7 +1152,6 @@ export default function DashboardClient({ initialActivities, initialYear, availa
             {syncMsg && <p className="sync-message">{syncMsg}</p>}
           </div>
         )}
-      </section>
 
       {!activeActivities.length && !loadingYears.length ? (
         <section className="panel">
@@ -1584,7 +1594,9 @@ export default function DashboardClient({ initialActivities, initialYear, availa
           </div>
         </div>
       )}
-    </main>
+        </main>
+      </div>
+    </div>
   )
 }
 
