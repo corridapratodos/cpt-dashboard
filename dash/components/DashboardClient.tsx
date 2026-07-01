@@ -259,6 +259,7 @@ export default function DashboardClient({ initialActivities, initialYear, availa
 
     setSelectedSports((current) => {
       const valid = current.filter((sport) => availableSports.includes(sport))
+      if (valid.length === current.length) return current
       if (valid.length) return valid
       if (availableSports.includes('Run')) return ['Run']
       return [...availableSports]
