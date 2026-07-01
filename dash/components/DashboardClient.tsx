@@ -1490,24 +1490,19 @@ export default function DashboardClient({ initialActivities, initialYear, availa
                   title="Sono e composicao corporal"
                   subtitle="Dados importados do Garmin. Ultimos 90 dias do recorte selecionado."
                 />
-                <section className="dashboard-grid">
-                  {sleepFiltered.length > 0 && (
+                {sleepFiltered.length > 0 && (
                     <Panel
                       eyebrow="Sono"
                       title="Duracao diaria"
                       subtitle={avgSleep ? `Media do periodo: ${avgSleep}h` : ''}
                     >
-                      <ResponsiveContainer width="100%" height={260}>
+                      <ResponsiveContainer width="100%" height={220}>
                         <BarChart data={sleepFiltered} margin={{ top: 8, right: 4, bottom: 4, left: -16 }}>
                           <CartesianGrid strokeDasharray="4 4" stroke="var(--grid)" />
-                          <XAxis dataKey="date" tick={{ fill: 'var(--text-muted)', fontSize: 11 }} axisLine={false} tickLine={false} tickFormatter={(v: string) => v.slice(5)} interval={Math.floor(sleepFiltered.length / 6)} />
+                          <XAxis dataKey="date" tick={{ fill: 'var(--text-muted)', fontSize: 11 }} axisLine={false} tickLine={false} tickFormatter={(v: string) => v.slice(5)} interval={Math.floor(sleepFiltered.length / 10)} />
                           <YAxis tick={{ fill: 'var(--text-muted)', fontSize: 11 }} axisLine={false} tickLine={false} tickFormatter={(v: number) => `${Math.round(v / 60)}h`} domain={[0, 660]} />
-                          <Tooltip
-                            contentStyle={chartTooltip}
-                            formatter={(v: number) => [`${Math.floor(v / 60)}h ${v % 60}min`, 'Sono']}
-                            labelFormatter={(l: string) => l}
-                          />
-                          <Bar dataKey="durationMin" radius={[6, 6, 0, 0]}>
+                          <Tooltip contentStyle={chartTooltip} formatter={(v: number) => [`${Math.floor(v / 60)}h ${v % 60}min`, 'Sono']} labelFormatter={(l: string) => l} />
+                          <Bar dataKey="durationMin" radius={[4, 4, 0, 0]}>
                             {sleepFiltered.map((s) => (
                               <Cell key={s.date} fill={s.durationMin < 300 ? 'var(--accent-4)' : activeAccent} fillOpacity={0.9} />
                             ))}
@@ -1515,7 +1510,7 @@ export default function DashboardClient({ initialActivities, initialYear, availa
                         </BarChart>
                       </ResponsiveContainer>
                       <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.5rem' }}>
-                        <span style={{ display: 'inline-block', width: 10, height: 10, borderRadius: 2, background: 'var(--accent-4)', marginRight: 4 }} />
+                        <span style={{ display: 'inline-block', width: 10, height: 10, borderRadius: 2, background: 'var(--accent-4)', marginRight: 4, verticalAlign: 'middle' }} />
                         Menos de 5h
                       </p>
                     </Panel>
@@ -1527,16 +1522,12 @@ export default function DashboardClient({ initialActivities, initialYear, availa
                       title="Tendencia corporal"
                       subtitle={minWeight && maxWeight ? `${minWeight} – ${maxWeight} kg no periodo` : ''}
                     >
-                      <ResponsiveContainer width="100%" height={260}>
+                      <ResponsiveContainer width="100%" height={220}>
                         <LineChart data={weightSmoothed} margin={{ top: 8, right: 8, bottom: 4, left: -16 }}>
                           <CartesianGrid strokeDasharray="4 4" stroke="var(--grid)" />
-                          <XAxis dataKey="date" tick={{ fill: 'var(--text-muted)', fontSize: 11 }} axisLine={false} tickLine={false} tickFormatter={(v: string) => v.slice(5)} interval={Math.floor(weightSmoothed.length / 6)} />
+                          <XAxis dataKey="date" tick={{ fill: 'var(--text-muted)', fontSize: 11 }} axisLine={false} tickLine={false} tickFormatter={(v: string) => v.slice(5)} interval={Math.floor(weightSmoothed.length / 10)} />
                           <YAxis tick={{ fill: 'var(--text-muted)', fontSize: 11 }} axisLine={false} tickLine={false} tickFormatter={(v: number) => `${v}kg`} domain={['auto', 'auto']} />
-                          <Tooltip
-                            contentStyle={chartTooltip}
-                            formatter={(v: number, name: string) => [`${v} kg`, name === 'weightSmooth' ? 'Media 7d' : 'Diario']}
-                            labelFormatter={(l: string) => l}
-                          />
+                          <Tooltip contentStyle={chartTooltip} formatter={(v: number, name: string) => [`${v} kg`, name === 'weightSmooth' ? 'Media 7d' : 'Diario']} labelFormatter={(l: string) => l} />
                           <Line type="monotone" dataKey="weightKg" dot={false} stroke={activeAccent} strokeWidth={1} strokeOpacity={0.25} />
                           <Line type="monotone" dataKey="weightSmooth" dot={false} stroke={activeAccent} strokeWidth={2.5} />
                         </LineChart>
@@ -1548,7 +1539,6 @@ export default function DashboardClient({ initialActivities, initialYear, availa
                       )}
                     </Panel>
                   )}
-                </section>
               </>
             )
           })()}
