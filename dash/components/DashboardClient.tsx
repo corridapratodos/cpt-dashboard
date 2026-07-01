@@ -947,82 +947,24 @@ export default function DashboardClient({ initialActivities, initialYear, availa
       <section className="hero">
         <div className="hero-grid">
           <div>
-            <p className="eyebrow">CPT Performance Lab</p>
-            <h1 className="display">Leitura de treino por camadas: volume, desempenho, comparacao e consistencia.</h1>
-            <p className="hero-copy">O painel agora assume uma hierarquia clara: primeiro resume o recorte ativo, depois separa o que e volume bruto, o que e desempenho, o que e comparativo de periodo e o que e saude da progressao.</p>
-            <div className="hero-meta-row">
-              <span className="pill pill-ghost">Atleta: {userName}</span>
-              <span className="pill pill-ghost">Foco: {focusLabel}</span>
-              <span className="pill pill-ghost">Recorte base: {yearLabel}</span>
-              <span className="pill pill-ghost">Janela: {windowLabel}</span>
-              <span className="pill pill-ghost">Base analitica: {analyzedActivities.length} atividades</span>
-              <span className="pill pill-ghost">Base bruta: {activeActivities.length} atividades</span>
-              <span className="pill pill-ghost">Escopo carregado: {filteredActivities.length} atividades</span>
-              {ignoredCount > 0 && <span className="pill pill-ghost">Ignoradas: {ignoredCount}</span>}
-              <span className="pill pill-ghost">Base total: {totalActivities}</span>
-              {showOperatorNotes && <span className="pill pill-ghost">Role: {viewerRole}</span>}
-              {showOperatorNotes && <span className="pill pill-ghost">Plan: {viewerPlan}</span>}
-              {showOperatorNotes && <span className="pill pill-ghost">Admin: {viewerAdmin ? 'sim' : 'nao'}</span>}
-              {showOperatorNotes && <span className="pill pill-ghost">Scope: {viewerScopeLabel}</span>}
-              {meta?.lastSync && <span className="pill pill-ghost">Ultimo sync: {new Date(meta.lastSync).toLocaleDateString('pt-BR')}{meta?.lastSyncMode ? ` | ${meta.lastSyncMode}` : ''}</span>}
-            </div>
-            {showOperatorNotes && <p className="hero-methodology">{methodologyCopy}</p>}
-            {showOperatorNotes && (
-              <div className="reading-grid">
-                {readingLayers.map((layer) => (
-                  <article key={layer.title} className="reading-card">
-                    <span className="metric-label">{layer.title}</span>
-                    <strong>{layer.title}</strong>
-                    <p>{layer.copy}</p>
-                  </article>
-                ))}
+            <div className="hero-topbar">
+              <div>
+                <p className="eyebrow">CPT Performance Lab</p>
+                <h1 className="hero-name">{userName}</h1>
               </div>
-            )}
+              <div className="hero-topbar-meta">
+                {meta?.lastSync && (
+                  <span className="pill pill-ghost">Sync {new Date(meta.lastSync).toLocaleDateString('pt-BR')}</span>
+                )}
+                {ignoredCount > 0 && <span className="pill pill-ghost">{ignoredCount} ignoradas</span>}
+                {showOperatorNotes && <span className="pill pill-ghost">{viewerRole} · {viewerPlan}</span>}
+              </div>
+            </div>
           </div>
 
           <div className="control-panel">
             <div className="control-header">
-              <div>
-                <p className="control-label">Leitura principal</p>
-                <strong>{allSportsSelected ? 'Tudo no radar' : focusLabel}</strong>
-              </div>
-              <button onClick={handleThemeToggle} className="btn btn-ghost" type="button">
-                {theme === 'dark' ? 'Modo claro' : 'Modo escuro'}
-              </button>
-            </div>
-
-            {viewerAdmin && (
-              <div className="preview-toolbar">
-                <div>
-                  <p className="control-label">Preview de interface</p>
-                  <strong>{previewMode === 'admin' ? 'Visualizando modo admin' : 'Visualizando modo atleta'}</strong>
-                </div>
-                <div className="preview-toggle">
-                  <button
-                    type="button"
-                    className="sport-chip preview-chip"
-                    data-active={previewMode === 'admin'}
-                    style={{ ['--chip-accent' as string]: 'var(--accent-4)' }}
-                    onClick={() => setPreviewMode('admin')}
-                  >
-                    Ver admin
-                  </button>
-                  <button
-                    type="button"
-                    className="sport-chip preview-chip"
-                    data-active={previewMode === 'athlete'}
-                    style={{ ['--chip-accent' as string]: 'var(--accent-2)' }}
-                    onClick={() => setPreviewMode('athlete')}
-                  >
-                    Ver atleta
-                  </button>
-                </div>
-              </div>
-            )}
-
-            <div className="filter-block">
-              <span className="control-label">Esporte</span>
-              <div className="filter-row">
+              <div className="filter-row" style={{ flexWrap: 'wrap', gap: '0.5rem' }}>
                 <button
                   type="button"
                   className="sport-chip"
@@ -1044,21 +986,7 @@ export default function DashboardClient({ initialActivities, initialYear, availa
                     {getSportLabel(type)}
                   </button>
                 ))}
-              </div>
-            </div>
-
-            <div className="filter-block">
-              <span className="control-label">Ano</span>
-              <div className="filter-row">
-                <button
-                  type="button"
-                  className="sport-chip year-chip"
-                  data-active={allYearsSelected}
-                  onClick={() => toggleYear('all')}
-                  style={{ ['--chip-accent' as string]: 'var(--accent-2)' }}
-                >
-                  Tudo
-                </button>
+                <span className="filter-divider" />
                 {actualYears.map((year) => (
                   <button
                     key={year}
@@ -1071,72 +999,55 @@ export default function DashboardClient({ initialActivities, initialYear, availa
                     {year}
                   </button>
                 ))}
-              </div>
-            </div>
-
-            <div className="filter-block">
-              <span className="control-label">Janela</span>
-              <div className="filter-row">
-                {[
+                <span className="filter-divider" />
+                {([
                   { key: 'year', label: 'Ano' },
                   { key: 'month', label: 'Mes' },
                   { key: 'week', label: 'Semana' },
-                  { key: 'rolling28', label: '28 dias' },
-                ].map((option) => (
+                  { key: 'rolling28', label: '28d' },
+                ] as const).map((option) => (
                   <button
                     key={option.key}
                     type="button"
                     className="sport-chip window-chip"
                     data-active={windowMode === option.key}
-                    onClick={() => setWindowMode(option.key as WindowMode)}
+                    onClick={() => setWindowMode(option.key)}
                     style={{ ['--chip-accent' as string]: 'var(--accent-3)' }}
                   >
                     {option.label}
                   </button>
                 ))}
               </div>
-              {windowMode === 'rolling28' && <p className="filter-helper">A janela de 28 dias continua ancorada na atividade mais recente do recorte base.</p>}
+              <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexShrink: 0 }}>
+                {viewerAdmin && (
+                  <>
+                    <button
+                      type="button"
+                      className="sport-chip preview-chip"
+                      data-active={previewMode === 'admin'}
+                      style={{ ['--chip-accent' as string]: 'var(--accent-4)' }}
+                      onClick={() => setPreviewMode(previewMode === 'admin' ? 'athlete' : 'admin')}
+                    >
+                      {previewMode === 'admin' ? 'Admin' : 'Atleta'}
+                    </button>
+                  </>
+                )}
+                <button onClick={handleThemeToggle} className="btn btn-ghost" type="button">
+                  {theme === 'dark' ? '☀' : '☾'}
+                </button>
+              </div>
             </div>
 
             {windowMode === 'month' && monthOptions.length > 0 && (
-              <div className="filter-block">
-                <span className="control-label">Mes selecionado</span>
-                <select
-                  className="period-select"
-                  value={selectedMonthKey}
-                  onChange={(event) => setSelectedMonthKey(event.target.value)}
-                >
-                  {monthOptions.map((option) => (
-                    <option key={option.key} value={option.key}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
+              <select className="period-select" value={selectedMonthKey} onChange={(e) => setSelectedMonthKey(e.target.value)}>
+                {monthOptions.map((o) => <option key={o.key} value={o.key}>{o.label}</option>)}
+              </select>
             )}
-
             {windowMode === 'week' && weekOptions.length > 0 && (
-              <div className="filter-block">
-                <span className="control-label">Semana selecionada</span>
-                <select
-                  className="period-select"
-                  value={selectedWeekKey}
-                  onChange={(event) => setSelectedWeekKey(event.target.value)}
-                >
-                  {weekOptions.map((option) => (
-                    <option key={option.key} value={option.key}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
+              <select className="period-select" value={selectedWeekKey} onChange={(e) => setSelectedWeekKey(e.target.value)}>
+                {weekOptions.map((o) => <option key={o.key} value={o.key}>{o.label}</option>)}
+              </select>
             )}
-
-            <div className="filter-summary">
-              <span className="pill pill-ghost">Anos: {yearLabel}</span>
-              <span className="pill pill-ghost">Janela: {activeWindow.title} - {windowLabel}</span>
-              <span className="pill pill-ghost">Esportes: {focusLabel}</span>
-            </div>
 
             <div className="action-row">
               <button onClick={() => handleSync('incremental')} disabled={syncing || deleting || loadingYears.length > 0} className="btn btn-primary" type="button">
@@ -1485,11 +1396,13 @@ export default function DashboardClient({ initialActivities, initialYear, availa
 
             return (
               <>
-                <SectionLead
-                  eyebrow="Saude & Recuperacao"
-                  title="Sono e composicao corporal"
-                  subtitle="Dados importados do Garmin. Ultimos 90 dias do recorte selecionado."
-                />
+                {sleepFiltered.length > 0 && (
+                  <SectionLead
+                    eyebrow="Saude & Recuperacao"
+                    title="Sono"
+                    subtitle="Dados importados do Garmin. Ultimos 90 dias do recorte selecionado."
+                  />
+                )}
                 {sleepFiltered.length > 0 && (
                     <Panel
                       eyebrow="Sono"
@@ -1516,6 +1429,13 @@ export default function DashboardClient({ initialActivities, initialYear, availa
                     </Panel>
                   )}
 
+                  {weightSmoothed.length > 0 && (
+                    <SectionLead
+                      eyebrow="Saude & Recuperacao"
+                      title="Composicao corporal"
+                      subtitle="Dados importados do Garmin. Ultimos 90 dias do recorte selecionado."
+                    />
+                  )}
                   {weightSmoothed.length > 0 && (
                     <Panel
                       eyebrow="Peso"
