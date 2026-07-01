@@ -1,5 +1,5 @@
 import { Query } from 'firebase-admin/firestore'
-import { FREE_PLAN_YEAR, FREE_PLAN_TYPES, type UserScope } from '@/lib/access'
+import { CURRENT_YEAR, FREE_PLAN_TYPES, type UserScope } from '@/lib/access'
 import type { StoredBestEffort } from '@/lib/activity-types'
 
 type StoredActivity = {
@@ -124,16 +124,23 @@ export function serializeFirestoreValue(value: any): any {
 }
 
 export function normalizeRequestedYear(year: string | null | undefined, scope: UserScope) {
-  if (scope.fullAccess) return year ?? String(new Date().getFullYear())
-  return String(FREE_PLAN_YEAR)
+  const currentYear = String(CURRENT_YEAR)
+  if (scope.fullAccess) return year ?? currentYear
+
+  const allowed = scope.allowedYears
+  if (allowed === 'all') return year ?? currentYear
+  if (year && allowed.includes(year)) return year
+  return allowed[0] ?? currentYear
 }
 
 export function getVisibleYears(scope: UserScope, metaYears: string[] | undefined) {
-  if (scope.fullAccess) {
-    return Array.isArray(metaYears) && metaYears.length ? metaYears : [String(new Date().getFullYear())]
-  }
+  const allMeta = Array.isArray(metaYears) && metaYears.length ? metaYears : [String(CURRENT_YEAR)]
 
-  return [String(FREE_PLAN_YEAR)]
+  if (scope.fullAccess) return allMeta
+
+  const allowed = scope.allowedYears
+  if (allowed === 'all') return allMeta
+  return allMeta.filter((y) => allowed.includes(y))
 }
 
 export function getVisibleTypes(scope: UserScope) {

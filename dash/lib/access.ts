@@ -2,9 +2,16 @@ const DAY_MS = 24 * 60 * 60 * 1000
 
 export const LEGAL_VERSION = '2026-06-27'
 export const FULL_SYNC_COOLDOWN_MS = 7 * DAY_MS
-export const FREE_PLAN_YEAR = 2026
+export const CURRENT_YEAR = new Date().getFullYear()
+export const FREE_PLAN_YEARS = 1
+export const PRO_PLAN_YEARS = 3
+export const FREE_PLAN_YEAR = CURRENT_YEAR
 export const FREE_PLAN_TYPES = ['Run', 'Walk'] as const
 export const PRO_PLAN_TYPES = ['Run', 'Walk', 'TrailRun', 'Hike', 'VirtualRun'] as const
+
+function buildAllowedYears(yearsBack: number): string[] {
+  return Array.from({ length: yearsBack }, (_, i) => String(CURRENT_YEAR - i))
+}
 
 export type UserPlan = 'free' | 'pro'
 export type UserRole = 'master' | 'admin' | 'user'
@@ -84,7 +91,7 @@ export function getUserScope(stravaId: number, userData?: UserShape): UserScope 
       role,
       plan: 'pro',
       fullAccess: false,
-      allowedYears: 'all',
+      allowedYears: buildAllowedYears(PRO_PLAN_YEARS),
       allowedTypes: [...PRO_PLAN_TYPES],
     }
   }
@@ -93,7 +100,7 @@ export function getUserScope(stravaId: number, userData?: UserShape): UserScope 
     role,
     plan: 'free',
     fullAccess: false,
-    allowedYears: [String(FREE_PLAN_YEAR)],
+    allowedYears: buildAllowedYears(FREE_PLAN_YEARS),
     allowedTypes: [...FREE_PLAN_TYPES],
   }
 }

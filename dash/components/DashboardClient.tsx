@@ -169,7 +169,11 @@ export default function DashboardClient({ initialActivities, initialYear, availa
       if (!res.ok) throw new Error(data?.error ?? 'Erro ao sincronizar')
       const modeLabel = data.mode === 'incremental' ? 'incremental' : 'completo'
       setSyncMsg(`${data.synced} atividades sincronizadas (${modeLabel})`)
-      setTimeout(() => window.location.reload(), 1200)
+      setPartialYears((current) => {
+        const next = { ...current }
+        for (const year of selectedYears) next[year] = true
+        return next
+      })
     } catch (error) {
       setSyncMsg(error instanceof Error ? error.message : 'Erro ao sincronizar')
     } finally {

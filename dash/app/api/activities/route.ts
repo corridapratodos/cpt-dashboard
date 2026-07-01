@@ -19,17 +19,24 @@ export async function GET(req: Request) {
   const requestedYear = url.searchParams.get('year')
   const year = normalizeRequestedYear(requestedYear, scope)
 
-  const snap = await buildActivitiesQuery(activitiesRef(session.stravaId), year, scope).get()
+  const snap = await buildActivitiesQuery(activitiesRef(session.stravaId), year, scope)
+    .select('stravaId', 'name', 'date', 'distanceKm', 'durationSec', 'paceSec', 'hrAvg', 'hrMax', 'elevationGain', 'kudos', 'type', 'excludedFromMetrics', 'qualityFlags', 'bestEfforts')
+    .get()
   const activities = snap.docs.map((doc) => toDashboardActivity(doc.data()))
 
-  return Response.json({
-    year,
-    count: activities.length,
-    activities,
-    scope: {
-      fullAccess: scope.fullAccess,
-      allowedYears: scope.allowedYears,
-      allowedTypes: scope.allowedTypes,
+  return Response.json(
+    {
+      year,
+      count: activities.length,
+      activities,
+      scope: {
+        fullAccess: scope.fullAccess,
+        allowedYears: scope.allowedYears,
+        allowedTypes: scope.allowedTypes,
+      },
     },
-  })
+    {
+      headers: { 'Cache-Control': 'private, max-age=120, stale-while-revalidate=30' },
+    }
+  )
 }
