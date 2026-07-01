@@ -84,7 +84,7 @@ function parseWeightCSV(lines: string[]): { records: WeightRecord[]; skipped: nu
     if (!raw.trim()) continue
 
     // Date header: " 30 Jun 2026" (may be quoted)
-    const dateMatch = raw.replace(/"/g, '').trim().match(/^(\d{1,2})\s+(\w+)\s+(\d{4})$/)
+    const dateMatch = raw.replace(/"/g, '').replace(/,+$/, '').trim().match(/^(\d{1,2})\s+(\w+)\s+(\d{4})$/)
     if (dateMatch) {
       const day = parseInt(dateMatch[1])
       const month = ptMonths[dateMatch[2]]
