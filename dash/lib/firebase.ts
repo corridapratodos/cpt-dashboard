@@ -35,3 +35,9 @@ export const activitiesRef = (stravaId: number) =>
 
 export const metaRef = (stravaId: number) =>
   userRef(stravaId).collection('meta').doc('sync')
+
+export const sleepRef = (stravaId: number) =>
+  userRef(stravaId).collection('sleep')
+
+export const weightRef = (stravaId: number) =>
+  userRef(stravaId).collection('weight')

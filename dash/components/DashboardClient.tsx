@@ -54,6 +54,8 @@ export default function DashboardClient({ initialActivities, initialYear, availa
   const [syncing, setSyncing] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [backfilling, setBackfilling] = useState(false)
+  const [uploadingHealth, setUploadingHealth] = useState(false)
+  const [healthUploadMsg, setHealthUploadMsg] = useState('')
   const [activityReviewing, setActivityReviewing] = useState(false)
   const [syncMsg, setSyncMsg] = useState('')
   const [theme, setTheme] = useState<ThemeMode>('dark')
@@ -1128,6 +1130,7 @@ export default function DashboardClient({ initialActivities, initialYear, availa
             </div>
 
             {showOperatorNotes && (
+              <>
               <div className="admin-tools">
                 <div>
                   <p className="control-label">Ferramentas de administrador</p>
@@ -1163,6 +1166,51 @@ export default function DashboardClient({ initialActivities, initialYear, availa
                   </button>
                 </div>
               </div>
+
+              <div className="admin-tools" style={{ marginTop: '1rem' }}>
+                <div>
+                  <p className="control-label">Dados de saúde</p>
+                  <strong>Upload de sono e peso (Garmin CSV)</strong>
+                </div>
+                <div className="admin-actions-row" style={{ alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem' }}>
+                  <label className="btn btn-outline" style={{ cursor: 'pointer' }}>
+                    {uploadingHealth ? 'Enviando...' : 'Selecionar arquivos CSV'}
+                    <input
+                      type="file"
+                      accept=".csv"
+                      multiple
+                      style={{ display: 'none' }}
+                      disabled={uploadingHealth}
+                      onChange={async (e) => {
+                        const files = e.target.files
+                        if (!files?.length) return
+                        setUploadingHealth(true)
+                        setHealthUploadMsg('')
+                        const form = new FormData()
+                        for (const f of Array.from(files)) form.append('files', f)
+                        try {
+                          const res = await fetch('/api/admin/upload-health', { method: 'POST', body: form })
+                          const data = await res.json()
+                          if (!res.ok) throw new Error(data?.error ?? 'Erro no upload')
+                          const parts: string[] = []
+                          if (data.sleepSaved) parts.push(`${data.sleepSaved} registros de sono`)
+                          if (data.weightSaved) parts.push(`${data.weightSaved} registros de peso`)
+                          if (data.skipped) parts.push(`${data.skipped} linhas ignoradas`)
+                          if (data.errors?.length) parts.push(data.errors.join('; '))
+                          setHealthUploadMsg(parts.length ? parts.join(' · ') : 'Nenhum dado importado.')
+                        } catch (error) {
+                          setHealthUploadMsg(error instanceof Error ? error.message : 'Erro no upload')
+                        } finally {
+                          setUploadingHealth(false)
+                          e.target.value = ''
+                        }
+                      }}
+                    />
+                  </label>
+                  {healthUploadMsg && <span className="sync-message" style={{ margin: 0 }}>{healthUploadMsg}</span>}
+                </div>
+              </div>
+              </>
             )}
 
             {loadingLabel && <p className="sync-message">{loadingLabel}</p>}
