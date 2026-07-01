@@ -948,8 +948,6 @@ export default function DashboardClient({ initialActivities, initialYear, availa
       <Sidebar
         meta={meta}
         isAdmin={viewerAdmin}
-        onSync={() => handleSync('incremental')}
-        syncing={syncing}
       />
 
       <div className="app-main">

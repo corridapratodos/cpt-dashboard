@@ -1,31 +1,32 @@
 {
-    "name":  "cpt-training-dashboard",
-    "version":  "0.1.0",
-    "private":  true,
-    "scripts":  {
-                    "dev":  "next dev",
-                    "build":  "next build",
-                    "start":  "next start",
-                    "typecheck":  "tsc --noEmit",
-                    "check:env":  "node scripts/check-env.mjs",
-                    "check:utf8":  "node scripts/check-utf8.mjs",
-                    "check:secrets":  "node scripts/check-secrets.mjs",
-                    "test:smoke":  "node scripts/test-smoke.mjs",
-                    "check":  "npm run check:utf8 \u0026\u0026 npm run check:secrets \u0026\u0026 npm run test:smoke \u0026\u0026 npm run typecheck",
-                    "check:prod":  "npm run check:env \u0026\u0026 npm run check \u0026\u0026 npm run build"
-                },
-    "dependencies":  {
-                         "next":  "^15.0.0",
-                         "next-auth":  "^4.24.11",
-                         "react":  "^18.3.1",
-                         "react-dom":  "^18.3.1",
-                         "firebase-admin":  "^12.7.0",
-                         "recharts":  "^2.13.0"
-                     },
-    "devDependencies":  {
-                            "@types/node":  "^20",
-                            "@types/react":  "^18",
-                            "@types/react-dom":  "^18",
-                            "typescript":  "^5"
-                        }
+    "name": "cpt-training-dashboard",
+    "version": "0.1.0",
+    "private": true,
+    "scripts": {
+        "dev": "next dev",
+        "build": "next build",
+        "start": "next start",
+        "typecheck": "tsc --noEmit",
+        "check:env": "node scripts/check-env.mjs",
+        "check:utf8": "node scripts/check-utf8.mjs",
+        "check:secrets": "node scripts/check-secrets.mjs",
+        "test:smoke": "node scripts/test-smoke.mjs",
+        "check": "npm run check:utf8 && npm run check:secrets && npm run test:smoke && npm run typecheck",
+        "check:prod": "npm run check:env && npm run check && npm run build"
+    },
+    "dependencies": {
+        "firebase-admin": "^12.7.0",
+        "lucide-react": "^1.22.0",
+        "next": "^15.0.0",
+        "next-auth": "^4.24.11",
+        "react": "^18.3.1",
+        "react-dom": "^18.3.1",
+        "recharts": "^2.13.0"
+    },
+    "devDependencies": {
+        "@types/node": "^20",
+        "@types/react": "^18",
+        "@types/react-dom": "^18",
+        "typescript": "^5"
+    }
 }

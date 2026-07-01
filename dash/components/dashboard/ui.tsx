@@ -31,30 +31,31 @@ export function AnalysisTile({ label, value, meta }: { label: string; value: str
   )
 }
 
-export function Panel({ eyebrow = 'Analise', title, subtitle, children }: { eyebrow?: string; title: string; subtitle: string; children: ReactNode }) {
+export function Panel({ eyebrow = 'Analise', title, subtitle, right, children }: { eyebrow?: string; title: string; subtitle?: string; right?: ReactNode; children: ReactNode }) {
   return (
     <section className="panel">
       <div className="panel-header compact">
         <div>
-          <p className="panel-eyebrow">{eyebrow}</p>
+          <p className="panel-eyebrow">// {eyebrow}</p>
           <h3>{title}</h3>
+          {subtitle && <p className="panel-sub">{subtitle}</p>}
         </div>
-        <span className="panel-subtitle">{subtitle}</span>
+        {right && <div className="panel-right">{right}</div>}
       </div>
       {children}
     </section>
   )
 }
 
-export function SectionLead({ eyebrow, title, subtitle }: { eyebrow: string; title: string; subtitle: string }) {
+export function SectionLead({ eyebrow, title, subtitle }: { eyebrow: string; title: string; subtitle?: string }) {
   return (
-    <section className="section-lead">
-      <div>
-        <p className="panel-eyebrow">{eyebrow}</p>
+    <div className="section-lead">
+      <div className="section-lead-left">
+        <span className="section-lead-code">// {eyebrow}</span>
         <h2>{title}</h2>
+        {subtitle && <p>{subtitle}</p>}
       </div>
-      <p>{subtitle}</p>
-    </section>
+    </div>
   )
 }
 

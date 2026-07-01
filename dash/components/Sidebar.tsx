@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { signOut } from 'next-auth/react'
+import { Activity, BarChart3, Calendar, Database, Heart, Menu, Shield, Zap } from 'lucide-react'
 
 interface SidebarProps {
   meta?: {
@@ -10,30 +10,28 @@ interface SidebarProps {
     viewerPlan?: string
   } | null
   isAdmin?: boolean
-  onSync: () => void
-  syncing: boolean
 }
 
-const NAV = [
+const groups = [
   {
-    group: 'Dashboard',
+    label: 'DASHBOARD',
     items: [
-      { label: 'Visão Geral', href: '#resumo', active: true },
-      { label: 'Volume & Pace', href: '#volume' },
-      { label: 'Comparativo', href: '#comparativo' },
+      { icon: BarChart3, label: 'Visão Geral', href: '#resumo', active: true },
+      { icon: Activity, label: 'Volume & Pace', href: '#volume' },
+      { icon: Calendar, label: 'Comparativo', href: '#comparativo' },
     ],
   },
   {
-    group: 'Dados',
+    label: 'DADOS',
     items: [
-      { label: 'Recordes', href: '#recordes' },
-      { label: 'Saúde', href: '#saude' },
-      { label: 'Histórico', href: '#historico' },
+      { icon: Zap, label: 'Strava Sync', href: '#' },
+      { icon: Heart, label: 'Saúde', href: '#saude' },
+      { icon: Database, label: 'Histórico', href: '#historico' },
     ],
   },
 ]
 
-export function Sidebar({ meta, isAdmin, onSync, syncing }: SidebarProps) {
+export function Sidebar({ meta, isAdmin }: SidebarProps) {
   const [open, setOpen] = useState(false)
 
   const syncDate = meta?.lastSync
@@ -42,28 +40,34 @@ export function Sidebar({ meta, isAdmin, onSync, syncing }: SidebarProps) {
       new Date(meta.lastSync).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
     : '—'
 
+  const adminGroups = isAdmin
+    ? [
+        ...groups,
+        {
+          label: 'SISTEMA',
+          items: [{ icon: Shield, label: 'Admin', href: '#admin' }],
+        },
+      ]
+    : groups
+
   return (
     <>
-      {/* Mobile hamburger */}
       <button
         className="sidebar-hamburger"
         aria-label="Menu"
         onClick={() => setOpen((v) => !v)}
         type="button"
       >
-        <span /><span /><span />
+        <Menu size={18} />
       </button>
 
-      {/* Overlay mobile */}
-      {open && (
-        <div className="sidebar-overlay" onClick={() => setOpen(false)} />
-      )}
+      {open && <div className="sidebar-overlay" onClick={() => setOpen(false)} />}
 
       <aside className={`sidebar${open ? ' sidebar-open' : ''}`}>
         {/* Logo */}
         <div className="sidebar-logo">
           <div className="sidebar-logo-mark">C</div>
-          <div>
+          <div className="sidebar-logo-text">
             <p className="sidebar-brand">CPT<span>/</span>LAB</p>
             <p className="sidebar-brand-sub">perf.analytics</p>
           </div>
@@ -71,56 +75,47 @@ export function Sidebar({ meta, isAdmin, onSync, syncing }: SidebarProps) {
 
         {/* Nav */}
         <nav className="sidebar-nav">
-          {NAV.map((section) => (
-            <div key={section.group} className="sidebar-section">
-              <p className="sidebar-section-label">{section.group}</p>
+          {adminGroups.map((g) => (
+            <div key={g.label} className="sidebar-section">
+              <p className="sidebar-section-label">{g.label}</p>
               <ul>
-                {section.items.map((item) => (
-                  <li key={item.label}>
-                    <a
-                      href={item.href}
-                      className={`sidebar-link${item.active ? ' sidebar-link-active' : ''}`}
-                      onClick={() => setOpen(false)}
-                    >
-                      {item.label}
-                    </a>
-                  </li>
-                ))}
+                {g.items.map((item) => {
+                  const Icon = item.icon
+                  return (
+                    <li key={item.label}>
+                      <a
+                        href={item.href}
+                        className={`sidebar-link${item.active ? ' sidebar-link-active' : ''}`}
+                        onClick={() => setOpen(false)}
+                      >
+                        <Icon size={14} strokeWidth={1.5} />
+                        <span>{item.label}</span>
+                      </a>
+                    </li>
+                  )
+                })}
               </ul>
             </div>
           ))}
-
-          {isAdmin && (
-            <div className="sidebar-section">
-              <p className="sidebar-section-label">Sistema</p>
-              <ul>
-                <li>
-                  <a href="#admin" className="sidebar-link" onClick={() => setOpen(false)}>
-                    Admin
-                  </a>
-                </li>
-              </ul>
-            </div>
-          )}
         </nav>
 
-        {/* Status bar */}
+        {/* Status */}
         <div className="sidebar-status">
           <div className="sidebar-status-row">
-            <span>Status</span>
+            <span>STATUS</span>
             <span className="sidebar-status-live">
               <span className="sidebar-status-dot" />
-              Live
+              LIVE
             </span>
           </div>
           <div className="sidebar-status-row">
-            <span>Sync</span>
+            <span>SYNC</span>
             <span>{syncDate}</span>
           </div>
           {meta?.viewerRole && (
             <div className="sidebar-status-row">
-              <span>Plano</span>
-              <span>{meta.viewerRole} · {meta.viewerPlan}</span>
+              <span>PLANO</span>
+              <span>{meta.viewerRole?.toUpperCase()} · {meta.viewerPlan?.toUpperCase()}</span>
             </div>
           )}
         </div>
