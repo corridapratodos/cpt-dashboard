@@ -652,6 +652,35 @@ button {
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent-2) 18%, transparent);
 }
 
+.period-picker {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  flex: 1 1 520px;
+}
+
+.period-select-inline {
+  min-height: 32px;
+  height: 32px;
+  width: auto;
+  min-width: 240px;
+  border-radius: 0;
+  padding: 0 12px;
+  font-family: var(--font-mono, monospace);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.period-shift {
+  flex-shrink: 0;
+}
+
+.period-pill {
+  white-space: nowrap;
+}
+
 .pill,
 .sport-tag {
   border-radius: 999px;
@@ -1088,6 +1117,17 @@ button {
   .sport-chip {
     height: 36px;
     font-size: 11px;
+  }
+
+  .period-picker {
+    width: 100%;
+  }
+
+  .period-select-inline,
+  .period-shift,
+  .period-pill {
+    width: 100%;
+    justify-content: center;
   }
 }
 

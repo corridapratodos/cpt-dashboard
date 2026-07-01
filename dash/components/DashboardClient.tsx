@@ -111,7 +111,7 @@ export default function DashboardClient({ initialActivities, initialYear, availa
 
   useEffect(() => {
     setPage(1)
-  }, [selectedYears, selectedSports, windowMode])
+  }, [selectedYears, selectedSports, selectedMonthKey, selectedWeekKey, windowMode])
 
   useEffect(() => {
     if (!selectedYears.length) return
@@ -357,6 +357,18 @@ export default function DashboardClient({ initialActivities, initialYear, availa
       setSelectedWeekKey(weekOptions[0].key)
     }
   }, [selectedWeekKey, weekOptions])
+
+  const activePeriodOptions = useMemo(() => {
+    if (windowMode === 'month') return monthOptions
+    if (windowMode === 'week') return weekOptions
+    return [] as WindowOption[]
+  }, [monthOptions, weekOptions, windowMode])
+
+  const hasPeriodNavigation = windowMode === 'month' || windowMode === 'week'
+  const activePeriodKey = windowMode === 'month' ? selectedMonthKey : selectedWeekKey
+  const activePeriodIndex = activePeriodOptions.findIndex((option) => option.key === activePeriodKey)
+  const canGoToNewerPeriod = activePeriodIndex > 0
+  const canGoToOlderPeriod = activePeriodIndex >= 0 && activePeriodIndex < activePeriodOptions.length - 1
 
   const activeWindow = useMemo(() => {
     const baseYearLabel = allYearsSelected ? 'historico completo' : selectedYears.length === 1 ? selectedYears[0] : `${selectedYears.length} anos`
@@ -678,6 +690,61 @@ export default function DashboardClient({ initialActivities, initialYear, availa
     }
   }, [activeWindow.end, activeWindow.start, analyzedActivities, stats])
 
+  const periodRadar = useMemo(() => {
+    if (!analyzedActivities.length) return null
+
+    const dayMap = new Map<string, { distance: number; durationSec: number; sessions: number }>()
+    const weekdayMap = new Map<string, number>()
+    let weekendSessions = 0
+
+    for (const activity of analyzedActivities) {
+      const dayKey = activity.date.slice(0, 10)
+      const currentDay = dayMap.get(dayKey) ?? { distance: 0, durationSec: 0, sessions: 0 }
+      currentDay.distance += activity.distanceKm
+      currentDay.durationSec += activity.durationSec
+      currentDay.sessions += 1
+      dayMap.set(dayKey, currentDay)
+
+      const date = new Date(activity.date)
+      const weekday = date.toLocaleDateString('pt-BR', { weekday: 'short' }).replace('.', '')
+      weekdayMap.set(weekday, (weekdayMap.get(weekday) ?? 0) + 1)
+      if (date.getDay() === 0 || date.getDay() === 6) weekendSessions += 1
+    }
+
+    const dayRows = Array.from(dayMap.entries()).map(([key, value]) => ({ key, ...value }))
+    const strongestDay = [...dayRows].sort((a, b) => b.distance - a.distance || b.durationSec - a.durationSec)[0]
+    const uniqueDays = dayRows.map((row) => row.key).sort((a, b) => a.localeCompare(b))
+
+    let biggestGapDays = 0
+    for (let index = 1; index < uniqueDays.length; index += 1) {
+      const previous = new Date(`${uniqueDays[index - 1]}T00:00:00`)
+      const current = new Date(`${uniqueDays[index]}T00:00:00`)
+      const gapDays = Math.max(0, Math.round((current.getTime() - previous.getTime()) / DAY_MS) - 1)
+      if (gapDays > biggestGapDays) biggestGapDays = gapDays
+    }
+
+    const topWeekday = Array.from(weekdayMap.entries()).sort((a, b) => b[1] - a[1])[0]
+    const topWeekdayLabel = topWeekday
+      ? `${topWeekday[0].charAt(0).toUpperCase()}${topWeekday[0].slice(1)}`
+      : '-'
+    const topWeekdaySharePct = topWeekday ? Math.round((topWeekday[1] / analyzedActivities.length) * 100) : 0
+    const weekendSharePct = Math.round((weekendSessions / analyzedActivities.length) * 100)
+    const totalDistance = analyzedActivities.reduce((sum, activity) => sum + activity.distanceKm, 0)
+    const strongestDaySharePct = totalDistance > 0 ? Math.round((strongestDay.distance / totalDistance) * 100) : 0
+
+    return {
+      biggestGapDays,
+      strongestDay: {
+        ...strongestDay,
+        label: fmt.fullDate(strongestDay.key),
+      },
+      strongestDaySharePct,
+      topWeekdayLabel,
+      topWeekdaySharePct,
+      weekendSharePct,
+    }
+  }, [analyzedActivities])
+
   const periodBenchmark = useMemo(() => {
     if (!scopedAnalyzedActivities.length || (windowMode !== 'month' && windowMode !== 'week')) return null
 
@@ -919,6 +986,22 @@ export default function DashboardClient({ initialActivities, initialYear, availa
       return [...current, type]
     })
   }
+
+  function shiftActivePeriod(direction: 'newer' | 'older') {
+    if (!hasPeriodNavigation || activePeriodIndex === -1) return
+
+    const nextIndex = direction === 'newer' ? activePeriodIndex - 1 : activePeriodIndex + 1
+    const nextOption = activePeriodOptions[nextIndex]
+    if (!nextOption) return
+
+    if (windowMode === 'month') {
+      setSelectedMonthKey(nextOption.key)
+      return
+    }
+
+    setSelectedWeekKey(nextOption.key)
+  }
+
   if (!totalActivities && !mergedActivities.length) {
     return (
       <main className="shell">
@@ -1045,20 +1128,39 @@ export default function DashboardClient({ initialActivities, initialYear, availa
                 {option.label}
               </button>
             ))}
-            {windowMode === 'month' && monthOptions.length > 0 && (
+            {hasPeriodNavigation && activePeriodOptions.length > 0 && (
               <>
                 <span className="filter-divider" />
-                <select className="period-select" value={selectedMonthKey} onChange={(e) => setSelectedMonthKey(e.target.value)}>
-                  {monthOptions.map((o) => <option key={o.key} value={o.key}>{o.label}</option>)}
-                </select>
-              </>
-            )}
-            {windowMode === 'week' && weekOptions.length > 0 && (
-              <>
-                <span className="filter-divider" />
-                <select className="period-select" value={selectedWeekKey} onChange={(e) => setSelectedWeekKey(e.target.value)}>
-                  {weekOptions.map((o) => <option key={o.key} value={o.key}>{o.label}</option>)}
-                </select>
+                <div className="period-picker">
+                  <button
+                    type="button"
+                    className="btn btn-ghost period-shift"
+                    onClick={() => shiftActivePeriod('newer')}
+                    disabled={!canGoToNewerPeriod}
+                  >
+                    Mais recente
+                  </button>
+                  <select
+                    className="period-select period-select-inline"
+                    value={activePeriodKey}
+                    onChange={(e) => (windowMode === 'month' ? setSelectedMonthKey(e.target.value) : setSelectedWeekKey(e.target.value))}
+                  >
+                    {activePeriodOptions.map((option) => <option key={option.key} value={option.key}>{option.label}</option>)}
+                  </select>
+                  <button
+                    type="button"
+                    className="btn btn-ghost period-shift"
+                    onClick={() => shiftActivePeriod('older')}
+                    disabled={!canGoToOlderPeriod}
+                  >
+                    Mais antigo
+                  </button>
+                  <span className="pill pill-ghost period-pill">
+                    {activePeriodIndex >= 0
+                      ? `${activePeriodIndex + 1}/${activePeriodOptions.length} ${windowMode === 'month' ? 'meses' : 'semanas'}`
+                      : ''}
+                  </span>
+                </div>
               </>
             )}
           </div>
@@ -1325,6 +1427,19 @@ export default function DashboardClient({ initialActivities, initialYear, availa
                   <AnalysisTile label="Melhor janela" value={`${fmt.dist(periodBenchmark.best.distance)} km`} meta={periodBenchmark.best.label} />
                   <AnalysisTile label="Janela atual" value={`${fmt.dist(periodBenchmark.current.distance)} km`} meta={periodBenchmark.current.label} />
                 </div>
+              )}
+            </Panel>
+
+            <Panel eyebrow="Radar" title="Distribuicao do bloco" subtitle="Leituras deterministicas da janela ativa, sem depender de LLM">
+              {periodRadar ? (
+                <div className="analysis-grid">
+                  <AnalysisTile label="Dia mais forte" value={`${fmt.dist(periodRadar.strongestDay.distance)} km`} meta={`${periodRadar.strongestDay.label} | ${periodRadar.strongestDaySharePct}% do volume`} />
+                  <AnalysisTile label="Maior intervalo" value={`${periodRadar.biggestGapDays}d`} meta="entre dias ativos do recorte" />
+                  <AnalysisTile label="Dia dominante" value={periodRadar.topWeekdayLabel} meta={`${periodRadar.topWeekdaySharePct}% das sessoes`} />
+                  <AnalysisTile label="Fim de semana" value={`${periodRadar.weekendSharePct}%`} meta="das sessoes em sabado e domingo" />
+                </div>
+              ) : (
+                <p className="empty-copy">Ainda nao ha base suficiente para ler a distribuicao interna do recorte.</p>
               )}
             </Panel>
           </section>
