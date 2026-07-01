@@ -955,32 +955,39 @@ export default function DashboardClient({ initialActivities, initialYear, availa
       <div className="app-main">
         {/* Sticky header */}
         <header className="app-header">
-          <div className="app-header-identity">
-            {meta && <p className="app-header-role eyebrow">{viewerRole} · {viewerPlan}</p>}
-            <h1 className="hero-name">{userName}</h1>
-          </div>
-          <div className="app-header-actions">
-            {ignoredCount > 0 && <span className="pill pill-ghost">{ignoredCount} ignoradas</span>}
-            {viewerAdmin && (
-              <button
-                type="button"
-                className="sport-chip preview-chip"
-                data-active={previewMode === 'admin'}
-                style={{ ['--chip-accent' as string]: 'var(--accent-4)' }}
-                onClick={() => setPreviewMode(previewMode === 'admin' ? 'athlete' : 'admin')}
-              >
-                {previewMode === 'admin' ? 'Admin' : 'Atleta'}
+          <div className="app-header-top">
+            <div className="app-header-identity">
+              {meta && <p className="app-header-role">{viewerRole} · {viewerPlan}</p>}
+              <p className="app-header-name">{userName}</p>
+            </div>
+            <div className="app-header-actions">
+              {meta?.lastSync && (
+                <span className="app-header-sync-info">
+                  ↻ Last sync · {new Date(meta.lastSync).toLocaleDateString('pt-BR')} · {meta?.lastSyncMode ?? 'incremental'}
+                </span>
+              )}
+              {ignoredCount > 0 && <span className="pill pill-ghost">{ignoredCount} ignoradas</span>}
+              {viewerAdmin && (
+                <button
+                  type="button"
+                  className="sport-chip preview-chip"
+                  data-active={previewMode === 'admin'}
+                  style={{ ['--chip-accent' as string]: 'var(--accent-4)' }}
+                  onClick={() => setPreviewMode(previewMode === 'admin' ? 'athlete' : 'admin')}
+                >
+                  {previewMode === 'admin' ? 'Admin' : 'Atleta'}
+                </button>
+              )}
+              <button onClick={handleThemeToggle} className="btn btn-ghost" type="button">
+                {theme === 'dark' ? '☀' : '☾'}
               </button>
-            )}
-            <button onClick={handleThemeToggle} className="btn btn-ghost" type="button">
-              {theme === 'dark' ? '☀' : '☾'}
-            </button>
-            <button onClick={() => handleSync('incremental')} disabled={syncing || deleting || loadingYears.length > 0} className="btn btn-primary" type="button">
-              {syncing ? 'Sincronizando...' : 'Atualizar'}
-            </button>
-            <button onClick={() => signOut({ callbackUrl: '/login' })} className="btn btn-ghost" type="button">
-              Sair
-            </button>
+              <button onClick={() => handleSync('incremental')} disabled={syncing || deleting || loadingYears.length > 0} className="btn btn-primary" type="button">
+                {syncing ? 'Sincronizando...' : 'Atualizar'}
+              </button>
+              <button onClick={() => signOut({ callbackUrl: '/login' })} className="btn btn-ghost" type="button">
+                Sair
+              </button>
+            </div>
           </div>
 
           {/* Filter strip inside header */}
