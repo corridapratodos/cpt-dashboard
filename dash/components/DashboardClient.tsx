@@ -945,121 +945,113 @@ export default function DashboardClient({ initialActivities, initialYear, availa
   return (
     <main className="shell">
       <section className="hero">
-        <div className="hero-grid">
-          <div>
-            <div className="hero-topbar">
-              <div>
-                <p className="eyebrow">CPT Performance Lab</p>
-                <h1 className="hero-name">{userName}</h1>
-              </div>
-              <div className="hero-topbar-meta">
-                {meta?.lastSync && (
-                  <span className="pill pill-ghost">Sync {new Date(meta.lastSync).toLocaleDateString('pt-BR')}</span>
-                )}
-                {ignoredCount > 0 && <span className="pill pill-ghost">{ignoredCount} ignoradas</span>}
-                {showOperatorNotes && <span className="pill pill-ghost">{viewerRole} · {viewerPlan}</span>}
-              </div>
-            </div>
+        <div className="hero-bar">
+          <div className="hero-identity">
+            <p className="eyebrow">CPT Performance Lab</p>
+            <h1 className="hero-name">{userName}</h1>
           </div>
+          <div className="hero-actions">
+            {meta?.lastSync && (
+              <span className="pill pill-ghost">Sync {new Date(meta.lastSync).toLocaleDateString('pt-BR')}</span>
+            )}
+            {ignoredCount > 0 && <span className="pill pill-ghost">{ignoredCount} ignoradas</span>}
+            {showOperatorNotes && <span className="pill pill-ghost">{viewerRole} · {viewerPlan}</span>}
+            {viewerAdmin && (
+              <button
+                type="button"
+                className="sport-chip preview-chip"
+                data-active={previewMode === 'admin'}
+                style={{ ['--chip-accent' as string]: 'var(--accent-4)' }}
+                onClick={() => setPreviewMode(previewMode === 'admin' ? 'athlete' : 'admin')}
+              >
+                {previewMode === 'admin' ? 'Admin' : 'Atleta'}
+              </button>
+            )}
+            <button onClick={handleThemeToggle} className="btn btn-ghost" type="button">
+              {theme === 'dark' ? '☀' : '☾'}
+            </button>
+            <button onClick={() => handleSync('incremental')} disabled={syncing || deleting || loadingYears.length > 0} className="btn btn-primary" type="button">
+              {syncing ? 'Sincronizando...' : 'Atualizar'}
+            </button>
+            <button onClick={() => signOut({ callbackUrl: '/login' })} className="btn btn-outline" type="button">
+              Sair
+            </button>
+          </div>
+        </div>
 
-          <div className="control-panel">
-            <div className="control-header">
-              <div className="filter-row" style={{ flexWrap: 'wrap', gap: '0.5rem' }}>
-                <button
-                  type="button"
-                  className="sport-chip"
-                  data-active={allSportsSelected}
-                  onClick={() => toggleSport('All')}
-                  style={{ ['--chip-accent' as string]: 'var(--accent)' }}
-                >
-                  Tudo
-                </button>
-                {availableSports.map((type) => (
-                  <button
-                    key={type}
-                    type="button"
-                    className="sport-chip"
-                    data-active={selectedSports.includes(type)}
-                    onClick={() => toggleSport(type)}
-                    style={{ ['--chip-accent' as string]: getSportAccent(type) }}
-                  >
-                    {getSportLabel(type)}
-                  </button>
-                ))}
-                <span className="filter-divider" />
-                {actualYears.map((year) => (
-                  <button
-                    key={year}
-                    type="button"
-                    className="sport-chip year-chip"
-                    data-active={selectedYears.includes(year)}
-                    onClick={() => toggleYear(year)}
-                    style={{ ['--chip-accent' as string]: 'var(--accent-2)' }}
-                  >
-                    {year}
-                  </button>
-                ))}
-                <span className="filter-divider" />
-                {([
-                  { key: 'year', label: 'Ano' },
-                  { key: 'month', label: 'Mes' },
-                  { key: 'week', label: 'Semana' },
-                  { key: 'rolling28', label: '28d' },
-                ] as const).map((option) => (
-                  <button
-                    key={option.key}
-                    type="button"
-                    className="sport-chip window-chip"
-                    data-active={windowMode === option.key}
-                    onClick={() => setWindowMode(option.key)}
-                    style={{ ['--chip-accent' as string]: 'var(--accent-3)' }}
-                  >
-                    {option.label}
-                  </button>
-                ))}
-              </div>
-              <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexShrink: 0 }}>
-                {viewerAdmin && (
-                  <>
-                    <button
-                      type="button"
-                      className="sport-chip preview-chip"
-                      data-active={previewMode === 'admin'}
-                      style={{ ['--chip-accent' as string]: 'var(--accent-4)' }}
-                      onClick={() => setPreviewMode(previewMode === 'admin' ? 'athlete' : 'admin')}
-                    >
-                      {previewMode === 'admin' ? 'Admin' : 'Atleta'}
-                    </button>
-                  </>
-                )}
-                <button onClick={handleThemeToggle} className="btn btn-ghost" type="button">
-                  {theme === 'dark' ? '☀' : '☾'}
-                </button>
-              </div>
-            </div>
-
-            {windowMode === 'month' && monthOptions.length > 0 && (
+        <div className="filter-strip">
+          <button
+            type="button"
+            className="sport-chip"
+            data-active={allSportsSelected}
+            onClick={() => toggleSport('All')}
+            style={{ ['--chip-accent' as string]: 'var(--accent)' }}
+          >
+            Tudo
+          </button>
+          {availableSports.map((type) => (
+            <button
+              key={type}
+              type="button"
+              className="sport-chip"
+              data-active={selectedSports.includes(type)}
+              onClick={() => toggleSport(type)}
+              style={{ ['--chip-accent' as string]: getSportAccent(type) }}
+            >
+              {getSportLabel(type)}
+            </button>
+          ))}
+          <span className="filter-divider" />
+          {actualYears.map((year) => (
+            <button
+              key={year}
+              type="button"
+              className="sport-chip year-chip"
+              data-active={selectedYears.includes(year)}
+              onClick={() => toggleYear(year)}
+              style={{ ['--chip-accent' as string]: 'var(--accent-2)' }}
+            >
+              {year}
+            </button>
+          ))}
+          <span className="filter-divider" />
+          {([
+            { key: 'year', label: 'Ano' },
+            { key: 'month', label: 'Mes' },
+            { key: 'week', label: 'Semana' },
+            { key: 'rolling28', label: '28d' },
+          ] as const).map((option) => (
+            <button
+              key={option.key}
+              type="button"
+              className="sport-chip window-chip"
+              data-active={windowMode === option.key}
+              onClick={() => setWindowMode(option.key)}
+              style={{ ['--chip-accent' as string]: 'var(--accent-3)' }}
+            >
+              {option.label}
+            </button>
+          ))}
+          {windowMode === 'month' && monthOptions.length > 0 && (
+            <>
+              <span className="filter-divider" />
               <select className="period-select" value={selectedMonthKey} onChange={(e) => setSelectedMonthKey(e.target.value)}>
                 {monthOptions.map((o) => <option key={o.key} value={o.key}>{o.label}</option>)}
               </select>
-            )}
-            {windowMode === 'week' && weekOptions.length > 0 && (
+            </>
+          )}
+          {windowMode === 'week' && weekOptions.length > 0 && (
+            <>
+              <span className="filter-divider" />
               <select className="period-select" value={selectedWeekKey} onChange={(e) => setSelectedWeekKey(e.target.value)}>
                 {weekOptions.map((o) => <option key={o.key} value={o.key}>{o.label}</option>)}
               </select>
-            )}
+            </>
+          )}
+        </div>
 
-            <div className="action-row">
-              <button onClick={() => handleSync('incremental')} disabled={syncing || deleting || loadingYears.length > 0} className="btn btn-primary" type="button">
-                {syncing ? 'Sincronizando...' : 'Atualizar dados'}
-              </button>
-              <button onClick={() => signOut({ callbackUrl: '/login' })} className="btn btn-outline" type="button">
-                Sair
-              </button>
-            </div>
-
-            {showOperatorNotes && (
-              <>
+        {showOperatorNotes && (
+        <div className="control-panel">
               <div className="admin-tools">
                 <div>
                   <p className="control-label">Ferramentas de administrador</p>
@@ -1139,13 +1131,16 @@ export default function DashboardClient({ initialActivities, initialYear, availa
                   {healthUploadMsg && <span className="sync-message" style={{ margin: 0 }}>{healthUploadMsg}</span>}
                 </div>
               </div>
-              </>
-            )}
-
+            {loadingLabel && <p className="sync-message">{loadingLabel}</p>}
+            {syncMsg && <p className="sync-message">{syncMsg}</p>}
+        </div>
+        )}
+        {!showOperatorNotes && (loadingLabel || syncMsg) && (
+          <div className="hero-messages">
             {loadingLabel && <p className="sync-message">{loadingLabel}</p>}
             {syncMsg && <p className="sync-message">{syncMsg}</p>}
           </div>
-        </div>
+        )}
       </section>
 
       {!activeActivities.length && !loadingYears.length ? (
