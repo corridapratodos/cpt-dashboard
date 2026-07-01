@@ -2,7 +2,7 @@ import { normalizeTextValue } from '@/lib/text'
 import { isRunLikeType, type StoredBestEffort } from '@/lib/activity-types'
 
 const TRACKED_BEST_EFFORTS_KM = [3, 5, 10, 15, 21.1, 30]
-const BEST_EFFORT_FETCH_LIMIT = {
+export const BEST_EFFORT_FETCH_LIMIT = {
   incremental: 24,
   full: 80,
 } as const
@@ -99,10 +99,20 @@ function shouldFetchBestEfforts(activity: any) {
 export async function fetchBestEffortsForActivities(
   accessToken: string,
   activities: any[],
-  mode: 'incremental' | 'full'
+  mode: 'incremental' | 'full',
+  withoutEfforts?: Set<number>
 ) {
   const eligible = activities.filter(shouldFetchBestEfforts)
-  const limited = eligible.slice(0, BEST_EFFORT_FETCH_LIMIT[mode])
+
+  // Prioriza atividades sem best efforts salvos, depois as demais por data desc
+  const prioritized = withoutEfforts && withoutEfforts.size > 0
+    ? [
+        ...eligible.filter((a) => withoutEfforts.has(Number(a.id))),
+        ...eligible.filter((a) => !withoutEfforts.has(Number(a.id))),
+      ]
+    : eligible
+
+  const limited = prioritized.slice(0, BEST_EFFORT_FETCH_LIMIT[mode])
   const byActivityId = new Map<number, StoredBestEffort[]>()
   const workerCount = Math.min(BEST_EFFORT_CONCURRENCY, limited.length)
   const workerBatches = Array.from({ length: workerCount }, () => [] as typeof limited)

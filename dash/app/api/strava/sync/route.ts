@@ -3,7 +3,7 @@ import { authOptions } from '@/lib/auth'
 import { FULL_SYNC_COOLDOWN_MS, getUserScope, hasAdminAccess, isActivityAllowedForScope, parseStoredDate } from '@/lib/access'
 import { buildSyncSummary, toDashboardActivity } from '@/lib/dashboard'
 import { activitiesRef, metaRef, userRef } from '@/lib/firebase'
-import { fetchActivities, fetchBestEffortsForActivities, isRealRun, mapActivity } from '@/lib/strava'
+import { BEST_EFFORT_FETCH_LIMIT, extractBestEfforts, fetchActivities, fetchActivity, fetchBestEffortsForActivities, isRealRun, mapActivity } from '@/lib/strava'
 
 const SYNC_LOCK_WINDOW_MS = 10 * 60 * 1000
 
@@ -156,6 +156,37 @@ export async function POST(req: Request) {
       await batch.commit()
     }
 
+    // No sync incremental, enriquece atividades antigas sem best efforts
+    let backfilledCount = 0
+    if (shouldRunIncremental) {
+      const withoutSnap = await colRef
+        .where('bestEfforts', '==', [])
+        .orderBy('date', 'desc')
+        .limit(BEST_EFFORT_FETCH_LIMIT.incremental)
+        .get()
+
+      const toBackfill = withoutSnap.docs.filter((doc) => {
+        const d = doc.data()
+        const distKm = Number(d.distanceKm ?? 0)
+        const durationSec = Number(d.durationSec ?? 0)
+        return (d.type === 'Run' || d.type === 'TrailRun') && distKm >= 3 && durationSec >= 20 * 60
+      })
+
+      for (const doc of toBackfill) {
+        try {
+          const stravaId = Number(doc.data().stravaId)
+          const detail = await fetchActivity(session.accessToken, stravaId)
+          const bestEfforts = extractBestEfforts(detail)
+          if (bestEfforts.length) {
+            await colRef.doc(String(stravaId)).set({ bestEfforts }, { merge: true })
+            backfilledCount++
+          }
+        } catch {
+          // Falhas individuais nao bloqueiam o sync
+        }
+      }
+    }
+
     let summary: ReturnType<typeof buildSyncSummary>
 
     if (effectiveMode === 'incremental') {
@@ -192,7 +223,9 @@ export async function POST(req: Request) {
         bestEffortFetchedActivities: bestEffortBackfill.fetchedCount,
         bestEffortEnrichedActivities: bestEffortBackfill.enrichedCount,
         bestEffortRemainingActivities: bestEffortBackfill.remainingCount,
+        bestEffortBackfilledActivities: backfilledCount,
         historicalBackfillCompleted: true,
+        metadataRepairedAt: new Date(),
         syncInProgress: false,
         syncRequestedMode: effectiveRequestedMode,
         syncFinishedAt: new Date(),
