@@ -1470,8 +1470,8 @@ export default function DashboardClient({ initialActivities, initialYear, availa
             }).slice(-90)
 
             const weightSmoothed = weightFiltered.map((w, i, arr) => {
-              const window = arr.slice(Math.max(0, i - 3), i + 4)
-              const avg = window.reduce((s, x) => s + x.weightKg, 0) / window.length
+              const win = arr.slice(Math.max(0, i - 3), i + 4)
+              const avg = win.reduce((s, x) => s + x.weightKg, 0) / win.length
               return { ...w, weightSmooth: parseFloat(avg.toFixed(1)) }
             })
 
@@ -1481,39 +1481,43 @@ export default function DashboardClient({ initialActivities, initialYear, availa
 
             const minWeight = weightFiltered.length ? Math.min(...weightFiltered.map((w) => w.weightKg)) : null
             const maxWeight = weightFiltered.length ? Math.max(...weightFiltered.map((w) => w.weightKg)) : null
+            const lastWeight = weightSmoothed[weightSmoothed.length - 1]
 
             return (
               <>
                 <SectionLead
                   eyebrow="Saude & Recuperacao"
                   title="Sono e composicao corporal"
-                  subtitle="Dados importados do Garmin. Janela dos ultimos 90 dias do recorte selecionado."
+                  subtitle="Dados importados do Garmin. Ultimos 90 dias do recorte selecionado."
                 />
                 <section className="dashboard-grid">
                   {sleepFiltered.length > 0 && (
                     <Panel
                       eyebrow="Sono"
                       title="Duracao diaria"
-                      subtitle={avgSleep ? `Media: ${avgSleep}h` : ''}
+                      subtitle={avgSleep ? `Media do periodo: ${avgSleep}h` : ''}
                     >
-                      <ResponsiveContainer width="100%" height={200}>
-                        <BarChart data={sleepFiltered} barSize={4}>
-                          <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" vertical={false} />
-                          <XAxis dataKey="date" tick={{ fontSize: 10, fill: 'var(--text-muted)' }} tickFormatter={(v: string) => v.slice(5)} interval={13} />
-                          <YAxis tick={{ fontSize: 10, fill: 'var(--text-muted)' }} tickFormatter={(v: number) => `${(v / 60).toFixed(0)}h`} domain={[0, 600]} width={28} />
+                      <ResponsiveContainer width="100%" height={260}>
+                        <BarChart data={sleepFiltered} margin={{ top: 8, right: 4, bottom: 4, left: -16 }}>
+                          <CartesianGrid strokeDasharray="4 4" stroke="var(--grid)" />
+                          <XAxis dataKey="date" tick={{ fill: 'var(--text-muted)', fontSize: 11 }} axisLine={false} tickLine={false} tickFormatter={(v: string) => v.slice(5)} interval={Math.floor(sleepFiltered.length / 6)} />
+                          <YAxis tick={{ fill: 'var(--text-muted)', fontSize: 11 }} axisLine={false} tickLine={false} tickFormatter={(v: number) => `${Math.round(v / 60)}h`} domain={[0, 660]} />
                           <Tooltip
+                            contentStyle={chartTooltip}
                             formatter={(v: number) => [`${Math.floor(v / 60)}h ${v % 60}min`, 'Sono']}
                             labelFormatter={(l: string) => l}
-                            contentStyle={chartTooltip}
                           />
-                          <Bar dataKey="durationMin" radius={[2, 2, 0, 0]}>
+                          <Bar dataKey="durationMin" radius={[6, 6, 0, 0]}>
                             {sleepFiltered.map((s) => (
-                              <Cell key={s.date} fill={s.durationMin < 300 ? 'var(--accent-warn, #f59e0b)' : 'var(--accent-primary)'} />
+                              <Cell key={s.date} fill={s.durationMin < 300 ? 'var(--accent-4)' : activeAccent} fillOpacity={0.9} />
                             ))}
                           </Bar>
                         </BarChart>
                       </ResponsiveContainer>
-                      <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '0.5rem' }}>Amarelo = menos de 5h</p>
+                      <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.5rem' }}>
+                        <span style={{ display: 'inline-block', width: 10, height: 10, borderRadius: 2, background: 'var(--accent-4)', marginRight: 4 }} />
+                        Menos de 5h
+                      </p>
                     </Panel>
                   )}
 
@@ -1521,33 +1525,25 @@ export default function DashboardClient({ initialActivities, initialYear, availa
                     <Panel
                       eyebrow="Peso"
                       title="Tendencia corporal"
-                      subtitle={minWeight && maxWeight ? `${minWeight}kg – ${maxWeight}kg no periodo` : ''}
+                      subtitle={minWeight && maxWeight ? `${minWeight} – ${maxWeight} kg no periodo` : ''}
                     >
-                      <ResponsiveContainer width="100%" height={200}>
-                        <LineChart data={weightSmoothed}>
-                          <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" vertical={false} />
-                          <XAxis dataKey="date" tick={{ fontSize: 10, fill: 'var(--text-muted)' }} tickFormatter={(v: string) => v.slice(5)} interval={13} />
-                          <YAxis
-                            tick={{ fontSize: 10, fill: 'var(--text-muted)' }}
-                            tickFormatter={(v: number) => `${v}kg`}
-                            domain={['auto', 'auto']}
-                            width={42}
-                          />
+                      <ResponsiveContainer width="100%" height={260}>
+                        <LineChart data={weightSmoothed} margin={{ top: 8, right: 8, bottom: 4, left: -16 }}>
+                          <CartesianGrid strokeDasharray="4 4" stroke="var(--grid)" />
+                          <XAxis dataKey="date" tick={{ fill: 'var(--text-muted)', fontSize: 11 }} axisLine={false} tickLine={false} tickFormatter={(v: string) => v.slice(5)} interval={Math.floor(weightSmoothed.length / 6)} />
+                          <YAxis tick={{ fill: 'var(--text-muted)', fontSize: 11 }} axisLine={false} tickLine={false} tickFormatter={(v: number) => `${v}kg`} domain={['auto', 'auto']} />
                           <Tooltip
-                            formatter={(v: number, name: string) => [
-                              `${v}kg`,
-                              name === 'weightSmooth' ? 'Media 7d' : 'Peso',
-                            ]}
-                            labelFormatter={(l: string) => l}
                             contentStyle={chartTooltip}
+                            formatter={(v: number, name: string) => [`${v} kg`, name === 'weightSmooth' ? 'Media 7d' : 'Diario']}
+                            labelFormatter={(l: string) => l}
                           />
-                          <Line type="monotone" dataKey="weightKg" dot={false} stroke="var(--text-muted)" strokeWidth={1} strokeOpacity={0.4} />
-                          <Line type="monotone" dataKey="weightSmooth" dot={false} stroke="var(--accent-primary)" strokeWidth={2} />
+                          <Line type="monotone" dataKey="weightKg" dot={false} stroke={activeAccent} strokeWidth={1} strokeOpacity={0.25} />
+                          <Line type="monotone" dataKey="weightSmooth" dot={false} stroke={activeAccent} strokeWidth={2.5} />
                         </LineChart>
                       </ResponsiveContainer>
-                      {weightSmoothed[0]?.fatPct != null && (
-                        <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '0.5rem' }}>
-                          Gordura: {weightSmoothed[weightSmoothed.length - 1]?.fatPct}% · Músculo: {weightSmoothed[weightSmoothed.length - 1]?.muscleMassKg}kg
+                      {lastWeight?.fatPct != null && (
+                        <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.5rem' }}>
+                          Ultima leitura: gordura {lastWeight.fatPct}% · musculo {lastWeight.muscleMassKg} kg · agua {lastWeight.waterPct}%
                         </p>
                       )}
                     </Panel>
