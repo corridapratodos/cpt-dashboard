@@ -17,7 +17,7 @@ import {
   XAxis,
   YAxis,
 } from 'recharts'
-import type { Activity, Props, RecordEntry, SyncMode, ThemeMode } from './dashboard/types'
+import type { Activity, Props, RecordEntry, SleepRecord, SyncMode, ThemeMode, WeightRecord } from './dashboard/types'
 import {
   DAY_MS,
   ROWS_STEP,
@@ -56,6 +56,8 @@ export default function DashboardClient({ initialActivities, initialYear, availa
   const [backfilling, setBackfilling] = useState(false)
   const [uploadingHealth, setUploadingHealth] = useState(false)
   const [healthUploadMsg, setHealthUploadMsg] = useState('')
+  const [sleepData, setSleepData] = useState<SleepRecord[]>([])
+  const [weightData, setWeightData] = useState<WeightRecord[]>([])
   const [activityReviewing, setActivityReviewing] = useState(false)
   const [syncMsg, setSyncMsg] = useState('')
   const [theme, setTheme] = useState<ThemeMode>('dark')
@@ -83,6 +85,22 @@ export default function DashboardClient({ initialActivities, initialYear, availa
     applyTheme(mode)
     setTheme(mode)
   }, [])
+
+  useEffect(() => {
+    if (!isAdmin) return
+    const years = selectedYears.length ? selectedYears : actualYears
+    if (!years.length) return
+    const from = `${Math.min(...years.map(Number))}-01-01`
+    const to = `${Math.max(...years.map(Number))}-12-31`
+    fetch(`/api/health?from=${from}&to=${to}`)
+      .then((r) => r.ok ? r.json() : null)
+      .then((data) => {
+        if (!data) return
+        setSleepData(data.sleep ?? [])
+        setWeightData(data.weight ?? [])
+      })
+      .catch(() => {})
+  }, [isAdmin, selectedYears, actualYears])
 
   useEffect(() => {
     if (!selectedYears.length && actualYears.length) {
@@ -1439,6 +1457,105 @@ export default function DashboardClient({ initialActivities, initialYear, availa
               </div>
             </Panel>
           </section>
+
+          {isAdmin && (sleepData.length > 0 || weightData.length > 0) && (() => {
+            const sleepFiltered = sleepData.filter((s) => {
+              const y = s.date.slice(0, 4)
+              return selectedYears.length === 0 || selectedYears.includes(y)
+            }).slice(-90)
+
+            const weightFiltered = weightData.filter((w) => {
+              const y = w.date.slice(0, 4)
+              return selectedYears.length === 0 || selectedYears.includes(y)
+            }).slice(-90)
+
+            const weightSmoothed = weightFiltered.map((w, i, arr) => {
+              const window = arr.slice(Math.max(0, i - 3), i + 4)
+              const avg = window.reduce((s, x) => s + x.weightKg, 0) / window.length
+              return { ...w, weightSmooth: parseFloat(avg.toFixed(1)) }
+            })
+
+            const avgSleep = sleepFiltered.length
+              ? (sleepFiltered.reduce((s, r) => s + r.durationMin, 0) / sleepFiltered.length / 60).toFixed(1)
+              : null
+
+            const minWeight = weightFiltered.length ? Math.min(...weightFiltered.map((w) => w.weightKg)) : null
+            const maxWeight = weightFiltered.length ? Math.max(...weightFiltered.map((w) => w.weightKg)) : null
+
+            return (
+              <>
+                <SectionLead
+                  eyebrow="Saude & Recuperacao"
+                  title="Sono e composicao corporal"
+                  subtitle="Dados importados do Garmin. Janela dos ultimos 90 dias do recorte selecionado."
+                />
+                <section className="dashboard-grid">
+                  {sleepFiltered.length > 0 && (
+                    <Panel
+                      eyebrow="Sono"
+                      title="Duracao diaria"
+                      subtitle={avgSleep ? `Media: ${avgSleep}h` : ''}
+                    >
+                      <ResponsiveContainer width="100%" height={200}>
+                        <BarChart data={sleepFiltered} barSize={4}>
+                          <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" vertical={false} />
+                          <XAxis dataKey="date" tick={{ fontSize: 10, fill: 'var(--text-muted)' }} tickFormatter={(v: string) => v.slice(5)} interval={13} />
+                          <YAxis tick={{ fontSize: 10, fill: 'var(--text-muted)' }} tickFormatter={(v: number) => `${(v / 60).toFixed(0)}h`} domain={[0, 600]} width={28} />
+                          <Tooltip
+                            formatter={(v: number) => [`${Math.floor(v / 60)}h ${v % 60}min`, 'Sono']}
+                            labelFormatter={(l: string) => l}
+                            contentStyle={chartTooltip}
+                          />
+                          <Bar dataKey="durationMin" radius={[2, 2, 0, 0]}>
+                            {sleepFiltered.map((s) => (
+                              <Cell key={s.date} fill={s.durationMin < 300 ? 'var(--accent-warn, #f59e0b)' : 'var(--accent-primary)'} />
+                            ))}
+                          </Bar>
+                        </BarChart>
+                      </ResponsiveContainer>
+                      <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '0.5rem' }}>Amarelo = menos de 5h</p>
+                    </Panel>
+                  )}
+
+                  {weightSmoothed.length > 0 && (
+                    <Panel
+                      eyebrow="Peso"
+                      title="Tendencia corporal"
+                      subtitle={minWeight && maxWeight ? `${minWeight}kg – ${maxWeight}kg no periodo` : ''}
+                    >
+                      <ResponsiveContainer width="100%" height={200}>
+                        <LineChart data={weightSmoothed}>
+                          <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" vertical={false} />
+                          <XAxis dataKey="date" tick={{ fontSize: 10, fill: 'var(--text-muted)' }} tickFormatter={(v: string) => v.slice(5)} interval={13} />
+                          <YAxis
+                            tick={{ fontSize: 10, fill: 'var(--text-muted)' }}
+                            tickFormatter={(v: number) => `${v}kg`}
+                            domain={['auto', 'auto']}
+                            width={42}
+                          />
+                          <Tooltip
+                            formatter={(v: number, name: string) => [
+                              `${v}kg`,
+                              name === 'weightSmooth' ? 'Media 7d' : 'Peso',
+                            ]}
+                            labelFormatter={(l: string) => l}
+                            contentStyle={chartTooltip}
+                          />
+                          <Line type="monotone" dataKey="weightKg" dot={false} stroke="var(--text-muted)" strokeWidth={1} strokeOpacity={0.4} />
+                          <Line type="monotone" dataKey="weightSmooth" dot={false} stroke="var(--accent-primary)" strokeWidth={2} />
+                        </LineChart>
+                      </ResponsiveContainer>
+                      {weightSmoothed[0]?.fatPct != null && (
+                        <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '0.5rem' }}>
+                          Gordura: {weightSmoothed[weightSmoothed.length - 1]?.fatPct}% · Músculo: {weightSmoothed[weightSmoothed.length - 1]?.muscleMassKg}kg
+                        </p>
+                      )}
+                    </Panel>
+                  )}
+                </section>
+              </>
+            )
+          })()}
 
           <SectionLead
             eyebrow="Dado bruto"

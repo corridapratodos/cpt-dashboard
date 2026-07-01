@@ -50,6 +50,22 @@ export type PeriodTotals = {
   avgPace: number | null
 }
 
+export type SleepRecord = {
+  date: string
+  durationMin: number
+  sleepTime: string | null
+  wakeTime: string | null
+}
+
+export type WeightRecord = {
+  date: string
+  weightKg: number
+  bmi: number | null
+  fatPct: number | null
+  muscleMassKg: number | null
+  waterPct: number | null
+}
+
 export type RecordEntry = {
   targetKm: number
   activity: Activity
