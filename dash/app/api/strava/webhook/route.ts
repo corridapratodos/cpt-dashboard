@@ -1,8 +1,47 @@
 import { NextRequest } from 'next/server'
 import { getUserScope, isActivityAllowedForScope } from '@/lib/access'
 import { buildSyncSummary, toDashboardActivity } from '@/lib/dashboard'
-import { extractBestEfforts, fetchActivity, mapActivity } from '@/lib/strava'
 import { activitiesRef, getDb, metaRef } from '@/lib/firebase'
+import { getWebhookPostToken } from '@/lib/security'
+import { extractBestEfforts, fetchActivity, mapActivity } from '@/lib/strava'
+
+function isAuthorizedWebhookRequest(req: NextRequest) {
+  const expectedToken = getWebhookPostToken()
+  if (!expectedToken) return false
+
+  const providedToken = req.nextUrl.searchParams.get('token') ?? req.headers.get('x-cpt-webhook-token')
+  return providedToken === expectedToken
+}
+
+async function refreshWebhookAccessToken(ownerId: number, refreshToken: string) {
+  const res = await fetch('https://www.strava.com/api/v3/oauth/token', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      client_id: process.env.STRAVA_CLIENT_ID ?? '',
+      client_secret: process.env.STRAVA_CLIENT_SECRET ?? '',
+      grant_type: 'refresh_token',
+      refresh_token: refreshToken,
+    }),
+  })
+
+  const data = await res.json()
+  if (!res.ok || !data?.access_token || !data?.refresh_token || !data?.expires_at) {
+    throw new Error('Webhook token refresh failed')
+  }
+
+  await getDb().collection('users').doc(String(ownerId)).update({
+    accessToken: data.access_token,
+    refreshToken: data.refresh_token,
+    expiresAt: data.expires_at,
+  })
+
+  return {
+    accessToken: data.access_token as string,
+    refreshToken: data.refresh_token as string,
+    expiresAt: Number(data.expires_at),
+  }
+}
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url)
@@ -18,93 +57,99 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const body = await req.json()
-
-  if (body.object_type !== 'activity' || body.aspect_type !== 'create') {
-    return Response.json({ ok: true })
+  if (!isAuthorizedWebhookRequest(req)) {
+    return Response.json({ error: 'Forbidden' }, { status: 403 })
   }
 
-  const ownerId: number = body.owner_id
-  const activityId: number = body.object_id
-  const db = getDb()
-  const tokenDoc = await db.collection('users').doc(String(ownerId)).get()
-  const userData = tokenDoc.data()
+  try {
+    const body = await req.json().catch(() => null)
+    if (!body) {
+      return Response.json({ error: 'Invalid payload' }, { status: 400 })
+    }
 
-  if (!userData?.accessToken) {
-    return Response.json({ error: 'User not found' }, { status: 404 })
-  }
+    if (body.object_type !== 'activity' || body.aspect_type !== 'create') {
+      return Response.json({ ok: true })
+    }
 
-  let { accessToken, refreshToken, expiresAt } = userData
+    const ownerId = Number(body.owner_id)
+    const activityId = Number(body.object_id)
+    if (!Number.isFinite(ownerId) || !Number.isFinite(activityId) || ownerId <= 0 || activityId <= 0) {
+      return Response.json({ error: 'Invalid payload' }, { status: 400 })
+    }
 
-  if (Date.now() > expiresAt * 1000) {
-    const res = await fetch('https://www.strava.com/api/v3/oauth/token', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({
-        client_id: process.env.STRAVA_CLIENT_ID ?? '',
-        client_secret: process.env.STRAVA_CLIENT_SECRET ?? '',
-        grant_type: 'refresh_token',
-        refresh_token: refreshToken,
-      }),
-    })
+    const db = getDb()
+    const tokenDoc = await db.collection('users').doc(String(ownerId)).get()
+    if (!tokenDoc.exists) {
+      return Response.json({ ok: true, skipped: true, reason: 'unknown_owner' })
+    }
 
-    const data = await res.json()
-    accessToken = data.access_token
-    refreshToken = data.refresh_token
-    expiresAt = data.expires_at
+    const userData = tokenDoc.data()
+    if (!userData?.accessToken) {
+      return Response.json({ ok: true, skipped: true, reason: 'missing_access_token' })
+    }
 
-    await db.collection('users').doc(String(ownerId)).update({
-      accessToken,
-      refreshToken,
-      expiresAt,
-    })
-  }
+    let accessToken = String(userData.accessToken)
+    const refreshToken = String(userData.refreshToken ?? '')
+    let expiresAt = Number(userData.expiresAt ?? 0)
 
-  const scope = getUserScope(ownerId, userData)
-  const activity = await fetchActivity(accessToken, activityId)
-  if (!isActivityAllowedForScope({ type: activity.type, date: activity.start_date }, scope)) {
-    return Response.json({ ok: true, skipped: true, reason: 'outside_plan_scope' })
-  }
+    if (!refreshToken || !expiresAt) {
+      return Response.json({ ok: true, skipped: true, reason: 'incomplete_user_tokens' })
+    }
 
-  const mapped = mapActivity(activity, { bestEfforts: extractBestEfforts(activity) })
-  await activitiesRef(ownerId).doc(String(activityId)).set(mapped, { merge: true })
+    if (Date.now() > expiresAt * 1000) {
+      const refreshed = await refreshWebhookAccessToken(ownerId, refreshToken)
+      accessToken = refreshed.accessToken
+      expiresAt = refreshed.expiresAt
+    }
 
-  const activityYear = String(new Date(mapped.date).getUTCFullYear())
-  const currentMetaSnap = await metaRef(ownerId).get()
-  const currentMeta = currentMetaSnap.exists ? currentMetaSnap.data() : null
-  const availableYears = Array.from(new Set([...(currentMeta?.availableYears ?? []), activityYear]))
-    .sort((a, b) => Number(b) - Number(a))
+    const scope = getUserScope(ownerId, userData)
+    const activity = await fetchActivity(accessToken, activityId)
+    if (!isActivityAllowedForScope({ type: activity.type, date: activity.start_date }, scope)) {
+      return Response.json({ ok: true, skipped: true, reason: 'outside_plan_scope' })
+    }
 
-  await metaRef(ownerId).set(
-    {
-      availableYears,
-      newestActivityAt: mapped.date,
-      lastWebhookActivityAt: new Date(),
-      lastWebhookActivityId: activityId,
-      dataScope: {
-        fullAccess: scope.fullAccess,
-        allowedYears: scope.allowedYears,
-        allowedTypes: scope.allowedTypes,
-      },
-    },
-    { merge: true }
-  )
+    const mapped = mapActivity(activity, { bestEfforts: extractBestEfforts(activity) })
+    await activitiesRef(ownerId).doc(String(activityId)).set(mapped, { merge: true })
 
-  if ((currentMeta?.totalActivities ?? 0) < 1000) {
-    const snap = await activitiesRef(ownerId).orderBy('date', 'desc').get()
-    const summary = buildSyncSummary(snap.docs.map((doc) => toDashboardActivity(doc.data())))
+    const activityYear = String(new Date(mapped.date).getUTCFullYear())
+    const currentMetaSnap = await metaRef(ownerId).get()
+    const currentMeta = currentMetaSnap.exists ? currentMetaSnap.data() : null
+    const availableYears = Array.from(new Set([...(currentMeta?.availableYears ?? []), activityYear]))
+      .sort((a, b) => Number(b) - Number(a))
 
     await metaRef(ownerId).set(
       {
-        totalActivities: summary.totalActivities,
-        totalRuns: summary.totalRuns,
-        totalsByType: summary.totalsByType,
-        availableYears: summary.availableYears,
-        newestActivityAt: summary.newestActivityAt,
+        availableYears,
+        newestActivityAt: mapped.date,
+        lastWebhookActivityAt: new Date(),
+        lastWebhookActivityId: activityId,
+        dataScope: {
+          fullAccess: scope.fullAccess,
+          allowedYears: scope.allowedYears,
+          allowedTypes: scope.allowedTypes,
+        },
       },
       { merge: true }
     )
-  }
 
-  return Response.json({ ok: true, saved: activityId })
+    if ((currentMeta?.totalActivities ?? 0) < 1000) {
+      const snap = await activitiesRef(ownerId).orderBy('date', 'desc').get()
+      const summary = buildSyncSummary(snap.docs.map((doc) => toDashboardActivity(doc.data())))
+
+      await metaRef(ownerId).set(
+        {
+          totalActivities: summary.totalActivities,
+          totalRuns: summary.totalRuns,
+          totalsByType: summary.totalsByType,
+          availableYears: summary.availableYears,
+          newestActivityAt: summary.newestActivityAt,
+        },
+        { merge: true }
+      )
+    }
+
+    return Response.json({ ok: true, saved: activityId })
+  } catch {
+    return Response.json({ error: 'Webhook processing failed' }, { status: 500 })
+  }
 }

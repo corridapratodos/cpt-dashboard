@@ -4,6 +4,9 @@ import { hasAdminAccess } from '@/lib/access'
 import { sleepRef, userRef, weightRef } from '@/lib/firebase'
 import { parseHealthCSV } from '@/lib/health-csv'
 
+const MAX_HEALTH_FILE_BYTES = 5 * 1024 * 1024
+const MAX_HEALTH_TOTAL_BYTES = 12 * 1024 * 1024
+
 export async function POST(req: Request) {
   const session = await getServerSession(authOptions)
   if (!session?.stravaId) return Response.json({ error: 'Unauthorized' }, { status: 401 })
@@ -18,12 +21,22 @@ export async function POST(req: Request) {
 
   if (!files.length) return Response.json({ error: 'Nenhum arquivo enviado.' }, { status: 400 })
 
+  const totalBytes = files.reduce((sum, file) => sum + Number(file?.size ?? 0), 0)
+  if (totalBytes > MAX_HEALTH_TOTAL_BYTES) {
+    return Response.json({ error: 'Arquivos muito grandes para processamento.' }, { status: 413 })
+  }
+
   let sleepSaved = 0
   let weightSaved = 0
   let skipped = 0
   const errors: string[] = []
 
   for (const file of files) {
+    if (Number(file.size ?? 0) > MAX_HEALTH_FILE_BYTES) {
+      errors.push(`${file.name}: excede o limite de 5 MB.`)
+      continue
+    }
+
     const content = await file.text()
     const result = parseHealthCSV(content)
 

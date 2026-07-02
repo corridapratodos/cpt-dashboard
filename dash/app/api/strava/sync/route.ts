@@ -7,6 +7,7 @@ import { BEST_EFFORT_FETCH_LIMIT, extractBestEfforts, fetchActivities, fetchActi
 
 const SYNC_LOCK_WINDOW_MS = 10 * 60 * 1000
 const INCREMENTAL_OVERLAP_SEC = 12 * 60 * 60
+const INCREMENTAL_SYNC_MIN_INTERVAL_MS = 60 * 1000
 
 type StoredScope = {
   fullAccess?: boolean
@@ -25,6 +26,7 @@ type StoredMeta = {
   totalsByType?: Record<string, number>
   availableYears?: string[]
   newestActivityAt?: string | null
+  lastSync?: unknown
 } | null
 
 function hasWiderYears(current: string[] | 'all', previous: string[] | 'all') {
@@ -99,6 +101,20 @@ export async function POST(req: Request) {
   const widenedScope = scopeNeedsFullRebuild(scope, metaData?.dataScope)
   const effectiveRequestedMode = widenedScope ? 'full' : requestedMode
   const lastFullSyncAt = parseStoredDate(metaData?.lastFullSyncAt)
+  const lastSyncAt = parseStoredDate(metaData?.lastSync)
+  if (
+    effectiveRequestedMode === 'incremental' &&
+    requestedMode === 'incremental' &&
+    lastSyncAt &&
+    now - lastSyncAt.getTime() < INCREMENTAL_SYNC_MIN_INTERVAL_MS
+  ) {
+    const retryAfterSec = Math.max(1, Math.ceil((INCREMENTAL_SYNC_MIN_INTERVAL_MS - (now - lastSyncAt.getTime())) / 1000))
+    return Response.json(
+      { error: `Sincronizacao incremental em cooldown. Tente novamente em ${retryAfterSec}s.` },
+      { status: 429 }
+    )
+  }
+
   if (
     effectiveRequestedMode === 'full' &&
     requestedMode === 'full' &&
@@ -298,7 +314,7 @@ export async function POST(req: Request) {
     )
 
     return Response.json(
-      { error: error instanceof Error ? error.message : 'Erro desconhecido no sync' },
+      { error: 'Nao foi possivel sincronizar agora. Tente novamente em instantes.' },
       { status: 500 }
     )
   }

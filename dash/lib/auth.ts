@@ -1,6 +1,7 @@
 import type { AuthOptions } from 'next-auth'
 import StravaProvider from 'next-auth/providers/strava'
 import { getUserPlan, hasMasterAccess } from '@/lib/access'
+import { isAdminBootstrapEnabled, isStravaLoginAllowed } from '@/lib/security'
 import { getDb, userRef } from '@/lib/firebase'
 
 export const authOptions: AuthOptions = {
@@ -27,6 +28,14 @@ export const authOptions: AuthOptions = {
   ],
 
   callbacks: {
+    async signIn({ profile }) {
+      const stravaId = Number((profile as any)?.id)
+      if (!Number.isFinite(stravaId) || !isStravaLoginAllowed(stravaId)) {
+        return '/login?error=AccessDenied'
+      }
+
+      return true
+    },
     async jwt({ token, account, profile }) {
       if (account) {
         token.accessToken = account.access_token as string
@@ -41,16 +50,18 @@ export const authOptions: AuthOptions = {
           let role = existingData?.role ?? null
 
           if (!role) {
-            const totalUsers = (await getDb().collection('users').count().get()).data().count
-            const shouldBootstrapAdmin = hasMasterAccess(token.stravaId as number, existingData)
-              || (!existingData && totalUsers === 0)
-              || (Boolean(existingData) && totalUsers === 1)
+            const masterAccess = hasMasterAccess(token.stravaId as number, existingData)
 
-            role = hasMasterAccess(token.stravaId as number, existingData)
-              ? 'master'
-              : shouldBootstrapAdmin
+            if (masterAccess) {
+              role = 'master'
+            } else if (isAdminBootstrapEnabled()) {
+              const totalUsers = (await getDb().collection('users').count().get()).data().count
+              role = ((!existingData && totalUsers === 0) || (Boolean(existingData) && totalUsers === 1))
                 ? 'admin'
                 : 'user'
+            } else {
+              role = 'user'
+            }
           }
 
           const plan = getUserPlan(token.stravaId as number, existingData ?? { role })

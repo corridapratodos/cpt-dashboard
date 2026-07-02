@@ -1,8 +1,11 @@
 'use client'
 
 import { signIn } from 'next-auth/react'
+import { useSearchParams } from 'next/navigation'
 
 export default function LoginPage() {
+  const searchParams = useSearchParams()
+  const accessDenied = searchParams.get('error') === 'AccessDenied'
   return (
     <main className="login-shell">
       <section className="login-brand">
@@ -25,6 +28,12 @@ export default function LoginPage() {
           <li>Filtro por corrida, bike, caminhada, trilha e outros esportes.</li>
           <li>Leitura server-side com dados protegidos no Firestore.</li>
         </ul>
+
+        {accessDenied && (
+          <p className="access-error" style={{ marginTop: '12px' }}>
+            Esta conta Strava ainda nao esta liberada para acessar o painel.
+          </p>
+        )}
 
         <button
           onClick={() => signIn('strava', { callbackUrl: '/' })}

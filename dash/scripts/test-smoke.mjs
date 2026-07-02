@@ -14,8 +14,23 @@ try {
   const syncRoute = read('app/api/strava/sync/route.ts')
   assert.match(syncRoute, /requestedMode === 'full' && !isAdmin/)
   assert.match(syncRoute, /FULL_SYNC_COOLDOWN_MS/)
+  assert.match(syncRoute, /INCREMENTAL_SYNC_MIN_INTERVAL_MS/)
   assert.match(syncRoute, /syncInProgress/)
   assert.match(syncRoute, /isActivityAllowedForScope/)
+
+  const webhookRoute = read('app/api/strava/webhook/route.ts')
+  assert.match(webhookRoute, /getWebhookPostToken/)
+  assert.match(webhookRoute, /x-cpt-webhook-token/)
+  assert.match(webhookRoute, /unknown_owner/)
+
+  const auth = read('lib/auth.ts')
+  const security = read('lib/security.ts')
+  assert.match(auth, /AccessDenied/)
+  assert.match(security, /ENABLE_ADMIN_BOOTSTRAP/)
+  assert.match(security, /ALLOWED_STRAVA_IDS/)
+
+  const accessGrant = read('app/api/access/grant/route.ts')
+  assert.match(accessGrant, /consumeRateLimit/)
 
   const activitiesRoute = read('app/api/activities/route.ts')
   assert.match(activitiesRoute, /normalizeRequestedYear/)
