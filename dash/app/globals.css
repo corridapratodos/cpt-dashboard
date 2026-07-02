@@ -332,6 +332,22 @@ button {
   white-space: normal;
 }
 
+
+.app-header-mobile-controls {
+  display: none;
+}
+
+.app-header-mobile-summary {
+  min-width: 0;
+  color: var(--text-muted);
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+.app-header-mobile-toggle {
+  flex-shrink: 0;
+}
+
 /* Filter strip inside header */
 .app-header .filter-strip {
   display: flex;
@@ -1133,8 +1149,42 @@ button {
     width: 100%;
   }
 
-  .app-header .filter-strip {
+  .app-header-mobile-controls {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
     padding: 8px 16px 10px;
+    border-top: 1px solid var(--border);
+  }
+
+  .app-header-mobile-summary {
+    flex: 1 1 auto;
+  }
+
+  .app-header-mobile-toggle {
+    min-width: 124px;
+    justify-content: center;
+  }
+
+  .app-header .filter-strip {
+    display: none;
+    padding: 10px 16px 14px;
+    align-items: flex-start;
+    gap: 8px;
+  }
+
+  .app-header .filter-strip.filter-strip-open {
+    display: flex;
+  }
+
+  .filter-divider {
+    display: none;
+  }
+
+  .app-header .filter-strip .filter-label {
+    width: 100%;
+    margin-top: 2px;
   }
 
   .kpi-grid,
@@ -1183,6 +1233,13 @@ button {
   .period-pill {
     width: 100%;
     justify-content: center;
+  }
+
+  .app-header .filter-strip .sport-chip,
+  .app-header .filter-strip .year-chip,
+  .app-header .filter-strip .window-chip {
+    flex: 1 1 calc(50% - 8px);
+    min-width: 0;
   }
 
   .mobile-activity-list {

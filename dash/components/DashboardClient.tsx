@@ -79,6 +79,7 @@ export default function DashboardClient({ initialActivities, initialYear, availa
   const [previewMode, setPreviewMode] = useState<'admin' | 'athlete'>('admin')
   const [page, setPage] = useState(1)
   const [selectedActivity, setSelectedActivity] = useState<Activity | null>(null)
+  const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false)
 
   useEffect(() => {
     const saved = localStorage.getItem('cpt-theme')
@@ -946,6 +947,7 @@ export default function DashboardClient({ initialActivities, initialYear, availa
   const showOperatorNotes = viewerAdmin && previewMode === 'admin'
   const mode = getMetricMode(primarySport)
   const focusLabel = allSportsSelected ? 'visao multiesporte' : selectedSports.length === 1 ? getSportLabel(selectedSports[0]) : `${selectedSports.length} esportes`
+  const mobileFilterSummary = `${focusLabel} ? ${yearLabel} ? ${windowLabel}`
   const methodologyCopy = mode === 'mixed'
     ? 'Neste recorte misto, os KPIs de topo priorizam composicao, volume e dominancia do esporte.'
     : mode === 'speed'
@@ -1074,8 +1076,19 @@ export default function DashboardClient({ initialActivities, initialYear, availa
             </div>
           </div>
 
+          <div className="app-header-mobile-controls">
+            <span className="app-header-mobile-summary">{mobileFilterSummary}</span>
+            <button
+              type="button"
+              className="btn btn-ghost app-header-mobile-toggle"
+              onClick={() => setMobileFiltersOpen((current) => !current)}
+            >
+              {mobileFiltersOpen ? 'Fechar filtros' : 'Filtros'}
+            </button>
+          </div>
+
           {/* Filter strip inside header */}
-          <div className="filter-strip">
+          <div className={`filter-strip ${mobileFiltersOpen ? 'filter-strip-open' : ''}`}>
             <span className="filter-label">Esporte</span>
             <button
               type="button"
