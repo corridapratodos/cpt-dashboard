@@ -21,8 +21,11 @@ test('full sync esta restrito a admin no backend', () => {
 })
 
 test('plano free e aplicado no backend de atividades e sync', () => {
+  const access = read('lib/access.ts')
   const activitiesRoute = read('app/api/activities/route.ts')
   const syncRoute = read('app/api/strava/sync/route.ts')
+  assert.match(access, /FREE_PLAN_YEARS = 2/)
+  assert.match(access, /PRO_PLAN_YEARS = 5/)
   assert.match(activitiesRoute, /normalizeRequestedYear/)
   assert.match(activitiesRoute, /getUserScope/)
   assert.match(syncRoute, /isActivityAllowedForScope/)
@@ -43,3 +46,4 @@ test('login e painel expoem links de privacidade e termos', () => {
   assert.match(gate, /Aceitar e entrar no painel/)
   assert.match(dashboard, /Excluir meus dados/)
 })
+

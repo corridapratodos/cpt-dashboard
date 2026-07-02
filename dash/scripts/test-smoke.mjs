@@ -23,6 +23,10 @@ try {
   assert.match(webhookRoute, /x-cpt-webhook-token/)
   assert.match(webhookRoute, /unknown_owner/)
 
+  const access = read('lib/access.ts')
+  assert.match(access, /FREE_PLAN_YEARS = 2/)
+  assert.match(access, /PRO_PLAN_YEARS = 5/)
+
   const auth = read('lib/auth.ts')
   const security = read('lib/security.ts')
   assert.match(auth, /AccessDenied/)

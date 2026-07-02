@@ -140,7 +140,9 @@ export function getVisibleYears(scope: UserScope, metaYears: string[] | undefine
 
   const allowed = scope.allowedYears
   if (allowed === 'all') return allMeta
-  return allMeta.filter((y) => allowed.includes(y))
+
+  const visible = allMeta.filter((y) => allowed.includes(y))
+  return visible.length ? visible : [...allowed]
 }
 
 export function getVisibleTypes(scope: UserScope) {
