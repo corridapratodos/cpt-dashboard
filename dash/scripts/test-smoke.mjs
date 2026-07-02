@@ -26,10 +26,17 @@ try {
   assert.match(accountRoute, /recursiveDelete/)
 
   const login = read('app/login/page.tsx')
+  const accessPage = read('app/access/page.tsx')
+  const preAccessGate = read('components/PreAccessGate.tsx')
+  const middleware = read('middleware.ts')
   const gate = read('components/LegalGate.tsx')
   const dashboard = read('components/DashboardClient.tsx')
   assert.match(login, /\/privacy/)
   assert.match(login, /\/terms/)
+  assert.match(accessPage, /PreAccessGate/)
+  assert.match(preAccessGate, /codigo de convite/i)
+  assert.match(middleware, /PRE_ACCESS_COOKIE_NAME/)
+  assert.match(middleware, /\/access/)
   assert.match(gate, /Aceitar e entrar no painel/)
   assert.match(dashboard, /Excluir meus dados/)
 
