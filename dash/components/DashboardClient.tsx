@@ -1502,15 +1502,29 @@ export default function DashboardClient({ initialActivities, initialYear, availa
           </section>
 
           {isAdmin && (sleepData.length > 0 || weightData.length > 0) && (() => {
+            const healthWindowStart = activeWindow.start
+            const healthWindowEnd = activeWindow.end
+            const healthWindowSubtitle = healthWindowStart && healthWindowEnd
+              ? `Dados importados do Garmin. Recorte ativo: ${activeWindow.label}.`
+              : `Dados importados do Garmin. Janela anual de ${yearLabel}.`
+
             const sleepFiltered = sleepData.filter((s) => {
               const y = s.date.slice(0, 4)
-              return selectedYears.length === 0 || selectedYears.includes(y)
-            }).slice(-90)
+              if (selectedYears.length > 0 && !selectedYears.includes(y)) return false
+              const date = new Date(`${s.date}T00:00:00`)
+              if (healthWindowStart && date < healthWindowStart) return false
+              if (healthWindowEnd && date > healthWindowEnd) return false
+              return true
+            })
 
             const weightFiltered = weightData.filter((w) => {
               const y = w.date.slice(0, 4)
-              return selectedYears.length === 0 || selectedYears.includes(y)
-            }).slice(-90)
+              if (selectedYears.length > 0 && !selectedYears.includes(y)) return false
+              const date = new Date(`${w.date}T00:00:00`)
+              if (healthWindowStart && date < healthWindowStart) return false
+              if (healthWindowEnd && date > healthWindowEnd) return false
+              return true
+            })
 
             const weightSmoothed = weightFiltered.map((w, i, arr) => {
               const win = arr.slice(Math.max(0, i - 3), i + 4)
@@ -1532,7 +1546,7 @@ export default function DashboardClient({ initialActivities, initialYear, availa
                   <SectionLead
                     eyebrow="Saude & Recuperacao"
                     title="Sono"
-                    subtitle="Dados importados do Garmin. Ultimos 90 dias do recorte selecionado."
+                    subtitle={healthWindowSubtitle}
                   />
                 )}
                 {sleepFiltered.length > 0 && (
@@ -1565,7 +1579,7 @@ export default function DashboardClient({ initialActivities, initialYear, availa
                     <SectionLead
                       eyebrow="Saude & Recuperacao"
                       title="Composicao corporal"
-                      subtitle="Dados importados do Garmin. Ultimos 90 dias do recorte selecionado."
+                      subtitle={healthWindowSubtitle}
                     />
                   )}
                   {weightSmoothed.length > 0 && (
