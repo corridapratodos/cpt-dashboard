@@ -24,7 +24,10 @@ import {
   ROWS_STEP,
   WEEK_MS,
   applyTheme,
+  chartCursor,
   chartTooltip,
+  chartTooltipItem,
+  chartTooltipLabel,
   focusOrder,
   fmt,
   getDisplayName,
@@ -1334,7 +1337,7 @@ export default function DashboardClient({ initialActivities, initialYear, availa
                   <CartesianGrid strokeDasharray="4 4" stroke="var(--grid)" />
                   <XAxis dataKey="label" tick={{ fill: 'var(--text-muted)', fontSize: 11 }} axisLine={false} tickLine={false} />
                   <YAxis tick={{ fill: 'var(--text-muted)', fontSize: 11 }} axisLine={false} tickLine={false} />
-                  <Tooltip contentStyle={chartTooltip} formatter={(value: number) => [`${value} km`, 'Distancia']} />
+                  <Tooltip contentStyle={chartTooltip} itemStyle={chartTooltipItem} labelStyle={chartTooltipLabel} cursor={chartCursor} formatter={(value: number) => [`${value} km`, 'Distancia']} />
                   <Bar dataKey="km" radius={[8, 8, 0, 0]}>
                     {volumeSeries.map((entry, index) => (
                       <Cell key={`${entry.label}-${index}`} fill={activeAccent} fillOpacity={0.95 - index * 0.015} />
@@ -1358,6 +1361,9 @@ export default function DashboardClient({ initialActivities, initialYear, availa
                   />
                   <Tooltip
                     contentStyle={chartTooltip}
+                    itemStyle={chartTooltipItem}
+                    labelStyle={chartTooltipLabel}
+                    cursor={chartCursor}
                     formatter={(_value: number, _name: string, item: any) => [
                       getMetricMode(primarySport) === 'speed' ? item.payload.speedLabel : item.payload.paceLabel,
                       getMetricMode(primarySport) === 'speed' ? 'Velocidade' : 'Pace',
@@ -1392,7 +1398,7 @@ export default function DashboardClient({ initialActivities, initialYear, availa
                   <CartesianGrid strokeDasharray="4 4" stroke="var(--grid)" />
                   <XAxis dataKey="week" tick={{ fill: 'var(--text-muted)', fontSize: 11 }} axisLine={false} tickLine={false} />
                   <YAxis tick={{ fill: 'var(--text-muted)', fontSize: 11 }} axisLine={false} tickLine={false} />
-                  <Tooltip contentStyle={chartTooltip} formatter={(value: number) => [value, 'Carga']} />
+                  <Tooltip contentStyle={chartTooltip} itemStyle={chartTooltipItem} labelStyle={chartTooltipLabel} cursor={chartCursor} formatter={(value: number) => [value, 'Carga']} />
                   <Area type="monotone" dataKey="load" stroke={activeAccent} fill="url(#loadFill)" strokeWidth={2.4} />
                 </AreaChart>
               </ResponsiveContainer>
@@ -1575,7 +1581,7 @@ export default function DashboardClient({ initialActivities, initialYear, availa
                           <CartesianGrid strokeDasharray="4 4" stroke="var(--grid)" />
                           <XAxis dataKey="date" tick={{ fill: 'var(--text-muted)', fontSize: 11 }} axisLine={false} tickLine={false} tickFormatter={(v: string) => v.slice(5)} interval={Math.floor(sleepFiltered.length / 10)} />
                           <YAxis tick={{ fill: 'var(--text-muted)', fontSize: 11 }} axisLine={false} tickLine={false} tickFormatter={(v: number) => `${Math.round(v / 60)}h`} domain={[0, 660]} />
-                          <Tooltip contentStyle={chartTooltip} formatter={(v: number) => [`${Math.floor(v / 60)}h ${v % 60}min`, 'Sono']} labelFormatter={(l: string) => l} />
+                          <Tooltip contentStyle={chartTooltip} itemStyle={chartTooltipItem} labelStyle={chartTooltipLabel} cursor={chartCursor} formatter={(v: number) => [`${Math.floor(v / 60)}h ${v % 60}min`, 'Sono']} labelFormatter={(l: string) => l} />
                           <Bar dataKey="durationMin" radius={[4, 4, 0, 0]}>
                             {sleepFiltered.map((s) => (
                               <Cell key={s.date} fill={s.durationMin < 300 ? 'var(--accent-4)' : activeAccent} fillOpacity={0.9} />
@@ -1608,7 +1614,7 @@ export default function DashboardClient({ initialActivities, initialYear, availa
                           <CartesianGrid strokeDasharray="4 4" stroke="var(--grid)" />
                           <XAxis dataKey="date" tick={{ fill: 'var(--text-muted)', fontSize: 11 }} axisLine={false} tickLine={false} tickFormatter={(v: string) => v.slice(5)} interval={Math.floor(weightSmoothed.length / 10)} />
                           <YAxis tick={{ fill: 'var(--text-muted)', fontSize: 11 }} axisLine={false} tickLine={false} tickFormatter={(v: number) => `${v}kg`} domain={['auto', 'auto']} />
-                          <Tooltip contentStyle={chartTooltip} formatter={(v: number, name: string) => [`${v} kg`, name === 'weightSmooth' ? 'Media 7d' : 'Diario']} labelFormatter={(l: string) => l} />
+                          <Tooltip contentStyle={chartTooltip} itemStyle={chartTooltipItem} labelStyle={chartTooltipLabel} cursor={chartCursor} formatter={(v: number, name: string) => [`${v} kg`, name === 'weightSmooth' ? 'Media 7d' : 'Diario']} labelFormatter={(l: string) => l} />
                           <Line type="monotone" dataKey="weightKg" dot={false} stroke={activeAccent} strokeWidth={1} strokeOpacity={0.25} />
                           <Line type="monotone" dataKey="weightSmooth" dot={false} stroke={activeAccent} strokeWidth={2.5} />
                         </LineChart>

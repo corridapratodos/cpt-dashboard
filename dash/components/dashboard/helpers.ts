@@ -121,11 +121,29 @@ export function getDistanceTolerance(targetKm: number) {
 }
 
 export const chartTooltip = {
-  background: 'var(--surface-elevated)',
+  backgroundColor: 'var(--surface-elevated)',
   border: '1px solid var(--border-strong)',
-  borderRadius: 18,
+  borderRadius: 12,
   color: 'var(--text)',
-  boxShadow: '0 18px 45px rgba(0, 0, 0, 0.18)',
+  boxShadow: '0 18px 45px rgba(0, 0, 0, 0.28)',
+  padding: '10px 12px',
+}
+
+export const chartTooltipLabel = {
+  color: 'var(--text)',
+  fontWeight: 700,
+  marginBottom: 6,
+}
+
+export const chartTooltipItem = {
+  color: 'var(--text)',
+}
+
+export const chartCursor = {
+  fill: 'var(--surface-soft)',
+  fillOpacity: 0.42,
+  stroke: 'var(--border-strong)',
+  strokeOpacity: 0.45,
 }
 
 export const readingLayers = [
