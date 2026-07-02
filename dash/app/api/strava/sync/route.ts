@@ -6,6 +6,7 @@ import { activitiesRef, metaRef, userRef } from '@/lib/firebase'
 import { BEST_EFFORT_FETCH_LIMIT, extractBestEfforts, fetchActivities, fetchActivity, fetchBestEffortsForActivities, isRealRun, mapActivity } from '@/lib/strava'
 
 const SYNC_LOCK_WINDOW_MS = 10 * 60 * 1000
+const INCREMENTAL_OVERLAP_SEC = 12 * 60 * 60
 
 type StoredScope = {
   fullAccess?: boolean
@@ -136,15 +137,34 @@ export async function POST(req: Request) {
         ? Math.floor(new Date(latestSavedDate).getTime() / 1000)
         : undefined
 
+    const incrementalCursor = incrementalAfter != null
+      ? Math.max(incrementalAfter - INCREMENTAL_OVERLAP_SEC, 0)
+      : undefined
+
     const shouldRunIncremental = effectiveRequestedMode !== 'full' && historicalBackfillCompleted && incrementalAfter != null
     const effectiveMode = shouldRunIncremental ? 'incremental' : 'full'
-    const incoming = await fetchActivities(session.accessToken, shouldRunIncremental ? incrementalAfter : undefined)
+    const incoming = await fetchActivities(session.accessToken, shouldRunIncremental ? incrementalCursor : undefined)
     const scopedIncoming = incoming.filter((activity) => isActivityAllowedForScope({ type: activity.type, date: activity.start_date }, scope))
     const bestEffortBackfill = await fetchBestEffortsForActivities(session.accessToken, scopedIncoming, effectiveMode)
     const mappedActivities = scopedIncoming.map((activity) =>
       mapActivity(activity, { bestEfforts: bestEffortBackfill.byActivityId.get(Number(activity.id)) })
     )
     const validRuns = scopedIncoming.filter(isRealRun)
+
+    const incomingIds = mappedActivities.map((activity) => String(activity.stravaId))
+    const existingIds = new Set<string>()
+    for (let i = 0; i < incomingIds.length; i += 300) {
+      const refs = incomingIds.slice(i, i + 300).map((id) => colRef.doc(id))
+      if (!refs.length) continue
+      const docs = await colRef.firestore.getAll(...refs)
+      docs.forEach((doc) => {
+        if (doc.exists) existingIds.add(doc.id)
+      })
+    }
+
+    const newMappedActivities = mappedActivities.filter((activity) => !existingIds.has(String(activity.stravaId)))
+    const newRunIds = new Set(newMappedActivities.map((activity) => String(activity.stravaId)))
+    const newValidRuns = validRuns.filter((activity) => newRunIds.has(String(activity.id)))
 
     for (let i = 0; i < mappedActivities.length; i += 500) {
       const batch = colRef.firestore.batch()
@@ -194,9 +214,12 @@ export async function POST(req: Request) {
       const incomingSummary = buildSyncSummary(incomingActivities)
       summary = {
         availableYears: mergeYears(metaData?.availableYears, incomingSummary.availableYears),
-        totalActivities: Number(metaData?.totalActivities ?? 0) + mappedActivities.length,
-        totalRuns: Number(metaData?.totalRuns ?? 0) + validRuns.length,
-        totalsByType: mergeTypeTotals(metaData?.totalsByType, incomingSummary.totalsByType),
+        totalActivities: Number(metaData?.totalActivities ?? 0) + newMappedActivities.length,
+        totalRuns: Number(metaData?.totalRuns ?? 0) + newValidRuns.length,
+        totalsByType: mergeTypeTotals(
+          metaData?.totalsByType,
+          buildSyncSummary(newMappedActivities.map((activity) => toDashboardActivity(activity))).totalsByType
+        ),
         newestActivityAt: getNewestDate(metaData?.newestActivityAt ?? null, incomingActivities.map((activity) => activity.date)),
       }
     } else {
@@ -209,15 +232,15 @@ export async function POST(req: Request) {
       {
         lastSync: new Date(),
         lastSyncMode: effectiveMode,
-        lastIncrementalAfter: shouldRunIncremental ? incrementalAfter ?? null : null,
+        lastIncrementalAfter: shouldRunIncremental ? incrementalCursor ?? null : null,
         lastFullSyncAt: effectiveMode === 'full' ? new Date() : metaData?.lastFullSyncAt ?? null,
         totalActivities: summary.totalActivities,
         totalRuns: summary.totalRuns,
         totalsByType: summary.totalsByType,
         availableYears: summary.availableYears,
         newestActivityAt: summary.newestActivityAt,
-        lastSyncAddedActivities: mappedActivities.length,
-        lastSyncAddedQualifiedRuns: validRuns.length,
+        lastSyncAddedActivities: newMappedActivities.length,
+        lastSyncAddedQualifiedRuns: newValidRuns.length,
         lastSyncFetchedActivities: incoming.length,
         bestEffortEligibleActivities: bestEffortBackfill.eligibleCount,
         bestEffortFetchedActivities: bestEffortBackfill.fetchedCount,
@@ -240,11 +263,12 @@ export async function POST(req: Request) {
     )
 
     return Response.json({
-      synced: mappedActivities.length,
+      synced: newMappedActivities.length,
       fetched: incoming.length,
-      runs: validRuns.length,
+      runs: newValidRuns.length,
+      processed: mappedActivities.length,
       mode: effectiveMode,
-      after: shouldRunIncremental ? incrementalAfter ?? null : null,
+      after: shouldRunIncremental ? incrementalCursor ?? null : null,
       historicalBackfillCompleted: true,
       admin: isAdmin,
       totalActivities: summary.totalActivities,

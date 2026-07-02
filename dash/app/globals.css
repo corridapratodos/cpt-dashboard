@@ -312,7 +312,9 @@ button {
 .app-header-actions {
   display: flex;
   align-items: center;
+  justify-content: flex-end;
   gap: 8px;
+  flex-wrap: wrap;
   flex-shrink: 0;
 }
 
@@ -325,9 +327,9 @@ button {
   text-transform: uppercase;
   color: var(--text-soft);
   border: 1px solid var(--border);
-  padding: 0 12px;
-  height: 32px;
-  white-space: nowrap;
+  padding: 6px 12px;
+  min-height: 32px;
+  white-space: normal;
 }
 
 /* Filter strip inside header */
@@ -900,6 +902,10 @@ button {
   overflow: hidden;
 }
 
+.mobile-activity-list {
+  display: none;
+}
+
 .table-wrap {
   overflow-x: auto;
   margin-top: 16px;
@@ -1082,6 +1088,29 @@ button {
     font-size: 15px;
   }
 
+  .app-header-top {
+    flex-direction: column;
+    align-items: stretch;
+    padding: 12px 16px;
+  }
+
+  .app-header-actions {
+    width: 100%;
+    justify-content: stretch;
+  }
+
+  .app-header-actions > * {
+    flex: 1 1 100%;
+  }
+
+  .app-header-sync-info {
+    width: 100%;
+  }
+
+  .app-header .filter-strip {
+    padding: 8px 16px 10px;
+  }
+
   .kpi-grid,
   .recent-grid,
   .reading-grid,
@@ -1128,6 +1157,44 @@ button {
   .period-pill {
     width: 100%;
     justify-content: center;
+  }
+
+  .mobile-activity-list {
+    display: grid;
+    gap: 12px;
+    margin-top: 16px;
+  }
+
+  .mobile-activity-card {
+    border: 1px solid var(--border);
+    background: var(--surface-soft);
+    padding: 14px;
+    display: grid;
+    gap: 12px;
+  }
+
+  .mobile-activity-top,
+  .mobile-activity-title,
+  .mobile-activity-actions {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+
+  .mobile-activity-metrics {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+
+  .mobile-activity-metrics .detail-item {
+    padding: 12px;
+  }
+
+  .table-wrap {
+    display: none;
   }
 }
 
@@ -1365,6 +1432,8 @@ button {
 
 .modal-card {
   width: min(760px, 100%);
+  max-height: min(90vh, 880px);
+  overflow-y: auto;
   border: 1px solid var(--border-strong);
   border-radius: var(--radius-xl);
   background: var(--surface-elevated);

@@ -189,7 +189,10 @@ export default function DashboardClient({ initialActivities, initialYear, availa
       const data = await res.json()
       if (!res.ok) throw new Error(data?.error ?? 'Erro ao sincronizar')
       const modeLabel = data.mode === 'incremental' ? 'incremental' : 'completo'
-      setSyncMsg(`${data.synced} atividades sincronizadas (${modeLabel})`)
+      const processedLabel = data.processed && data.processed !== data.synced
+        ? `, ${data.processed} processadas`
+        : ''
+      setSyncMsg(`${data.synced} atividades novas sincronizadas (${modeLabel}${processedLabel})`)
       setPartialYears((current) => {
         const next = { ...current }
         for (const year of selectedYears) next[year] = true
@@ -1536,8 +1539,7 @@ export default function DashboardClient({ initialActivities, initialYear, availa
               ? (sleepFiltered.reduce((s, r) => s + r.durationMin, 0) / sleepFiltered.length / 60).toFixed(1)
               : null
 
-            const minWeight = weightFiltered.length ? Math.min(...weightFiltered.map((w) => w.weightKg)) : null
-            const maxWeight = weightFiltered.length ? Math.max(...weightFiltered.map((w) => w.weightKg)) : null
+            const firstWeight = weightSmoothed[0]
             const lastWeight = weightSmoothed[weightSmoothed.length - 1]
 
             return (
@@ -1586,7 +1588,7 @@ export default function DashboardClient({ initialActivities, initialYear, availa
                     <Panel
                       eyebrow="Peso"
                       title="Tendencia corporal"
-                      subtitle={minWeight && maxWeight ? `${minWeight} – ${maxWeight} kg no periodo` : ''}
+                      subtitle={firstWeight && lastWeight ? `${firstWeight.weightKg} -> ${lastWeight.weightKg} kg no recorte` : ''}
                     >
                       <ResponsiveContainer width="100%" height={220}>
                         <LineChart data={weightSmoothed} margin={{ top: 8, right: 8, bottom: 4, left: -16 }}>
@@ -1622,6 +1624,40 @@ export default function DashboardClient({ initialActivities, initialYear, availa
                 <h3>Atividades recentes</h3>
               </div>
               <span className="pill pill-ghost">{activeActivities.length} itens na janela ativa</span>
+            </div>
+
+            <div className="mobile-activity-list">
+              {visibleActivities.map((activity) => {
+                const speed = activity.durationSec > 0 ? activity.distanceKm / (activity.durationSec / 3600) : 0
+                return (
+                  <article key={`mobile-${activity.stravaId}`} className="mobile-activity-card">
+                    <div className="mobile-activity-top">
+                      <span className="sport-tag" style={{ background: sportMeta[activity.type]?.chip ?? 'var(--chip-neutral)' }}>
+                        {getSportLabel(activity.type)}
+                      </span>
+                      <span>{fmt.date(activity.date)}</span>
+                    </div>
+                    <div className="mobile-activity-title">
+                      <strong>{getDisplayName(activity.name)}</strong>
+                      {activity.excludedFromMetrics && <span className="analysis-badge">Ignorada</span>}
+                    </div>
+                    <div className="mobile-activity-metrics">
+                      <DetailItem label="Distancia" value={`${fmt.dist(activity.distanceKm)} km`} />
+                      <DetailItem label="Tempo" value={fmt.dur(activity.durationSec)} />
+                      <DetailItem
+                        label={activity.type === 'Ride' ? 'Velocidade' : 'Pace'}
+                        value={activity.type === 'Ride' ? `${speed.toFixed(1)} km/h` : `${fmt.pace(activity.paceSec)}/km`}
+                      />
+                      <DetailItem label="FC media" value={activity.hrAvg ? `${Math.round(activity.hrAvg)} bpm` : '-'} />
+                    </div>
+                    <div className="mobile-activity-actions">
+                      <button type="button" className="btn btn-ghost btn-inline" onClick={() => setSelectedActivity(activity)}>
+                        Ver detalhe
+                      </button>
+                    </div>
+                  </article>
+                )
+              })}
             </div>
 
             <div className="table-wrap">
