@@ -239,9 +239,7 @@ export async function POST(req: Request) {
         newestActivityAt: getNewestDate(metaData?.newestActivityAt ?? null, incomingActivities.map((activity) => activity.date)),
       }
     } else {
-      const fullSnapshot = await colRef.orderBy('date', 'desc').get()
-      const allActivities = fullSnapshot.docs.map((doc) => toDashboardActivity(doc.data()))
-      summary = buildSyncSummary(allActivities)
+      summary = buildSyncSummary(mappedActivities.map((activity) => toDashboardActivity(activity)))
     }
 
     await metaRef(session.stravaId).set(

@@ -2,7 +2,7 @@ import { getServerSession } from 'next-auth'
 import { redirect } from 'next/navigation'
 import DashboardClient from '@/components/DashboardClient'
 import LegalGate from '@/components/LegalGate'
-import { getUserPlan, getUserScope, hasAcceptedLegal, hasAdminAccess } from '@/lib/access'
+import { getUserPlan, getUserScope, hasAcceptedLegal, hasAdminAccess, parseStoredDate } from '@/lib/access'
 import { authOptions } from '@/lib/auth'
 import {
   buildActivitiesQuery,
@@ -14,6 +14,8 @@ import {
 import { activitiesRef, metaRef, userRef } from '@/lib/firebase'
 
 export const revalidate = 0
+
+const METADATA_REPAIR_COOLDOWN_MS = 24 * 60 * 60 * 1000
 
 export default async function HomePage() {
   const session = await getServerSession(authOptions)
@@ -31,12 +33,12 @@ export default async function HomePage() {
   const metaSnap = await metaRef(session.stravaId).get()
   let meta = metaSnap.exists ? serializeFirestoreValue(metaSnap.data()) : null
   let availableYears = getVisibleYears(scope, meta?.availableYears)
-
+  const lastRepairAttemptAt = parseStoredDate(meta?.metadataRepairAttemptedAt)
   const shouldRepairYears =
     scope.fullAccess &&
     Number(meta?.totalActivities ?? 0) > 0 &&
     availableYears.length <= 1 &&
-    !meta?.metadataRepairedAt
+    (!lastRepairAttemptAt || Date.now() - lastRepairAttemptAt.getTime() >= METADATA_REPAIR_COOLDOWN_MS)
 
   if (shouldRepairYears) {
     const repairSnap = await activitiesRef(session.stravaId).orderBy('date', 'desc').get()
@@ -62,6 +64,14 @@ export default async function HomePage() {
           totalsByType: repairSummary.totalsByType,
           newestActivityAt: repairSummary.newestActivityAt,
           metadataRepairedAt: new Date(),
+          metadataRepairAttemptedAt: new Date(),
+        },
+        { merge: true }
+      )
+    } else {
+      await metaRef(session.stravaId).set(
+        {
+          metadataRepairAttemptedAt: new Date(),
         },
         { merge: true }
       )

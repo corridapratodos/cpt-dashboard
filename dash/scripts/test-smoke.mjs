@@ -10,6 +10,8 @@ try {
   assert.match(page, /hasAcceptedLegal/)
   assert.match(page, /return <LegalGate/)
   assert.match(page, /getUserScope/)
+  assert.match(page, /METADATA_REPAIR_COOLDOWN_MS/)
+  assert.match(page, /metadataRepairAttemptedAt/)
 
   const syncRoute = read('app/api/strava/sync/route.ts')
   assert.match(syncRoute, /requestedMode === 'full' && !isAdmin/)
@@ -17,11 +19,15 @@ try {
   assert.match(syncRoute, /INCREMENTAL_SYNC_MIN_INTERVAL_MS/)
   assert.match(syncRoute, /syncInProgress/)
   assert.match(syncRoute, /isActivityAllowedForScope/)
+  assert.match(syncRoute, /summary = buildSyncSummary\(mappedActivities\.map/)
 
   const webhookRoute = read('app/api/strava/webhook/route.ts')
   assert.match(webhookRoute, /getWebhookPostToken/)
   assert.match(webhookRoute, /x-cpt-webhook-token/)
   assert.match(webhookRoute, /unknown_owner/)
+
+  const backfillRoute = read('app/api/admin/backfill-efforts/route.ts')
+  assert.match(backfillRoute, /where\('bestEfforts', '==', \[\]\)/)
 
   const access = read('lib/access.ts')
   assert.match(access, /FREE_PLAN_YEARS = 2/)

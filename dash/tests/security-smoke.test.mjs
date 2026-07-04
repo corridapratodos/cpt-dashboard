@@ -11,6 +11,8 @@ test('home page exige aceite legal antes do dashboard', () => {
   assert.match(page, /hasAcceptedLegal/)
   assert.match(page, /return <LegalGate/)
   assert.match(page, /getUserScope/)
+  assert.match(page, /METADATA_REPAIR_COOLDOWN_MS/)
+  assert.match(page, /metadataRepairAttemptedAt/)
 })
 
 test('full sync esta restrito a admin no backend', () => {
@@ -29,6 +31,11 @@ test('plano free e aplicado no backend de atividades e sync', () => {
   assert.match(activitiesRoute, /normalizeRequestedYear/)
   assert.match(activitiesRoute, /getUserScope/)
   assert.match(syncRoute, /isActivityAllowedForScope/)
+})
+
+test('backfill de best efforts evita varredura completa da base', () => {
+  const backfillRoute = read('app/api/admin/backfill-efforts/route.ts')
+  assert.match(backfillRoute, /where\('bestEfforts', '==', \[\]\)/)
 })
 
 test('exclusao de conta exige sessao e apaga a base do usuario', () => {

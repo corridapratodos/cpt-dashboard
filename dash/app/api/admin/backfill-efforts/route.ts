@@ -16,10 +16,6 @@ function isEligibleForBestEfforts(data: Record<string, unknown>) {
   return isRunLikeType(type) && distanceKm >= 3 && durationSec >= 20 * 60
 }
 
-function hasBestEfforts(data: Record<string, unknown>) {
-  return Array.isArray(data.bestEfforts) && data.bestEfforts.length > 0
-}
-
 export async function POST() {
   const session = await getServerSession(authOptions)
 
@@ -35,13 +31,13 @@ export async function POST() {
   }
 
   const colRef = activitiesRef(session.stravaId)
-  const snapshot = await colRef.orderBy('date', 'desc').get()
+  const snapshot = await colRef
+    .where('bestEfforts', '==', [])
+    .orderBy('date', 'desc')
+    .limit(BATCH_LIMIT * 4)
+    .get()
 
-  const candidates = snapshot.docs.filter((doc) => {
-    const data = doc.data()
-    return isEligibleForBestEfforts(data) && !hasBestEfforts(data)
-  })
-
+  const candidates = snapshot.docs.filter((doc) => isEligibleForBestEfforts(doc.data()))
   const limited = candidates.slice(0, BATCH_LIMIT)
   const workerCount = Math.min(CONCURRENCY, limited.length)
   const workerBatches = Array.from({ length: workerCount }, () => [] as typeof limited)
