@@ -55,8 +55,11 @@ try {
   assert.match(accessGrant, /consumeRateLimit/)
 
   const activitiesRoute = read('app/api/activities/route.ts')
+  const activitiesHistoryRoute = read('app/api/activities/history/route.ts')
   assert.match(activitiesRoute, /normalizeRequestedYear/)
   assert.match(activitiesRoute, /getUserScope/)
+  assert.match(activitiesHistoryRoute, /pageSize/)
+  assert.match(activitiesHistoryRoute, /loadYearActivitiesFromCache/)
   assert.match(activitiesRoute, /loadYearActivitiesFromCache/)
 
   const accountRoute = read('app/api/account/route.ts')
@@ -77,6 +80,8 @@ try {
   assert.match(middleware, /\/access/)
   assert.match(gate, /Aceitar e entrar no painel/)
   assert.match(dashboard, /Excluir meus dados/)
+  assert.match(dashboard, /loadHistoryPage/)
+  assert.match(dashboard, /yearCacheKeyPrefix/)
 
   console.log('Smoke checks aprovados.')
 } catch (error) {

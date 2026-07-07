@@ -36,6 +36,7 @@ export type DashboardMeta = {
   viewerRole?: string
   viewerPlan?: string
   viewerAdmin?: boolean
+  viewerStravaId?: number
   viewerScope?: {
     years?: string[] | 'all'
     types?: string[] | 'all'

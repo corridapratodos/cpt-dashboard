@@ -54,6 +54,10 @@ export default function DashboardClient({ initialActivities, initialYear, availa
     () => [...availableYears].filter((year) => year !== 'all').sort((a, b) => Number(b) - Number(a)),
     [availableYears]
   )
+  const yearCacheKeyPrefix = useMemo(
+    () => `cpt-year:${meta?.viewerStravaId ?? userName}:${meta?.lastSync ?? 'nosync'}`,
+    [meta?.lastSync, meta?.viewerStravaId, userName]
+  )
 
   const [syncing, setSyncing] = useState(false)
   const [deleting, setDeleting] = useState(false)
@@ -81,6 +85,10 @@ export default function DashboardClient({ initialActivities, initialYear, availa
   const [selectedWeekKey, setSelectedWeekKey] = useState<string>('')
   const [previewMode, setPreviewMode] = useState<'admin' | 'athlete'>('admin')
   const [page, setPage] = useState(1)
+  const [historyLoading, setHistoryLoading] = useState(false)
+  const [historyActivities, setHistoryActivities] = useState<Activity[]>([])
+  const [historyCount, setHistoryCount] = useState(0)
+  const [historyPageCount, setHistoryPageCount] = useState(1)
   const [selectedActivity, setSelectedActivity] = useState<Activity | null>(null)
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false)
 
@@ -130,8 +138,48 @@ export default function DashboardClient({ initialActivities, initialYear, availa
       setSyncMsg('')
 
       try {
+        const cachedResponses: Array<{ year: string; activities: Activity[] }> = []
+        const pendingYears: string[] = []
+
+        for (const year of yearsToLoad) {
+          try {
+            const cached = sessionStorage.getItem(`${yearCacheKeyPrefix}:${year}`)
+            if (!cached) {
+              pendingYears.push(year)
+              continue
+            }
+
+            cachedResponses.push({ year, activities: JSON.parse(cached) as Activity[] })
+          } catch {
+            pendingYears.push(year)
+          }
+        }
+
+        if (cachedResponses.length && active) {
+          setYearActivities((current) => {
+            const next = { ...current }
+            for (const response of cachedResponses) {
+              next[response.year] = response.activities
+            }
+            return next
+          })
+
+          setPartialYears((current) => {
+            const next = { ...current }
+            for (const response of cachedResponses) {
+              next[response.year] = false
+            }
+            return next
+          })
+        }
+
+        if (!pendingYears.length) {
+          if (active) setLoadingYears([])
+          return
+        }
+
         const responses = await Promise.all(
-          yearsToLoad.map(async (year) => {
+          pendingYears.map(async (year) => {
             const res = await fetch(`/api/activities?year=${encodeURIComponent(year)}`)
             const data = await res.json()
             if (!res.ok) {
@@ -147,6 +195,9 @@ export default function DashboardClient({ initialActivities, initialYear, availa
           const next = { ...current }
           for (const response of responses) {
             next[response.year] = response.activities
+            try {
+              sessionStorage.setItem(`${yearCacheKeyPrefix}:${response.year}`, JSON.stringify(response.activities))
+            } catch {}
           }
           return next
         })
@@ -171,7 +222,7 @@ export default function DashboardClient({ initialActivities, initialYear, availa
     return () => {
       active = false
     }
-  }, [partialYears, selectedYears, yearActivities])
+  }, [partialYears, selectedYears, yearActivities, yearCacheKeyPrefix])
 
   const handleThemeToggle = () => {
     const next: ThemeMode = theme === 'dark' ? 'light' : 'dark'
@@ -468,6 +519,57 @@ export default function DashboardClient({ initialActivities, initialYear, availa
   }, [allYearsSelected, filteredActivities, monthOptions, selectedMonthKey, selectedYears, selectedWeekKey, weekOptions, windowMode])
 
   const activeActivities = activeWindow.activities
+
+  useEffect(() => {
+    if (!selectedYears.length || loadingYears.length > 0) return
+
+    let active = true
+
+    async function loadHistoryPage() {
+      setHistoryLoading(true)
+
+      try {
+        const params = new URLSearchParams()
+        params.set('years', selectedYears.join(','))
+        params.set('page', String(page))
+        params.set('pageSize', String(ROWS_STEP))
+
+        if (!allSportsSelected && selectedSports.length) {
+          params.set('sports', selectedSports.join(','))
+        }
+
+        if (activeWindow.start) {
+          params.set('start', activeWindow.start.toISOString().slice(0, 10))
+        }
+
+        if (activeWindow.end) {
+          params.set('end', activeWindow.end.toISOString().slice(0, 10))
+        }
+
+        const res = await fetch(`/api/activities/history?${params.toString()}`)
+        const data = await res.json()
+        if (!res.ok) {
+          throw new Error(data?.error ?? 'Nao foi possivel carregar o historico paginado.')
+        }
+
+        if (!active) return
+        setHistoryActivities((data.activities ?? []) as Activity[])
+        setHistoryCount(Number(data.count ?? 0))
+        setHistoryPageCount(Number(data.pageCount ?? 1))
+      } catch (error) {
+        if (!active) return
+        setSyncMsg(error instanceof Error ? error.message : 'Nao foi possivel carregar o historico paginado.')
+      } finally {
+        if (active) setHistoryLoading(false)
+      }
+    }
+
+    void loadHistoryPage()
+
+    return () => {
+      active = false
+    }
+  }, [activeWindow.end, activeWindow.start, allSportsSelected, loadingYears.length, page, selectedSports, selectedYears])
 
   const scopedAnalyzedActivities = useMemo(
     () => filteredActivities.filter((activity) => !activity.excludedFromMetrics),
@@ -935,8 +1037,8 @@ export default function DashboardClient({ initialActivities, initialYear, availa
     return result
   }, [analyzedActivities])
 
-  const pageCount = Math.max(1, Math.ceil(activeActivities.length / ROWS_STEP))
-  const visibleActivities = activeActivities.slice((page - 1) * ROWS_STEP, page * ROWS_STEP)
+  const pageCount = historyPageCount
+  const visibleActivities = historyActivities
   const activeAccent = allSportsSelected ? 'var(--accent)' : getSportAccent(primarySport)
   const yearLabel = allYearsSelected ? 'historico completo' : selectedYears.length === 1 ? selectedYears[0] : `${selectedYears.length} anos`
   const windowLabel = activeWindow.label
@@ -1046,13 +1148,13 @@ export default function DashboardClient({ initialActivities, initialYear, availa
         <header className="app-header">
           <div className="app-header-top">
             <div className="app-header-identity">
-              {meta && <p className="app-header-role">{viewerRole} · {viewerPlan}</p>}
+              {meta && <p className="app-header-role">{viewerRole} ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â· {viewerPlan}</p>}
               <p className="app-header-name">{userName}</p>
             </div>
             <div className="app-header-actions">
               {meta?.lastSync && (
                 <span className="app-header-sync-info">
-                  ↻ Last sync · {new Date(meta.lastSync).toLocaleDateString('pt-BR')} · {meta?.lastSyncMode ?? 'incremental'}
+                  ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â» Last sync ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â· {new Date(meta.lastSync).toLocaleDateString('pt-BR')} ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â· {meta?.lastSyncMode ?? 'incremental'}
                 </span>
               )}
               {ignoredCount > 0 && <span className="pill pill-ghost">{ignoredCount} ignoradas</span>}
@@ -1068,7 +1170,7 @@ export default function DashboardClient({ initialActivities, initialYear, availa
                 </button>
               )}
               <button onClick={handleThemeToggle} className="btn btn-ghost" type="button">
-                {theme === 'dark' ? '☀' : '☾'}
+                {theme === 'dark' ? 'ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¹ÃƒÆ’Ã¢â‚¬Â¦ÃƒÂ¢Ã¢â€šÂ¬Ã…â€œÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬' : 'ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¹ÃƒÆ’Ã¢â‚¬Â¦ÃƒÂ¢Ã¢â€šÂ¬Ã…â€œÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¾'}
               </button>
               <button onClick={() => handleSync('incremental')} disabled={syncing || deleting || loadingYears.length > 0} className="btn btn-primary" type="button">
                 {syncing ? 'Sincronizando...' : 'Atualizar'}
@@ -1231,7 +1333,7 @@ export default function DashboardClient({ initialActivities, initialYear, availa
 
               <div className="admin-tools" style={{ marginTop: '1rem' }}>
                 <div>
-                  <p className="control-label">Dados de saúde</p>
+                  <p className="control-label">Dados de saÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Âºde</p>
                   <strong>Upload de sono e peso (Garmin CSV)</strong>
                 </div>
                 <div className="admin-actions-row" style={{ alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem' }}>
@@ -1259,7 +1361,7 @@ export default function DashboardClient({ initialActivities, initialYear, availa
                           if (data.weightSaved) parts.push(`${data.weightSaved} registros de peso`)
                           if (data.skipped) parts.push(`${data.skipped} linhas ignoradas`)
                           if (data.errors?.length) parts.push(data.errors.join('; '))
-                          setHealthUploadMsg(parts.length ? parts.join(' · ') : 'Nenhum dado importado.')
+                          setHealthUploadMsg(parts.length ? parts.join(' ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â· ') : 'Nenhum dado importado.')
                         } catch (error) {
                           setHealthUploadMsg(error instanceof Error ? error.message : 'Erro no upload')
                         } finally {
@@ -1621,7 +1723,7 @@ export default function DashboardClient({ initialActivities, initialYear, availa
                       </ResponsiveContainer>
                       {lastWeight?.fatPct != null && (
                         <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.5rem' }}>
-                          Ultima leitura: gordura {lastWeight.fatPct}% · musculo {lastWeight.muscleMassKg} kg · agua {lastWeight.waterPct}%
+                          Ultima leitura: gordura {lastWeight.fatPct}% Â· musculo {lastWeight.muscleMassKg} kg Â· agua {lastWeight.waterPct}%
                         </p>
                       )}
                     </Panel>
@@ -1642,8 +1744,10 @@ export default function DashboardClient({ initialActivities, initialYear, availa
                 <p className="panel-eyebrow">Historico filtrado</p>
                 <h3>Atividades recentes</h3>
               </div>
-              <span className="pill pill-ghost">{activeActivities.length} itens na janela ativa</span>
+              <span className="pill pill-ghost">{historyCount} itens na janela ativa</span>
             </div>
+
+            {historyLoading && !visibleActivities.length && <p className="sync-message">Carregando historico...</p>}
 
             <div className="mobile-activity-list">
               {visibleActivities.map((activity) => {
@@ -1687,7 +1791,11 @@ export default function DashboardClient({ initialActivities, initialYear, availa
                   </tr>
                 </thead>
                 <tbody>
-                  {visibleActivities.map((activity) => {
+                  {!visibleActivities.length && !historyLoading ? (
+                    <tr>
+                      <td colSpan={9} style={{ textAlign: 'center', color: 'var(--text-muted)' }}>Nenhuma atividade encontrada nesta pagina.</td>
+                    </tr>
+                  ) : visibleActivities.map((activity) => {
                     const speed = activity.durationSec > 0 ? activity.distanceKm / (activity.durationSec / 3600) : 0
                     return (
                       <tr key={activity.stravaId}>

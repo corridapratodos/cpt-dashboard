@@ -144,6 +144,7 @@ export default async function HomePage() {
         viewerRole: scope.role,
         viewerPlan: getUserPlan(session.stravaId, userData),
         viewerAdmin: isAdmin,
+        viewerStravaId: session.stravaId,
         viewerScope: {
           years: scope.allowedYears,
           types: scope.allowedTypes,
