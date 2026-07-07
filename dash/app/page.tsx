@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation'
 import DashboardClient from '@/components/DashboardClient'
 import LegalGate from '@/components/LegalGate'
 import { getUserPlan, getUserScope, hasAcceptedLegal, hasAdminAccess, parseStoredDate } from '@/lib/access'
+import { applyScopeToYearAnalytics, loadYearAnalyticsFromCache } from '@/lib/activity-analytics'
 import { authOptions } from '@/lib/auth'
 import {
   buildActivitiesQuery,
@@ -46,8 +47,10 @@ export default async function HomePage() {
   )
 
   const lastRepairAttemptAt = parseStoredDate(meta?.metadataRepairAttemptedAt)
+  const lastRepairedAt = parseStoredDate(meta?.metadataRepairedAt)
   const shouldRepairYears =
     scope.fullAccess &&
+    !lastRepairedAt &&
     Number(meta?.totalActivities ?? 0) > 0 &&
     availableYears.length <= 1 &&
     (!lastRepairAttemptAt || Date.now() - lastRepairAttemptAt.getTime() >= METADATA_REPAIR_COOLDOWN_MS)
@@ -133,9 +136,15 @@ export default async function HomePage() {
     initialActivities = initialSnap.docs.map((doc) => toDashboardActivity(doc.data()))
   }
 
+  const rawInitialAnalytics = initialYear !== 'all'
+    ? await loadYearAnalyticsFromCache(session.stravaId, initialYear)
+    : null
+  const initialAnalytics = rawInitialAnalytics ? applyScopeToYearAnalytics(rawInitialAnalytics, scope) : null
+
   return (
     <DashboardClient
       initialActivities={initialActivities}
+      initialAnalytics={initialAnalytics}
       initialYear={initialYear}
       availableYears={availableYears}
       isAdmin={isAdmin}
@@ -155,3 +164,5 @@ export default async function HomePage() {
     />
   )
 }
+
+

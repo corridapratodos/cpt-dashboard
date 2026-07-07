@@ -1,4 +1,5 @@
 import type { BestEffort } from '@/lib/activity-types'
+import type { ActivityYearAnalytics } from '@/lib/analytics-types'
 
 export interface Activity {
   stravaId: number
@@ -19,6 +20,7 @@ export interface Activity {
 
 export interface Props {
   initialActivities: Activity[]
+  initialAnalytics: ActivityYearAnalytics | null
   initialYear: string
   availableYears: string[]
   isAdmin: boolean

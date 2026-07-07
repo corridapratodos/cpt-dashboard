@@ -1,3 +1,4 @@
+import { buildYearAnalytics, deleteYearAnalyticsBatch, writeYearAnalyticsBatch } from '@/lib/activity-analytics'
 import { buildSyncSummary, isQualifiedRun, toDashboardActivity } from '@/lib/dashboard'
 import { activitiesRef, yearCacheChunkRef, yearCacheChunksRef, yearCacheIndexRef, yearCachesRef } from '@/lib/firebase'
 
@@ -170,12 +171,14 @@ export async function rebuildYearActivityCache(stravaId: number, year: string) {
   const chunks = chunkActivities(activities)
   const summary = buildSyncSummary(activities)
   const sports = Array.from(new Set(activities.map((activity) => activity.type))).sort()
+  const analytics = buildYearAnalytics(year, activities)
   const staleChunkSnap = await yearCacheChunksRef(stravaId, year).get()
   const batch = activitiesRef(stravaId).firestore.batch()
   const indexRef = yearCacheIndexRef(stravaId, year)
 
   if (!activities.length) {
     batch.delete(indexRef)
+    deleteYearAnalyticsBatch(batch, stravaId, year)
     staleChunkSnap.docs.forEach((doc) => batch.delete(doc.ref))
     await batch.commit()
     return {
@@ -216,6 +219,8 @@ export async function rebuildYearActivityCache(stravaId: number, year: string) {
       { merge: true }
     )
   })
+
+  writeYearAnalyticsBatch(batch, stravaId, analytics)
 
   staleChunkSnap.docs
     .filter((doc) => {

@@ -14,6 +14,7 @@ test('home page exige aceite legal antes do dashboard', () => {
   assert.match(page, /METADATA_REPAIR_COOLDOWN_MS/)
   assert.match(page, /metadataRepairAttemptedAt/)
   assert.match(page, /listYearCacheIndexes/)
+  assert.match(page, /applyScopeToYearAnalytics/)
 })
 
 test('full sync esta restrito a admin no backend', () => {
@@ -26,25 +27,30 @@ test('full sync esta restrito a admin no backend', () => {
   assert.match(route, /rebuildYearActivityCaches/)
 })
 
-test('plano free e aplicado no backend de atividades e sync', () => {
+test('plano free e aplicado no backend de atividades, analytics e sync', () => {
   const access = read('lib/access.ts')
   const activitiesRoute = read('app/api/activities/route.ts')
   const activitiesHistoryRoute = read('app/api/activities/history/route.ts')
+  const activitiesAnalyticsRoute = read('app/api/activities/analytics/route.ts')
   const syncRoute = read('app/api/strava/sync/route.ts')
   assert.match(access, /FREE_PLAN_YEARS = 2/)
   assert.match(access, /PRO_PLAN_YEARS = 3/)
   assert.match(activitiesRoute, /normalizeRequestedYear/)
   assert.match(activitiesRoute, /getUserScope/)
   assert.match(activitiesRoute, /loadYearActivitiesFromCache/)
+  assert.match(activitiesAnalyticsRoute, /applyScopeToYearAnalytics/)
   assert.match(syncRoute, /isActivityAllowedForScope/)
 })
 
-test('cache anual em chunks existe para cortar leituras por tela', () => {
+test('cache anual em chunks e analytics existem para cortar leituras por tela', () => {
   const cache = read('lib/activity-cache.ts')
+  const analytics = read('lib/activity-analytics.ts')
   assert.match(cache, /YEAR_CACHE_CHUNK_SIZE = 120/)
   assert.match(cache, /loadYearActivitiesFromCache/)
   assert.match(cache, /rebuildYearActivityCaches/)
-  assert.match(cache, /summarizeYearCacheIndexes/)
+  assert.match(cache, /writeYearAnalyticsBatch/)
+  assert.match(analytics, /buildYearAnalytics/)
+  assert.match(analytics, /ANALYTICS_CACHE_VERSION/)
 })
 
 test('backfill de best efforts evita varredura completa da base', () => {
@@ -59,7 +65,7 @@ test('exclusao de conta exige sessao e apaga a base do usuario', () => {
   assert.match(route, /recursiveDelete/)
 })
 
-test('login e painel expoem links de privacidade e termos', () => {
+test('login e painel expoem links legais e consumo de analytics cache', () => {
   const login = read('app/login/page.tsx')
   const gate = read('components/LegalGate.tsx')
   const dashboard = read('components/DashboardClient.tsx')
@@ -67,4 +73,6 @@ test('login e painel expoem links de privacidade e termos', () => {
   assert.match(login, /\/terms/)
   assert.match(gate, /Aceitar e entrar no painel/)
   assert.match(dashboard, /Excluir meus dados/)
+  assert.match(dashboard, /computeDashboardSlices/)
+  assert.match(dashboard, /api\/activities\/analytics/)
 })

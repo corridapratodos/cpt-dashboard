@@ -14,11 +14,19 @@ try {
   assert.match(page, /metadataRepairAttemptedAt/)
   assert.match(page, /listYearCacheIndexes/)
   assert.match(page, /loadYearActivitiesFromCache/)
+  assert.match(page, /applyScopeToYearAnalytics/)
 
   const cache = read('lib/activity-cache.ts')
   assert.match(cache, /YEAR_CACHE_CHUNK_SIZE = 120/)
   assert.match(cache, /rebuildYearActivityCaches/)
   assert.match(cache, /summarizeYearCacheIndexes/)
+  assert.match(cache, /writeYearAnalyticsBatch/)
+
+  const analytics = read('lib/activity-analytics.ts')
+  assert.match(analytics, /buildYearAnalytics/)
+  assert.match(analytics, /applyScopeToYearAnalytics/)
+  assert.match(analytics, /deleteYearAnalyticsBatch/)
+  assert.match(analytics, /ANALYTICS_CACHE_VERSION/)
 
   const syncRoute = read('app/api/strava/sync/route.ts')
   assert.match(syncRoute, /requestedMode === 'full' && !isAdmin/)
@@ -56,11 +64,15 @@ try {
 
   const activitiesRoute = read('app/api/activities/route.ts')
   const activitiesHistoryRoute = read('app/api/activities/history/route.ts')
+  const activitiesAnalyticsRoute = read('app/api/activities/analytics/route.ts')
   assert.match(activitiesRoute, /normalizeRequestedYear/)
   assert.match(activitiesRoute, /getUserScope/)
   assert.match(activitiesHistoryRoute, /pageSize/)
   assert.match(activitiesHistoryRoute, /loadYearActivitiesFromCache/)
   assert.match(activitiesRoute, /loadYearActivitiesFromCache/)
+  assert.match(activitiesAnalyticsRoute, /applyScopeToYearAnalytics/)
+  assert.match(activitiesAnalyticsRoute, /ANALYTICS_CACHE_VERSION/)
+  assert.match(activitiesAnalyticsRoute, /rebuildYearActivityCache/)
 
   const accountRoute = read('app/api/account/route.ts')
   assert.match(accountRoute, /Unauthorized/)
@@ -81,7 +93,8 @@ try {
   assert.match(gate, /Aceitar e entrar no painel/)
   assert.match(dashboard, /Excluir meus dados/)
   assert.match(dashboard, /loadHistoryPage/)
-  assert.match(dashboard, /yearCacheKeyPrefix/)
+  assert.match(dashboard, /computeDashboardSlices/)
+  assert.match(dashboard, /api\/activities\/analytics/)
 
   console.log('Smoke checks aprovados.')
 } catch (error) {

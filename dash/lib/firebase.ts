@@ -48,6 +48,9 @@ export const yearCacheChunksRef = (stravaId: number, year: string) =>
 export const yearCacheChunkRef = (stravaId: number, year: string, chunkId: string) =>
   yearCacheChunksRef(stravaId, year).doc(chunkId)
 
+export const yearAnalyticsRef = (stravaId: number, year: string) =>
+  userRef(stravaId).collection('yearAnalytics').doc(year)
+
 export const sleepRef = (stravaId: number) =>
   userRef(stravaId).collection('sleep')
 
