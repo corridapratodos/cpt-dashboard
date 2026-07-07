@@ -1,7 +1,7 @@
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { FULL_SYNC_COOLDOWN_MS, getUserScope, hasAdminAccess, isActivityAllowedForScope, parseStoredDate } from '@/lib/access'
-import { buildSyncSummary, toDashboardActivity } from '@/lib/dashboard'
+import { getActivityYear, listYearCacheIndexes, rebuildYearActivityCaches, summarizeYearCacheIndexes } from '@/lib/activity-cache'
 import { activitiesRef, metaRef, userRef } from '@/lib/firebase'
 import { BEST_EFFORT_FETCH_LIMIT, extractBestEfforts, fetchActivities, fetchActivity, fetchBestEffortsForActivities, isRealRun, mapActivity } from '@/lib/strava'
 
@@ -49,25 +49,6 @@ function scopeNeedsFullRebuild(current: ReturnType<typeof getUserScope>, previou
     hasWiderYears(current.allowedYears, previous.allowedYears ?? []) ||
     hasWiderTypes(current.allowedTypes, previous.allowedTypes ?? [])
   )
-}
-
-function mergeTypeTotals(current: Record<string, number> | undefined, added: Record<string, number>) {
-  const next = { ...(current ?? {}) }
-  for (const [type, count] of Object.entries(added)) {
-    next[type] = (next[type] ?? 0) + count
-  }
-  return next
-}
-
-function mergeYears(current: string[] | undefined, added: string[]) {
-  return Array.from(new Set([...(current ?? []), ...added])).sort((a, b) => Number(b) - Number(a))
-}
-
-function getNewestDate(current: string | null | undefined, incoming: string[]) {
-  const candidates = [...incoming]
-  if (current) candidates.push(current)
-  if (!candidates.length) return null
-  return candidates.sort((a, b) => b.localeCompare(a))[0] ?? null
 }
 
 export async function POST(req: Request) {
@@ -206,7 +187,12 @@ export async function POST(req: Request) {
       await batch.commit()
     }
 
-    // No sync incremental, enriquece atividades antigas sem best efforts
+    const cacheYears = new Set<string>()
+    mappedActivities.forEach((activity) => {
+      const year = getActivityYear(activity.date)
+      if (year) cacheYears.add(year)
+    })
+
     let backfilledCount = 0
     if (shouldRunIncremental) {
       const withoutSnap = await colRef
@@ -216,10 +202,10 @@ export async function POST(req: Request) {
         .get()
 
       const toBackfill = withoutSnap.docs.filter((doc) => {
-        const d = doc.data()
-        const distKm = Number(d.distanceKm ?? 0)
-        const durationSec = Number(d.durationSec ?? 0)
-        return (d.type === 'Run' || d.type === 'TrailRun') && distKm >= 3 && durationSec >= 20 * 60
+        const data = doc.data()
+        const distKm = Number(data.distanceKm ?? 0)
+        const durationSec = Number(data.durationSec ?? 0)
+        return (data.type === 'Run' || data.type === 'TrailRun') && distKm >= 3 && durationSec >= 20 * 60
       })
 
       for (const doc of toBackfill) {
@@ -229,7 +215,9 @@ export async function POST(req: Request) {
           const bestEfforts = extractBestEfforts(detail)
           if (bestEfforts.length) {
             await colRef.doc(String(stravaId)).set({ bestEfforts }, { merge: true })
-            backfilledCount++
+            const year = getActivityYear(doc.data().date)
+            if (year) cacheYears.add(year)
+            backfilledCount += 1
           }
         } catch {
           // Falhas individuais nao bloqueiam o sync
@@ -237,24 +225,12 @@ export async function POST(req: Request) {
       }
     }
 
-    let summary: ReturnType<typeof buildSyncSummary>
-
-    if (effectiveMode === 'incremental') {
-      const incomingActivities = mappedActivities.map((activity) => toDashboardActivity(activity))
-      const incomingSummary = buildSyncSummary(incomingActivities)
-      summary = {
-        availableYears: mergeYears(metaData?.availableYears, incomingSummary.availableYears),
-        totalActivities: Number(metaData?.totalActivities ?? 0) + newMappedActivities.length,
-        totalRuns: Number(metaData?.totalRuns ?? 0) + newValidRuns.length,
-        totalsByType: mergeTypeTotals(
-          metaData?.totalsByType,
-          buildSyncSummary(newMappedActivities.map((activity) => toDashboardActivity(activity))).totalsByType
-        ),
-        newestActivityAt: getNewestDate(metaData?.newestActivityAt ?? null, incomingActivities.map((activity) => activity.date)),
-      }
-    } else {
-      summary = buildSyncSummary(mappedActivities.map((activity) => toDashboardActivity(activity)))
+    if (cacheYears.size > 0) {
+      await rebuildYearActivityCaches(session.stravaId, [...cacheYears])
     }
+
+    const cacheIndexes = await listYearCacheIndexes(session.stravaId)
+    const cacheSummary = summarizeYearCacheIndexes(cacheIndexes)
 
     await metaRef(session.stravaId).set(
       {
@@ -262,11 +238,11 @@ export async function POST(req: Request) {
         lastSyncMode: effectiveMode,
         lastIncrementalAfter: shouldRunIncremental ? incrementalCursor ?? null : null,
         lastFullSyncAt: effectiveMode === 'full' ? new Date() : metaData?.lastFullSyncAt ?? null,
-        totalActivities: summary.totalActivities,
-        totalRuns: summary.totalRuns,
-        totalsByType: summary.totalsByType,
-        availableYears: summary.availableYears,
-        newestActivityAt: summary.newestActivityAt,
+        totalActivities: cacheSummary.totalActivities,
+        totalRuns: cacheSummary.totalRuns,
+        totalsByType: cacheSummary.totalsByType,
+        availableYears: cacheSummary.availableYears,
+        newestActivityAt: cacheSummary.newestActivityAt,
         lastSyncAddedActivities: newMappedActivities.length,
         lastSyncAddedQualifiedRuns: newValidRuns.length,
         lastSyncFetchedActivities: incoming.length,
@@ -302,8 +278,8 @@ export async function POST(req: Request) {
       after: shouldRunIncremental ? incrementalCursor ?? null : null,
       historicalBackfillCompleted: true,
       admin: isAdmin,
-      totalActivities: summary.totalActivities,
-      availableYears: summary.availableYears,
+      totalActivities: cacheSummary.totalActivities,
+      availableYears: cacheSummary.availableYears,
       bestEffortCoverage: {
         eligible: bestEffortBackfill.eligibleCount,
         fetched: bestEffortBackfill.fetchedCount,
@@ -317,6 +293,7 @@ export async function POST(req: Request) {
       },
       widenedScope,
       latestSavedWasFutureClamped,
+      cacheYearsRebuilt: [...cacheYears].sort((a, b) => Number(b) - Number(a)),
     })
   } catch (error) {
     await metaRef(session.stravaId).set(

@@ -13,6 +13,7 @@ test('home page exige aceite legal antes do dashboard', () => {
   assert.match(page, /getUserScope/)
   assert.match(page, /METADATA_REPAIR_COOLDOWN_MS/)
   assert.match(page, /metadataRepairAttemptedAt/)
+  assert.match(page, /listYearCacheIndexes/)
 })
 
 test('full sync esta restrito a admin no backend', () => {
@@ -22,6 +23,7 @@ test('full sync esta restrito a admin no backend', () => {
   assert.match(route, /syncInProgress/)
   assert.match(route, /MAX_INCREMENTAL_CURSOR_FUTURE_MS/)
   assert.match(route, /latestSavedWasFutureClamped/)
+  assert.match(route, /rebuildYearActivityCaches/)
 })
 
 test('plano free e aplicado no backend de atividades e sync', () => {
@@ -32,12 +34,22 @@ test('plano free e aplicado no backend de atividades e sync', () => {
   assert.match(access, /PRO_PLAN_YEARS = 3/)
   assert.match(activitiesRoute, /normalizeRequestedYear/)
   assert.match(activitiesRoute, /getUserScope/)
+  assert.match(activitiesRoute, /loadYearActivitiesFromCache/)
   assert.match(syncRoute, /isActivityAllowedForScope/)
+})
+
+test('cache anual em chunks existe para cortar leituras por tela', () => {
+  const cache = read('lib/activity-cache.ts')
+  assert.match(cache, /YEAR_CACHE_CHUNK_SIZE = 120/)
+  assert.match(cache, /loadYearActivitiesFromCache/)
+  assert.match(cache, /rebuildYearActivityCaches/)
+  assert.match(cache, /summarizeYearCacheIndexes/)
 })
 
 test('backfill de best efforts evita varredura completa da base', () => {
   const backfillRoute = read('app/api/admin/backfill-efforts/route.ts')
   assert.match(backfillRoute, /where\('bestEfforts', '==', \[\]\)/)
+  assert.match(backfillRoute, /rebuildYearActivityCaches/)
 })
 
 test('exclusao de conta exige sessao e apaga a base do usuario', () => {
@@ -55,4 +67,3 @@ test('login e painel expoem links de privacidade e termos', () => {
   assert.match(gate, /Aceitar e entrar no painel/)
   assert.match(dashboard, /Excluir meus dados/)
 })
-

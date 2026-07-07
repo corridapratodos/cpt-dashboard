@@ -1,7 +1,8 @@
 import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
 import { hasAdminAccess } from '@/lib/access'
+import { getActivityYear, rebuildYearActivityCaches } from '@/lib/activity-cache'
 import { isRunLikeType } from '@/lib/activity-types'
+import { authOptions } from '@/lib/auth'
 import { activitiesRef, metaRef, userRef } from '@/lib/firebase'
 import { extractBestEfforts, fetchActivity } from '@/lib/strava'
 
@@ -41,6 +42,7 @@ export async function POST() {
   const limited = candidates.slice(0, BATCH_LIMIT)
   const workerCount = Math.min(CONCURRENCY, limited.length)
   const workerBatches = Array.from({ length: workerCount }, () => [] as typeof limited)
+  const touchedYears = new Set<string>()
   let enrichedCount = 0
   let errorCount = 0
 
@@ -58,6 +60,8 @@ export async function POST() {
 
           if (bestEfforts.length) {
             await doc.ref.set({ bestEfforts }, { merge: true })
+            const year = getActivityYear(doc.data().date)
+            if (year) touchedYears.add(year)
             enrichedCount += 1
           }
         } catch {
@@ -66,6 +70,10 @@ export async function POST() {
       }
     })
   )
+
+  if (touchedYears.size > 0) {
+    await rebuildYearActivityCaches(session.stravaId, [...touchedYears])
+  }
 
   await metaRef(session.stravaId).set(
     {
@@ -85,5 +93,6 @@ export async function POST() {
     enriched: enrichedCount,
     errors: errorCount,
     remaining: Math.max(candidates.length - limited.length, 0),
+    rebuiltYears: [...touchedYears].sort((a, b) => Number(b) - Number(a)),
   })
 }

@@ -36,6 +36,18 @@ export const activitiesRef = (stravaId: number) =>
 export const metaRef = (stravaId: number) =>
   userRef(stravaId).collection('meta').doc('sync')
 
+export const yearCachesRef = (stravaId: number) =>
+  userRef(stravaId).collection('yearCaches')
+
+export const yearCacheIndexRef = (stravaId: number, year: string) =>
+  yearCachesRef(stravaId).doc(year)
+
+export const yearCacheChunksRef = (stravaId: number, year: string) =>
+  yearCacheIndexRef(stravaId, year).collection('chunks')
+
+export const yearCacheChunkRef = (stravaId: number, year: string, chunkId: string) =>
+  yearCacheChunksRef(stravaId, year).doc(chunkId)
+
 export const sleepRef = (stravaId: number) =>
   userRef(stravaId).collection('sleep')
 

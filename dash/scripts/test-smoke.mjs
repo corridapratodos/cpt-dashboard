@@ -12,6 +12,13 @@ try {
   assert.match(page, /getUserScope/)
   assert.match(page, /METADATA_REPAIR_COOLDOWN_MS/)
   assert.match(page, /metadataRepairAttemptedAt/)
+  assert.match(page, /listYearCacheIndexes/)
+  assert.match(page, /loadYearActivitiesFromCache/)
+
+  const cache = read('lib/activity-cache.ts')
+  assert.match(cache, /YEAR_CACHE_CHUNK_SIZE = 120/)
+  assert.match(cache, /rebuildYearActivityCaches/)
+  assert.match(cache, /summarizeYearCacheIndexes/)
 
   const syncRoute = read('app/api/strava/sync/route.ts')
   assert.match(syncRoute, /requestedMode === 'full' && !isAdmin/)
@@ -21,15 +28,18 @@ try {
   assert.match(syncRoute, /isActivityAllowedForScope/)
   assert.match(syncRoute, /MAX_INCREMENTAL_CURSOR_FUTURE_MS/)
   assert.match(syncRoute, /latestSavedWasFutureClamped/)
-  assert.match(syncRoute, /summary = buildSyncSummary\(mappedActivities\.map/)
+  assert.match(syncRoute, /rebuildYearActivityCaches/)
+  assert.match(syncRoute, /cacheYearsRebuilt/)
 
   const webhookRoute = read('app/api/strava/webhook/route.ts')
   assert.match(webhookRoute, /getWebhookPostToken/)
   assert.match(webhookRoute, /x-cpt-webhook-token/)
   assert.match(webhookRoute, /unknown_owner/)
+  assert.match(webhookRoute, /rebuildYearActivityCaches/)
 
   const backfillRoute = read('app/api/admin/backfill-efforts/route.ts')
   assert.match(backfillRoute, /where\('bestEfforts', '==', \[\]\)/)
+  assert.match(backfillRoute, /rebuildYearActivityCaches/)
 
   const access = read('lib/access.ts')
   assert.match(access, /FREE_PLAN_YEARS = 2/)
@@ -47,6 +57,7 @@ try {
   const activitiesRoute = read('app/api/activities/route.ts')
   assert.match(activitiesRoute, /normalizeRequestedYear/)
   assert.match(activitiesRoute, /getUserScope/)
+  assert.match(activitiesRoute, /loadYearActivitiesFromCache/)
 
   const accountRoute = read('app/api/account/route.ts')
   assert.match(accountRoute, /Unauthorized/)

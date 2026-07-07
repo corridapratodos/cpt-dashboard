@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server'
 import { getUserScope, isActivityAllowedForScope } from '@/lib/access'
-import { buildSyncSummary, toDashboardActivity } from '@/lib/dashboard'
+import { getActivityYear, listYearCacheIndexes, rebuildYearActivityCaches, summarizeYearCacheIndexes } from '@/lib/activity-cache'
 import { activitiesRef, getDb, metaRef } from '@/lib/firebase'
 import { getWebhookPostToken } from '@/lib/security'
 import { extractBestEfforts, fetchActivity, mapActivity } from '@/lib/strava'
@@ -108,19 +108,26 @@ export async function POST(req: NextRequest) {
       return Response.json({ ok: true, skipped: true, reason: 'outside_plan_scope' })
     }
 
+    const ref = activitiesRef(ownerId).doc(String(activityId))
+    const existingSnap = await ref.get()
     const mapped = mapActivity(activity, { bestEfforts: extractBestEfforts(activity) })
-    await activitiesRef(ownerId).doc(String(activityId)).set(mapped, { merge: true })
+    await ref.set(mapped, { merge: true })
 
-    const activityYear = String(new Date(mapped.date).getUTCFullYear())
-    const currentMetaSnap = await metaRef(ownerId).get()
-    const currentMeta = currentMetaSnap.exists ? currentMetaSnap.data() : null
-    const availableYears = Array.from(new Set([...(currentMeta?.availableYears ?? []), activityYear]))
-      .sort((a, b) => Number(b) - Number(a))
+    const activityYear = getActivityYear(mapped.date)
+    if (activityYear) {
+      await rebuildYearActivityCaches(ownerId, [activityYear])
+    }
+
+    const cacheIndexes = await listYearCacheIndexes(ownerId)
+    const cacheSummary = summarizeYearCacheIndexes(cacheIndexes)
 
     await metaRef(ownerId).set(
       {
-        availableYears,
-        newestActivityAt: mapped.date,
+        totalActivities: cacheSummary.totalActivities,
+        totalRuns: cacheSummary.totalRuns,
+        totalsByType: cacheSummary.totalsByType,
+        availableYears: cacheSummary.availableYears,
+        newestActivityAt: cacheSummary.newestActivityAt,
         lastWebhookActivityAt: new Date(),
         lastWebhookActivityId: activityId,
         dataScope: {
@@ -132,23 +139,12 @@ export async function POST(req: NextRequest) {
       { merge: true }
     )
 
-    if ((currentMeta?.totalActivities ?? 0) < 1000) {
-      const snap = await activitiesRef(ownerId).orderBy('date', 'desc').get()
-      const summary = buildSyncSummary(snap.docs.map((doc) => toDashboardActivity(doc.data())))
-
-      await metaRef(ownerId).set(
-        {
-          totalActivities: summary.totalActivities,
-          totalRuns: summary.totalRuns,
-          totalsByType: summary.totalsByType,
-          availableYears: summary.availableYears,
-          newestActivityAt: summary.newestActivityAt,
-        },
-        { merge: true }
-      )
-    }
-
-    return Response.json({ ok: true, saved: activityId })
+    return Response.json({
+      ok: true,
+      saved: activityId,
+      alreadyExisted: existingSnap.exists,
+      cacheYear: activityYear,
+    })
   } catch {
     return Response.json({ error: 'Webhook processing failed' }, { status: 500 })
   }

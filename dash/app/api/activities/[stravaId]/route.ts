@@ -1,8 +1,9 @@
 import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
-import { activitiesRef, metaRef, userRef } from '@/lib/firebase'
 import { getUserScope } from '@/lib/access'
+import { getActivityYear, listYearCacheIndexes, rebuildYearActivityCaches, summarizeYearCacheIndexes } from '@/lib/activity-cache'
+import { authOptions } from '@/lib/auth'
 import { isQualifiedRun, toDashboardActivity } from '@/lib/dashboard'
+import { activitiesRef, metaRef, userRef } from '@/lib/firebase'
 
 export async function PATCH(req: Request, context: { params: Promise<{ stravaId: string }> }) {
   const session = await getServerSession(authOptions)
@@ -35,13 +36,13 @@ export async function PATCH(req: Request, context: { params: Promise<{ stravaId:
     }
 
     const metaSnap = await transaction.get(metaDocRef)
-    const current = activitySnap.data() ?? {}
+    const current = (activitySnap.data() ?? {}) as Record<string, unknown>
     const currentFlags = Array.isArray(current.qualityFlags) ? current.qualityFlags.map(String) : []
     const nextFlags = excludedFromMetrics
       ? Array.from(new Set([...currentFlags, 'manual-ignore']))
       : currentFlags.filter((flag) => flag !== 'manual-ignore')
 
-    const nextActivity = {
+    const nextActivity: Record<string, unknown> = {
       ...current,
       excludedFromMetrics,
       qualityFlags: nextFlags,
@@ -86,6 +87,22 @@ export async function PATCH(req: Request, context: { params: Promise<{ stravaId:
 
   if (!updatedActivity) {
     return Response.json({ error: 'Activity not found' }, { status: 404 })
+  }
+
+  const activityYear = getActivityYear(updatedActivity.date as string | Date | { toDate?: () => Date } | null | undefined)
+  if (activityYear) {
+    await rebuildYearActivityCaches(session.stravaId, [activityYear])
+    const cacheSummary = summarizeYearCacheIndexes(await listYearCacheIndexes(session.stravaId))
+    await metaDocRef.set(
+      {
+        totalActivities: cacheSummary.totalActivities,
+        totalRuns: cacheSummary.totalRuns,
+        totalsByType: cacheSummary.totalsByType,
+        availableYears: cacheSummary.availableYears,
+        newestActivityAt: cacheSummary.newestActivityAt,
+      },
+      { merge: true }
+    )
   }
 
   return Response.json({
