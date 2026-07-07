@@ -20,6 +20,8 @@ test('full sync esta restrito a admin no backend', () => {
   assert.match(route, /requestedMode === 'full' && !isAdmin/)
   assert.match(route, /FULL_SYNC_COOLDOWN_MS/)
   assert.match(route, /syncInProgress/)
+  assert.match(route, /MAX_INCREMENTAL_CURSOR_FUTURE_MS/)
+  assert.match(route, /latestSavedWasFutureClamped/)
 })
 
 test('plano free e aplicado no backend de atividades e sync', () => {

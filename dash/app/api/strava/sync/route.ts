@@ -8,6 +8,7 @@ import { BEST_EFFORT_FETCH_LIMIT, extractBestEfforts, fetchActivities, fetchActi
 const SYNC_LOCK_WINDOW_MS = 10 * 60 * 1000
 const INCREMENTAL_OVERLAP_SEC = 12 * 60 * 60
 const INCREMENTAL_SYNC_MIN_INTERVAL_MS = 60 * 1000
+const MAX_INCREMENTAL_CURSOR_FUTURE_MS = 15 * 60 * 1000
 
 type StoredScope = {
   fullAccess?: boolean
@@ -147,11 +148,24 @@ export async function POST(req: Request) {
       ? null
       : latestSnap.docs[0].data().date?.toDate?.() ?? latestSnap.docs[0].data().date ?? null
 
-    const incrementalAfter = latestSavedDate instanceof Date
-      ? Math.floor(latestSavedDate.getTime() / 1000)
+    const resolvedLatestSavedAt = latestSavedDate instanceof Date
+      ? latestSavedDate
       : latestSavedDate
-        ? Math.floor(new Date(latestSavedDate).getTime() / 1000)
-        : undefined
+        ? new Date(latestSavedDate)
+        : null
+
+    const latestSavedMs = resolvedLatestSavedAt && !Number.isNaN(resolvedLatestSavedAt.getTime())
+      ? resolvedLatestSavedAt.getTime()
+      : null
+    const clampedLatestSavedMs = latestSavedMs != null
+      ? Math.min(latestSavedMs, now + MAX_INCREMENTAL_CURSOR_FUTURE_MS)
+      : null
+
+    const incrementalAfter = clampedLatestSavedMs != null
+      ? Math.floor(clampedLatestSavedMs / 1000)
+      : undefined
+
+    const latestSavedWasFutureClamped = latestSavedMs != null && clampedLatestSavedMs != null && latestSavedMs > clampedLatestSavedMs
 
     const incrementalCursor = incrementalAfter != null
       ? Math.max(incrementalAfter - INCREMENTAL_OVERLAP_SEC, 0)
@@ -272,6 +286,9 @@ export async function POST(req: Request) {
           allowedYears: scope.allowedYears,
           allowedTypes: scope.allowedTypes,
         },
+        latestSavedWasFutureClamped,
+        latestSavedAtOriginal: latestSavedMs != null ? new Date(latestSavedMs) : null,
+        latestSavedAtEffective: clampedLatestSavedMs != null ? new Date(clampedLatestSavedMs) : null,
       },
       { merge: true }
     )
@@ -299,6 +316,7 @@ export async function POST(req: Request) {
         allowedTypes: scope.allowedTypes,
       },
       widenedScope,
+      latestSavedWasFutureClamped,
     })
   } catch (error) {
     await metaRef(session.stravaId).set(

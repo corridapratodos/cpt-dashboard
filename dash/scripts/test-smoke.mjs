@@ -19,6 +19,8 @@ try {
   assert.match(syncRoute, /INCREMENTAL_SYNC_MIN_INTERVAL_MS/)
   assert.match(syncRoute, /syncInProgress/)
   assert.match(syncRoute, /isActivityAllowedForScope/)
+  assert.match(syncRoute, /MAX_INCREMENTAL_CURSOR_FUTURE_MS/)
+  assert.match(syncRoute, /latestSavedWasFutureClamped/)
   assert.match(syncRoute, /summary = buildSyncSummary\(mappedActivities\.map/)
 
   const webhookRoute = read('app/api/strava/webhook/route.ts')
