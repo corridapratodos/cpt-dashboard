@@ -33,7 +33,7 @@ try {
 
   const access = read('lib/access.ts')
   assert.match(access, /FREE_PLAN_YEARS = 2/)
-  assert.match(access, /PRO_PLAN_YEARS = 5/)
+  assert.match(access, /PRO_PLAN_YEARS = 3/)
 
   const auth = read('lib/auth.ts')
   const security = read('lib/security.ts')
