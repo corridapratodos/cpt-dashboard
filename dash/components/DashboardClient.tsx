@@ -621,13 +621,13 @@ export default function DashboardClient({ initialActivities, initialAnalytics, i
         <header className="app-header">
           <div className="app-header-top">
             <div className="app-header-identity">
-              {meta && <p className="app-header-role">{viewerRole} ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â· {viewerPlan}</p>}
+              {meta && <p className="app-header-role">{viewerRole} | {viewerPlan}</p>}
               <p className="app-header-name">{userName}</p>
             </div>
             <div className="app-header-actions">
               {meta?.lastSync && (
                 <span className="app-header-sync-info">
-                  ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â» Last sync ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â· {new Date(meta.lastSync).toLocaleDateString('pt-BR')} ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â· {meta?.lastSyncMode ?? 'incremental'}
+                  Last sync | {fmt.dayMonthYear(meta.lastSync)} | {meta?.lastSyncMode ?? 'incremental'}
                 </span>
               )}
               {ignoredCount > 0 && <span className="pill pill-ghost">{ignoredCount} ignoradas</span>}
@@ -643,7 +643,7 @@ export default function DashboardClient({ initialActivities, initialAnalytics, i
                 </button>
               )}
               <button onClick={handleThemeToggle} className="btn btn-ghost" type="button">
-                {theme === 'dark' ? 'ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¹ÃƒÆ’Ã¢â‚¬Â¦ÃƒÂ¢Ã¢â€šÂ¬Ã…â€œÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬' : 'ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¹ÃƒÆ’Ã¢â‚¬Â¦ÃƒÂ¢Ã¢â€šÂ¬Ã…â€œÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¾'}
+                {theme === 'dark' ? 'Modo claro' : 'Modo escuro'}
               </button>
               <button onClick={() => handleSync('incremental')} disabled={syncing || deleting || loadingYears.length > 0} className="btn btn-primary" type="button">
                 {syncing ? 'Sincronizando...' : 'Atualizar'}
@@ -807,7 +807,7 @@ export default function DashboardClient({ initialActivities, initialAnalytics, i
 
               <div className="admin-tools" style={{ marginTop: '1rem' }}>
                 <div>
-                  <p className="control-label">Dados de saÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Âºde</p>
+                  <p className="control-label">Dados de saude</p>
                   <strong>Upload de sono e peso (Garmin CSV)</strong>
                 </div>
                 <div className="admin-actions-row" style={{ alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem' }}>
@@ -835,7 +835,7 @@ export default function DashboardClient({ initialActivities, initialAnalytics, i
                           if (data.weightSaved) parts.push(`${data.weightSaved} registros de peso`)
                           if (data.skipped) parts.push(`${data.skipped} linhas ignoradas`)
                           if (data.errors?.length) parts.push(data.errors.join('; '))
-                          setHealthUploadMsg(parts.length ? parts.join(' ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â· ') : 'Nenhum dado importado.')
+                          setHealthUploadMsg(parts.length ? parts.join(' | ') : 'Nenhum dado importado.')
                         } catch (error) {
                           setHealthUploadMsg(error instanceof Error ? error.message : 'Erro no upload')
                         } finally {
@@ -1197,7 +1197,7 @@ export default function DashboardClient({ initialActivities, initialAnalytics, i
                       </ResponsiveContainer>
                       {lastWeight?.fatPct != null && (
                         <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.5rem' }}>
-                          Ultima leitura: gordura {lastWeight.fatPct}% Â· musculo {lastWeight.muscleMassKg} kg Â· agua {lastWeight.waterPct}%
+                          Ultima leitura: gordura {lastWeight.fatPct}% | musculo {lastWeight.muscleMassKg} kg | agua {lastWeight.waterPct}%
                         </p>
                       )}
                     </Panel>

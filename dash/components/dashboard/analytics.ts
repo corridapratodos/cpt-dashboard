@@ -116,14 +116,14 @@ function groupDaysByPeriod(days: ActiveDay[], mode: 'month' | 'week') {
       if (mode === 'month') {
         const start = new Date(`${key}-01T00:00:00Z`)
         groups.set(key, {
-          label: start.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' }),
+          label: start.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric', timeZone: 'UTC' }),
           days: [],
         })
       } else {
         const start = new Date(`${key}T00:00:00Z`)
         const end = new Date(start.getTime() + WEEK_MS - 1)
         groups.set(key, {
-          label: `${start.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' })} - ${end.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })}`,
+          label: `${start.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'UTC' })} - ${end.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', timeZone: 'UTC' })}`,
           days: [],
         })
       }
@@ -266,7 +266,7 @@ export function computeDashboardSlices(params: {
     const end = selectedMonth?.end ?? new Date(Date.UTC(latestDate.getUTCFullYear(), latestDate.getUTCMonth() + 1, 0, 23, 59, 59, 999))
     activeWindow = {
       days: filteredDays.filter((day) => day.date >= start.toISOString().slice(0, 10) && day.date <= end.toISOString().slice(0, 10)),
-      label: selectedMonth?.label ?? latestDate.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' }),
+      label: selectedMonth?.label ?? latestDate.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric', timeZone: 'UTC' }),
       title: 'Mes',
       start,
       end,
@@ -281,7 +281,7 @@ export function computeDashboardSlices(params: {
     const end = selectedWeek?.end ?? new Date(start.getTime() + WEEK_MS - 1)
     activeWindow = {
       days: filteredDays.filter((day) => day.date >= start.toISOString().slice(0, 10) && day.date <= end.toISOString().slice(0, 10)),
-      label: selectedWeek?.label ?? `${start.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })} a ${end.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })}`,
+      label: selectedWeek?.label ?? `${start.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', timeZone: 'UTC' })} a ${end.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', timeZone: 'UTC' })}`,
       title: 'Semana',
       start,
       end,
@@ -294,7 +294,7 @@ export function computeDashboardSlices(params: {
     const start = new Date(latestDate.getTime() - 27 * DAY_MS)
     activeWindow = {
       days: filteredDays.filter((day) => day.date >= start.toISOString().slice(0, 10) && day.date <= latestDate.toISOString().slice(0, 10)),
-      label: `ultimos 28 dias ate ${latestDate.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })}`,
+      label: `ultimos 28 dias ate ${latestDate.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', timeZone: 'UTC' })}`,
       title: '28 dias',
       start,
       end: latestDate,
@@ -530,7 +530,7 @@ export function computeDashboardSlices(params: {
 
     for (const day of analyzedDays) {
       const date = new Date(`${day.date}T00:00:00Z`)
-      const weekday = date.toLocaleDateString('pt-BR', { weekday: 'short' }).replace('.', '')
+      const weekday = date.toLocaleDateString('pt-BR', { weekday: 'short', timeZone: 'UTC' }).replace('.', '')
       weekdayMap.set(weekday, (weekdayMap.get(weekday) ?? 0) + day.sessions)
       if (date.getUTCDay() === 0 || date.getUTCDay() === 6) weekendSessions += day.sessions
     }
@@ -640,3 +640,5 @@ export function buildActiveAccent(selectedSports: string[], availableSports: str
   if (allSportsSelected || selectedSports.length !== 1) return 'var(--accent)'
   return getSportAccent(selectedSports[0])
 }
+
+

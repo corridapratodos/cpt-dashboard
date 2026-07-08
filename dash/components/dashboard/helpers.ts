@@ -43,9 +43,11 @@ export const fmt = {
       ? `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
       : `${m}:${String(s).padStart(2, '0')}`
   },
-  date: (iso: string) => new Date(iso).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' }),
-  fullDate: (iso: string) => new Date(iso).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' }),
-  month: (iso: string) => new Date(iso).toLocaleDateString('pt-BR', { month: 'short', year: '2-digit' }),
+  date: (iso: string) => new Date(iso).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', timeZone: 'UTC' }),
+  fullDate: (iso: string) => new Date(iso).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'UTC' }),
+  month: (iso: string) => new Date(iso).toLocaleDateString('pt-BR', { month: 'short', year: '2-digit', timeZone: 'UTC' }),
+  dayMonthYear: (iso: string) => new Date(iso).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'UTC' }),
+  dayMonthTime: (iso: string) => `${new Date(iso).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', timeZone: 'UTC' })} ${new Date(iso).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' })}`,
   pct: (value: number) => `${value > 0 ? '+' : ''}${value.toFixed(0)}%`,
 }
 
@@ -106,10 +108,10 @@ export function pctChange(current: number, previous: number) {
 
 export function startOfWeek(date: Date) {
   const value = new Date(date)
-  const day = value.getDay()
+  const day = value.getUTCDay()
   const diff = day === 0 ? -6 : 1 - day
-  value.setHours(0, 0, 0, 0)
-  value.setDate(value.getDate() + diff)
+  value.setUTCHours(0, 0, 0, 0)
+  value.setUTCDate(value.getUTCDate() + diff)
   return value
 }
 

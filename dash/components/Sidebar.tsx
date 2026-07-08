@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { Activity, BarChart3, Calendar, Database, Heart, Menu, Shield, Zap } from 'lucide-react'
+import { fmt } from './dashboard/helpers'
 
 interface SidebarProps {
   meta?: {
@@ -19,26 +20,22 @@ export function Sidebar({ meta, isAdmin }: SidebarProps) {
     {
       label: 'DASHBOARD',
       items: [
-        { icon: BarChart3, label: 'Visão Geral', href: '#resumo', active: true },
-        { icon: Activity, label: 'Volume & Pace', href: '#volume' },
+        { icon: BarChart3, label: 'Visao geral', href: '#resumo', active: true },
+        { icon: Activity, label: 'Volume e pace', href: '#volume' },
         { icon: Calendar, label: 'Comparativo', href: '#comparativo' },
       ],
     },
     {
       label: 'DADOS',
       items: [
-        { icon: Zap, label: 'Strava Sync', href: '#resumo' },
-        { icon: Heart, label: 'Saúde', href: '#saude' },
-        { icon: Database, label: 'Histórico', href: '#historico' },
+        { icon: Zap, label: 'Strava sync', href: '#resumo' },
+        { icon: Heart, label: 'Saude', href: '#saude' },
+        { icon: Database, label: 'Historico', href: '#historico' },
       ],
     },
   ]
 
-  const syncDate = meta?.lastSync
-    ? new Date(meta.lastSync).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }) +
-      ' ' +
-      new Date(meta.lastSync).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
-    : '—'
+  const syncDate = meta?.lastSync ? fmt.dayMonthTime(meta.lastSync) : '-'
 
   const adminGroups = isAdmin
     ? [
@@ -112,7 +109,7 @@ export function Sidebar({ meta, isAdmin }: SidebarProps) {
           {meta?.viewerRole && (
             <div className="sidebar-status-row">
               <span>PLANO</span>
-              <span>{meta.viewerRole?.toUpperCase()} {'·'} {meta.viewerPlan?.toUpperCase()}</span>
+              <span>{meta.viewerRole?.toUpperCase()} {' | '} {meta.viewerPlan?.toUpperCase()}</span>
             </div>
           )}
         </div>
