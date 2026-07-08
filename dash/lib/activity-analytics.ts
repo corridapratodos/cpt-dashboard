@@ -1,4 +1,4 @@
-import type { WriteBatch } from 'firebase-admin/firestore'
+﻿import type { WriteBatch } from 'firebase-admin/firestore'
 import { isRunLikeType } from '@/lib/activity-types'
 import type {
   ActivityLite,
@@ -189,6 +189,8 @@ function sanitizeDaySport(value: unknown): AnalyticsDaySport | null {
     excludedSessions: Number(source.excludedSessions ?? 0),
     distanceKm: Number(source.distanceKm ?? 0),
     durationSec: Number(source.durationSec ?? 0),
+    includedDistanceKm: Number(source.includedDistanceKm ?? source.distanceKm ?? 0),
+    includedDurationSec: Number(source.includedDurationSec ?? source.durationSec ?? 0),
     reliablePaceCount: Number(source.reliablePaceCount ?? 0),
     reliablePaceSumSec: Number(source.reliablePaceSumSec ?? 0),
     maxDistanceActivity: sanitizeActivityStub(source.maxDistanceActivity),
@@ -228,6 +230,8 @@ export function buildYearAnalytics(year: string, activities: ActivityLite[]): Ac
       excludedSessions: 0,
       distanceKm: 0,
       durationSec: 0,
+      includedDistanceKm: 0,
+      includedDurationSec: 0,
       reliablePaceCount: 0,
       reliablePaceSumSec: 0,
       maxDistanceActivity: null,
@@ -243,6 +247,9 @@ export function buildYearAnalytics(year: string, activities: ActivityLite[]): Ac
 
     if (activity.excludedFromMetrics) {
       current.excludedSessions += 1
+    } else {
+      current.includedDistanceKm = round1(current.includedDistanceKm + activity.distanceKm)
+      current.includedDurationSec += Math.round(activity.durationSec)
     }
 
     if (isReliablePaceActivity(activity) && activity.paceSec != null) {
@@ -355,4 +362,8 @@ export function extractScopedAnalyticsActivities(analytics: ActivityYearAnalytic
     )
   )
 }
+
+
+
+
 

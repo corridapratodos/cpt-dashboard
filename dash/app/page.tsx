@@ -4,6 +4,7 @@ import DashboardClient from '@/components/DashboardClient'
 import LegalGate from '@/components/LegalGate'
 import { getUserPlan, getUserScope, hasAcceptedLegal, hasAdminAccess, parseStoredDate } from '@/lib/access'
 import { applyScopeToYearAnalytics, loadYearAnalyticsFromCache } from '@/lib/activity-analytics'
+import { ANALYTICS_CACHE_VERSION } from '@/lib/analytics-types'
 import { authOptions } from '@/lib/auth'
 import {
   buildActivitiesQuery,
@@ -153,7 +154,9 @@ export default async function HomePage() {
   const rawInitialAnalytics = initialYear !== 'all'
     ? await loadYearAnalyticsFromCache(session.stravaId, initialYear)
     : null
-  const initialAnalytics = rawInitialAnalytics ? applyScopeToYearAnalytics(rawInitialAnalytics, scope) : null
+  const initialAnalytics = rawInitialAnalytics && rawInitialAnalytics.cacheVersion === ANALYTICS_CACHE_VERSION
+    ? applyScopeToYearAnalytics(rawInitialAnalytics, scope)
+    : null
 
   return (
     <DashboardClient
@@ -178,3 +181,4 @@ export default async function HomePage() {
     />
   )
 }
+

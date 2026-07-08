@@ -1,4 +1,4 @@
-import type { ActivityYearAnalytics, AnalyticsActivityStub, AnalyticsDay, AnalyticsDaySport } from '@/lib/analytics-types'
+﻿import type { ActivityYearAnalytics, AnalyticsActivityStub, AnalyticsDay, AnalyticsDaySport } from '@/lib/analytics-types'
 import type { Activity, PeriodTotals, RecordEntry } from './types'
 import {
   DAY_MS,
@@ -56,8 +56,8 @@ function decorateDay(day: AnalyticsDay): ActiveDay {
     (acc, sport) => {
       acc.sessions += sport.sessions
       acc.excludedSessions += sport.excludedSessions
-      acc.distanceKm = round1(acc.distanceKm + sport.distanceKm)
-      acc.durationSec += sport.durationSec
+      acc.distanceKm = round1(acc.distanceKm + sport.includedDistanceKm)
+      acc.durationSec += sport.includedDurationSec
       acc.reliablePaceCount += sport.reliablePaceCount
       acc.reliablePaceSumSec += sport.reliablePaceSumSec
       return acc
@@ -640,5 +640,7 @@ export function buildActiveAccent(selectedSports: string[], availableSports: str
   if (allSportsSelected || selectedSports.length !== 1) return 'var(--accent)'
   return getSportAccent(selectedSports[0])
 }
+
+
 
 

@@ -1,6 +1,6 @@
-import type { StoredBestEffort } from '@/lib/activity-types'
+﻿import type { StoredBestEffort } from '@/lib/activity-types'
 
-export const ANALYTICS_CACHE_VERSION = 1
+export const ANALYTICS_CACHE_VERSION = 2
 export const ANALYTICS_RECORD_TARGETS = [3, 5, 10, 15, 21.1, 30] as const
 
 export type ActivityLite = {
@@ -39,6 +39,8 @@ export type AnalyticsDaySport = {
   excludedSessions: number
   distanceKm: number
   durationSec: number
+  includedDistanceKm: number
+  includedDurationSec: number
   reliablePaceCount: number
   reliablePaceSumSec: number
   maxDistanceActivity: AnalyticsActivityStub | null
