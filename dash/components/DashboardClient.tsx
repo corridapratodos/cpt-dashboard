@@ -49,6 +49,11 @@ export default function DashboardClient({ initialActivities, initialAnalytics, i
     () => `cpt-analytics:${meta?.viewerStravaId ?? userName}:${meta?.lastSync ?? 'nosync'}:${cacheRevision}`,
     [cacheRevision, meta?.lastSync, meta?.viewerStravaId, userName]
   )
+  const historyCacheKeyPrefix = useMemo(
+    () => `cpt-history:${meta?.viewerStravaId ?? userName}:${meta?.lastSync ?? 'nosync'}:${cacheRevision}`,
+    [cacheRevision, meta?.lastSync, meta?.viewerStravaId, userName]
+  )
+
 
   const [syncing, setSyncing] = useState(false)
   const [deleting, setDeleting] = useState(false)
@@ -412,11 +417,36 @@ export default function DashboardClient({ initialActivities, initialAnalytics, i
           params.set('end', activeWindow.end.toISOString().slice(0, 10))
         }
 
+        const historyCacheKey = `${historyCacheKeyPrefix}:${params.toString()}`
+
+        try {
+          const cached = sessionStorage.getItem(historyCacheKey)
+          if (cached) {
+            const parsed = JSON.parse(cached) as { activities?: Activity[]; count?: number; pageCount?: number }
+            if (!active) return
+            setHistoryActivities((parsed.activities ?? []) as Activity[])
+            setHistoryCount(Number(parsed.count ?? 0))
+            setHistoryPageCount(Number(parsed.pageCount ?? 1))
+            return
+          }
+        } catch {}
+
         const res = await fetch(`/api/activities/history?${params.toString()}`)
         const data = await res.json()
         if (!res.ok) {
           throw new Error(data?.error ?? 'Nao foi possivel carregar o historico paginado.')
         }
+
+        try {
+          sessionStorage.setItem(
+            historyCacheKey,
+            JSON.stringify({
+              activities: data.activities ?? [],
+              count: Number(data.count ?? 0),
+              pageCount: Number(data.pageCount ?? 1),
+            })
+          )
+        } catch {}
 
         if (!active) return
         setHistoryActivities((data.activities ?? []) as Activity[])
@@ -435,7 +465,7 @@ export default function DashboardClient({ initialActivities, initialAnalytics, i
     return () => {
       active = false
     }
-  }, [activeWindow.end, activeWindow.start, allSportsSelected, cacheRevision, loadingAnalyticsYears.length, page, selectedSports, selectedYears])
+  }, [activeWindow.end, activeWindow.start, allSportsSelected, historyCacheKeyPrefix, loadingAnalyticsYears.length, page, selectedSports, selectedYears])
 
   const analysisInsights = useMemo(() => {
     const insights: Array<{ title: string; copy: string }> = []
