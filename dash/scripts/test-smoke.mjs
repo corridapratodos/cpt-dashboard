@@ -36,6 +36,7 @@ try {
   assert.match(syncRoute, /isActivityAllowedForScope/)
   assert.match(syncRoute, /MAX_INCREMENTAL_CURSOR_FUTURE_MS/)
   assert.match(syncRoute, /latestSavedWasFutureClamped/)
+  assert.match(syncRoute, /isEligibleForBestEffortBackfill/)
   assert.match(syncRoute, /rebuildYearActivityCaches/)
   assert.match(syncRoute, /cacheYearsRebuilt/)
 
@@ -46,7 +47,7 @@ try {
   assert.match(webhookRoute, /rebuildYearActivityCaches/)
 
   const backfillRoute = read('app/api/admin/backfill-efforts/route.ts')
-  assert.match(backfillRoute, /where\('bestEfforts', '==', \[\]\)/)
+  assert.match(backfillRoute, /hasMissingBestEfforts/)
   assert.match(backfillRoute, /rebuildYearActivityCaches/)
 
   const access = read('lib/access.ts')
@@ -97,6 +98,7 @@ try {
   assert.match(dashboard, /loadHistoryPage/)
   assert.match(dashboard, /computeDashboardSlices/)
   assert.match(dashboard, /api\/activities\/analytics/)
+  assert.match(dashboard, /cpt-panel-prefs:/)
 
   console.log('Smoke checks aprovados.')
 } catch (error) {

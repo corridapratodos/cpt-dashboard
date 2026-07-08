@@ -9,12 +9,16 @@ import { extractBestEfforts, fetchActivity } from '@/lib/strava'
 const BATCH_LIMIT = 60
 const CONCURRENCY = 3
 
+function hasMissingBestEfforts(data: Record<string, unknown>) {
+  return !Array.isArray(data.bestEfforts) || data.bestEfforts.length === 0
+}
+
 function isEligibleForBestEfforts(data: Record<string, unknown>) {
   const type = String(data.type ?? '')
   const distanceKm = Number(data.distanceKm ?? 0)
   const durationSec = Number(data.durationSec ?? 0)
 
-  return isRunLikeType(type) && distanceKm >= 3 && durationSec >= 20 * 60
+  return hasMissingBestEfforts(data) && isRunLikeType(type) && distanceKm >= 3 && durationSec >= 20 * 60
 }
 
 export async function POST() {
@@ -33,7 +37,6 @@ export async function POST() {
 
   const colRef = activitiesRef(session.stravaId)
   const snapshot = await colRef
-    .where('bestEfforts', '==', [])
     .orderBy('date', 'desc')
     .limit(BATCH_LIMIT * 4)
     .get()

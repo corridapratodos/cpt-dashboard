@@ -39,12 +39,19 @@ import {
 } from './dashboard/helpers'
 import { AnalysisTile, CompareTile, DetailItem, InsightItem, MetricCard, Panel, SectionLead } from './dashboard/ui'
 
+const PANEL_WINDOW_MODES: WindowMode[] = ['year', 'month', 'week', 'rolling28']
+
 export default function DashboardClient({ initialActivities, initialAnalytics, initialYear, availableYears, isAdmin, meta, userName }: Props) {
   const actualYears = useMemo(
     () => [...availableYears].filter((year) => year !== 'all').sort((a, b) => Number(b) - Number(a)),
     [availableYears]
   )
   const [cacheRevision, setCacheRevision] = useState(0)
+  const defaultYearSelection = useMemo(() => (initialYear !== 'all' ? [initialYear] : actualYears), [actualYears, initialYear])
+  const panelPrefsKey = useMemo(
+    () => `cpt-panel-prefs:${meta?.viewerStravaId ?? userName}`,
+    [meta?.viewerStravaId, userName]
+  )
   const analyticsCacheKeyPrefix = useMemo(
     () => `cpt-analytics:${meta?.viewerStravaId ?? userName}:${meta?.lastSync ?? 'nosync'}:${cacheRevision}`,
     [cacheRevision, meta?.lastSync, meta?.viewerStravaId, userName]
@@ -73,9 +80,7 @@ export default function DashboardClient({ initialActivities, initialAnalytics, i
     initialAnalytics && initialYear !== 'all' ? { [initialYear]: false } : {}
   )
   const [loadingAnalyticsYears, setLoadingAnalyticsYears] = useState<string[]>([])
-  const [selectedYears, setSelectedYears] = useState<string[]>(
-    initialYear !== 'all' ? [initialYear] : actualYears
-  )
+  const [selectedYears, setSelectedYears] = useState<string[]>(defaultYearSelection)
   const [selectedSports, setSelectedSports] = useState<string[]>(['Run'])
   const [windowMode, setWindowMode] = useState<WindowMode>('year')
   const [selectedMonthKey, setSelectedMonthKey] = useState<string>('')
@@ -88,6 +93,7 @@ export default function DashboardClient({ initialActivities, initialAnalytics, i
   const [historyPageCount, setHistoryPageCount] = useState(1)
   const [selectedActivity, setSelectedActivity] = useState<Activity | null>(null)
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false)
+  const [panelPrefsHydrated, setPanelPrefsHydrated] = useState(false)
 
   useEffect(() => {
     const saved = localStorage.getItem('cpt-theme')
@@ -95,6 +101,82 @@ export default function DashboardClient({ initialActivities, initialAnalytics, i
     applyTheme(mode)
     setTheme(mode)
   }, [])
+
+
+  useEffect(() => {
+    if (panelPrefsHydrated) return
+
+    try {
+      const raw = localStorage.getItem(panelPrefsKey)
+      if (!raw) {
+        setPanelPrefsHydrated(true)
+        return
+      }
+
+      const saved = JSON.parse(raw) as {
+        selectedYears?: string[]
+        selectedSports?: string[]
+        windowMode?: WindowMode
+        selectedMonthKey?: string
+        selectedWeekKey?: string
+        previewMode?: 'admin' | 'athlete'
+      }
+
+      const restoredYears = Array.isArray(saved.selectedYears)
+        ? saved.selectedYears.filter((year) => actualYears.includes(year)).sort((a, b) => Number(b) - Number(a))
+        : []
+
+      if (restoredYears.length) {
+        setSelectedYears(restoredYears)
+      } else if (defaultYearSelection.length) {
+        setSelectedYears(defaultYearSelection)
+      }
+
+      if (Array.isArray(saved.selectedSports) && saved.selectedSports.length) {
+        setSelectedSports(Array.from(new Set(saved.selectedSports.map(String).filter(Boolean))))
+      }
+
+      if (typeof saved.windowMode === 'string' && PANEL_WINDOW_MODES.includes(saved.windowMode)) {
+        setWindowMode(saved.windowMode)
+      }
+
+      if (typeof saved.selectedMonthKey === 'string') {
+        setSelectedMonthKey(saved.selectedMonthKey)
+      }
+
+      if (typeof saved.selectedWeekKey === 'string') {
+        setSelectedWeekKey(saved.selectedWeekKey)
+      }
+
+      if (saved.previewMode === 'admin' || saved.previewMode === 'athlete') {
+        setPreviewMode(saved.previewMode)
+      }
+    } catch {
+      // Prefer defaults when persistence is invalid.
+    } finally {
+      setPanelPrefsHydrated(true)
+    }
+  }, [actualYears, defaultYearSelection, panelPrefsHydrated, panelPrefsKey])
+
+  useEffect(() => {
+    if (!panelPrefsHydrated) return
+
+    try {
+      localStorage.setItem(
+        panelPrefsKey,
+        JSON.stringify({
+          selectedYears,
+          selectedSports,
+          windowMode,
+          selectedMonthKey,
+          selectedWeekKey,
+          previewMode,
+        })
+      )
+    } catch {
+      // Ignore browser storage failures.
+    }
+  }, [panelPrefsHydrated, panelPrefsKey, previewMode, selectedMonthKey, selectedSports, selectedWeekKey, selectedYears, windowMode])
 
   useEffect(() => {
     if (!isAdmin) return

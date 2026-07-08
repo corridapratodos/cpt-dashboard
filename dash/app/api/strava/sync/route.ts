@@ -1,4 +1,5 @@
 import { getServerSession } from 'next-auth'
+import { isRunLikeType } from '@/lib/activity-types'
 import { authOptions } from '@/lib/auth'
 import { FULL_SYNC_COOLDOWN_MS, getUserScope, hasAdminAccess, isActivityAllowedForScope, parseStoredDate } from '@/lib/access'
 import { getActivityYear, listYearCacheIndexes, rebuildYearActivityCaches, summarizeYearCacheIndexes } from '@/lib/activity-cache'
@@ -76,6 +77,18 @@ function getUserFacingSyncError(error: unknown) {
   }
 
   return 'Nao foi possivel sincronizar agora. Tente novamente em instantes.'
+}
+
+function hasMissingBestEfforts(data: Record<string, unknown>) {
+  return !Array.isArray(data.bestEfforts) || data.bestEfforts.length === 0
+}
+
+function isEligibleForBestEffortBackfill(data: Record<string, unknown>) {
+  const type = String(data.type ?? '')
+  const distKm = Number(data.distanceKm ?? 0)
+  const durationSec = Number(data.durationSec ?? 0)
+
+  return hasMissingBestEfforts(data) && isRunLikeType(type) && distKm >= 3 && durationSec >= 20 * 60
 }
 
 export async function POST(req: Request) {
@@ -225,18 +238,12 @@ export async function POST(req: Request) {
 
     let backfilledCount = 0
     if (shouldRunIncremental) {
-      const withoutSnap = await colRef
-        .where('bestEfforts', '==', [])
+      const recentSnap = await colRef
         .orderBy('date', 'desc')
-        .limit(BEST_EFFORT_FETCH_LIMIT.incremental)
+        .limit(BEST_EFFORT_FETCH_LIMIT.incremental * 4)
         .get()
 
-      const toBackfill = withoutSnap.docs.filter((doc) => {
-        const data = doc.data()
-        const distKm = Number(data.distanceKm ?? 0)
-        const durationSec = Number(data.durationSec ?? 0)
-        return (data.type === 'Run' || data.type === 'TrailRun') && distKm >= 3 && durationSec >= 20 * 60
-      })
+      const toBackfill = recentSnap.docs.filter((doc) => isEligibleForBestEffortBackfill(doc.data()))
 
       for (const doc of toBackfill) {
         try {
