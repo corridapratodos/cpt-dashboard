@@ -54,6 +54,9 @@ try {
   assert.match(access, /FREE_PLAN_YEARS = 2/)
   assert.match(access, /PRO_PLAN_YEARS = 3/)
 
+  const strava = read('lib/strava.ts')
+  assert.match(strava, /extractActivitySplits/)
+
   const auth = read('lib/auth.ts')
   const security = read('lib/security.ts')
   assert.match(auth, /AccessDenied/)
@@ -64,6 +67,7 @@ try {
   assert.match(accessGrant, /consumeRateLimit/)
 
   const activitiesRoute = read('app/api/activities/route.ts')
+  const activitiesDetailRoute = read('app/api/activities/[stravaId]/route.ts')
   const activitiesHistoryRoute = read('app/api/activities/history/route.ts')
   const activitiesAnalyticsRoute = read('app/api/activities/analytics/route.ts')
   assert.match(activitiesRoute, /normalizeRequestedYear/)
@@ -73,6 +77,8 @@ try {
   assert.match(activitiesHistoryRoute, /listYearCacheChunkMeta/)
   assert.match(activitiesHistoryRoute, /year-cache-windowed/)
   assert.match(activitiesRoute, /loadYearActivitiesFromCache/)
+  assert.match(activitiesDetailRoute, /extractActivitySplits/)
+  assert.match(activitiesDetailRoute, /session\?\.accessToken/)
   assert.match(activitiesAnalyticsRoute, /applyScopeToYearAnalytics/)
   assert.match(activitiesAnalyticsRoute, /ANALYTICS_CACHE_VERSION/)
   assert.match(activitiesAnalyticsRoute, /rebuildYearActivityCache/)
@@ -99,6 +105,7 @@ try {
   assert.match(dashboard, /computeDashboardSlices/)
   assert.match(dashboard, /api\/activities\/analytics/)
   assert.match(dashboard, /cpt-panel-prefs:/)
+  assert.match(dashboard, /Carregando parciais/)
 
   console.log('Smoke checks aprovados.')
 } catch (error) {

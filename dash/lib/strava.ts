@@ -1,5 +1,6 @@
 import { normalizeTextValue } from '@/lib/text'
 import { isRunLikeType, type StoredBestEffort } from '@/lib/activity-types'
+import type { ActivitySplit } from '@/components/dashboard/types'
 
 const TRACKED_BEST_EFFORTS_KM = [3, 5, 10, 15, 21.1, 30]
 export const BEST_EFFORT_FETCH_LIMIT = {
@@ -52,6 +53,37 @@ export async function fetchActivity(accessToken: string, id: number) {
   if (!res.ok) throw new Error(`Strava API error: ${res.status}`)
 
   return res.json()
+}
+
+
+export function extractActivitySplits(activity: any): ActivitySplit[] {
+  if (!Array.isArray(activity?.splits_metric)) return []
+
+  return activity.splits_metric
+    .map((split: any, index: number) => {
+      const distanceMeters = Number(split?.distance ?? 0)
+      const elapsedSec = Number(split?.elapsed_time ?? 0)
+      const movingSec = split?.moving_time == null ? null : Number(split.moving_time)
+      const distanceKm = distanceMeters / 1000
+      const basisSec = movingSec != null && Number.isFinite(movingSec) && movingSec > 0 ? movingSec : elapsedSec
+      const paceSec = distanceKm > 0 && Number.isFinite(basisSec) && basisSec > 0 ? Math.round(basisSec / distanceKm) : null
+      const elevationGain = split?.elevation_difference == null ? null : Number(split.elevation_difference)
+      const hrAvg = split?.average_heartrate == null ? null : Number(split.average_heartrate)
+
+      if (!Number.isFinite(distanceKm) || distanceKm <= 0) return null
+      if (!Number.isFinite(elapsedSec) || elapsedSec <= 0) return null
+
+      return {
+        index: index + 1,
+        distanceKm: Number(distanceKm.toFixed(2)),
+        elapsedSec,
+        movingSec: movingSec != null && Number.isFinite(movingSec) && movingSec > 0 ? movingSec : null,
+        paceSec,
+        elevationGain: elevationGain != null && Number.isFinite(elevationGain) ? elevationGain : null,
+        hrAvg: hrAvg != null && Number.isFinite(hrAvg) ? hrAvg : null,
+      }
+    })
+    .filter((split: ActivitySplit | null): split is ActivitySplit => split != null)
 }
 
 function getBestEffortTolerance(targetKm: number) {

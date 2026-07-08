@@ -1534,7 +1534,7 @@ button {
 .modal-scrim {
   position: fixed;
   inset: 0;
-  z-index: 40;
+  z-index: 90;
   background: rgba(5, 10, 18, 0.7);
   backdrop-filter: blur(10px);
   display: grid;
@@ -1693,3 +1693,40 @@ button {
 .status-modal-actions {
   margin-top: 20px;
 }
+
+
+.activity-splits-panel {
+  margin-top: 18px;
+  border-top: 1px solid var(--border);
+  padding-top: 18px;
+}
+
+.activity-splits-table-wrap {
+  overflow-x: auto;
+}
+
+.activity-splits-table {
+  width: 100%;
+  min-width: 480px;
+  border-collapse: collapse;
+}
+
+.activity-splits-table th,
+.activity-splits-table td {
+  padding: 12px 10px;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+}
+
+.activity-splits-table th {
+  color: var(--text-soft);
+  font-size: 11px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  font-weight: 500;
+}
+
+.activity-splits-table td {
+  color: var(--text-muted);
+}
+

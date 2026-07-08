@@ -18,6 +18,22 @@ export interface Activity {
   bestEfforts: BestEffort[]
 }
 
+
+export interface ActivitySplit {
+  index: number
+  distanceKm: number
+  elapsedSec: number
+  movingSec: number | null
+  paceSec: number | null
+  elevationGain: number | null
+  hrAvg: number | null
+}
+
+export interface ActivityDetailPayload {
+  activity: Activity
+  splits: ActivitySplit[]
+}
+
 export interface Props {
   initialActivities: Activity[]
   initialAnalytics: ActivityYearAnalytics | null

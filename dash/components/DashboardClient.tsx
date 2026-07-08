@@ -18,7 +18,7 @@ import {
   XAxis,
   YAxis,
 } from 'recharts'
-import type { Activity, Props, SleepRecord, SyncMode, ThemeMode, WeightRecord } from './dashboard/types'
+import type { Activity, ActivityDetailPayload, ActivitySplit, Props, SleepRecord, SyncMode, ThemeMode, WeightRecord } from './dashboard/types'
 import { Sidebar } from './Sidebar'
 import { buildActiveAccent, buildSportSummaryLabel, computeDashboardSlices, type WindowMode } from './dashboard/analytics'
 import {
@@ -92,6 +92,9 @@ export default function DashboardClient({ initialActivities, initialAnalytics, i
   const [historyCount, setHistoryCount] = useState(0)
   const [historyPageCount, setHistoryPageCount] = useState(1)
   const [selectedActivity, setSelectedActivity] = useState<Activity | null>(null)
+  const [selectedActivitySplits, setSelectedActivitySplits] = useState<ActivitySplit[]>([])
+  const [selectedActivityLoading, setSelectedActivityLoading] = useState(false)
+  const [selectedActivityError, setSelectedActivityError] = useState('')
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false)
   const [panelPrefsHydrated, setPanelPrefsHydrated] = useState(false)
 
@@ -480,6 +483,46 @@ export default function DashboardClient({ initialActivities, initialAnalytics, i
       setSelectedWeekKey(weekOptions[0].key)
     }
   }, [selectedWeekKey, weekOptions])
+
+
+  useEffect(() => {
+    if (!selectedActivity) {
+      setSelectedActivitySplits([])
+      setSelectedActivityError('')
+      setSelectedActivityLoading(false)
+      return
+    }
+
+    const activityId = selectedActivity.stravaId
+    let active = true
+    setSelectedActivityLoading(true)
+    setSelectedActivityError('')
+    setSelectedActivitySplits([])
+
+    async function loadActivityDetail() {
+      try {
+        const res = await fetch(`/api/activities/${activityId}`)
+        const data = (await res.json()) as ActivityDetailPayload & { error?: string }
+        if (!res.ok) {
+          throw new Error(data?.error ?? 'Nao foi possivel carregar o detalhe da atividade.')
+        }
+
+        if (!active) return
+        setSelectedActivitySplits(Array.isArray(data.splits) ? data.splits : [])
+      } catch (error) {
+        if (!active) return
+        setSelectedActivityError(error instanceof Error ? error.message : 'Nao foi possivel carregar o detalhe da atividade.')
+      } finally {
+        if (active) setSelectedActivityLoading(false)
+      }
+    }
+
+    void loadActivityDetail()
+
+    return () => {
+      active = false
+    }
+  }, [selectedActivity])
 
   useEffect(() => {
     if (!selectedYears.length || loadingAnalyticsYears.length > 0) return
@@ -1493,6 +1536,46 @@ export default function DashboardClient({ initialActivities, initialAnalytics, i
               <DetailItem label="Kudos" value={String(selectedActivity.kudos ?? 0)} />
               <DetailItem label="Strava ID" value={String(selectedActivity.stravaId)} />
               <DetailItem label="Analise" value={selectedActivity.excludedFromMetrics ? 'Ignorada nas analises' : 'Ativa nas analises'} />
+            </div>
+            <div className="activity-splits-panel">
+              <div className="panel-header compact">
+                <div>
+                  <p className="panel-eyebrow">Parciais</p>
+                  <h3>Km a km</h3>
+                </div>
+                <span className="panel-subtitle">Detalhe consultado sob demanda no Strava.</span>
+              </div>
+              {selectedActivityLoading && <p className="sync-message" style={{ marginTop: 0 }}>Carregando parciais...</p>}
+              {!selectedActivityLoading && selectedActivityError && <p className="sync-message" style={{ marginTop: 0 }}>{selectedActivityError}</p>}
+              {!selectedActivityLoading && !selectedActivityError && !selectedActivitySplits.length && (
+                <p className="sync-message" style={{ marginTop: 0 }}>O Strava nao retornou parciais metricas para esta atividade.</p>
+              )}
+              {!selectedActivityLoading && !selectedActivityError && selectedActivitySplits.length > 0 && (
+                <div className="activity-splits-table-wrap">
+                  <table className="activity-splits-table">
+                    <thead>
+                      <tr>
+                        <th>Km</th>
+                        <th>Tempo</th>
+                        <th>Pace</th>
+                        <th>FC</th>
+                        <th>Elev.</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {selectedActivitySplits.map((split) => (
+                        <tr key={`${selectedActivity.stravaId}-${split.index}`}>
+                          <td>{split.index}</td>
+                          <td>{fmt.clock(split.movingSec ?? split.elapsedSec)}</td>
+                          <td>{split.paceSec != null ? `${fmt.pace(split.paceSec)}/km` : '-'}</td>
+                          <td>{split.hrAvg != null ? `${Math.round(split.hrAvg)} bpm` : '-'}</td>
+                          <td>{split.elevationGain != null ? `${Math.round(split.elevationGain)} m` : '-'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </div>
             <div className="modal-actions-row">
               <button
