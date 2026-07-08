@@ -53,6 +53,7 @@ try {
   const access = read('lib/access.ts')
   assert.match(access, /FREE_PLAN_YEARS = 2/)
   assert.match(access, /PRO_PLAN_YEARS = 3/)
+  assert.match(access, /canAccessActivitySplits/)
 
   const strava = read('lib/strava.ts')
   assert.match(strava, /extractActivitySplits/)
@@ -77,8 +78,11 @@ try {
   assert.match(activitiesHistoryRoute, /listYearCacheChunkMeta/)
   assert.match(activitiesHistoryRoute, /year-cache-windowed/)
   assert.match(activitiesRoute, /loadYearActivitiesFromCache/)
+  assert.match(activitiesDetailRoute, /canAccessActivitySplits/)
+  assert.match(activitiesDetailRoute, /splitsFetchedAt/)
+  assert.match(activitiesDetailRoute, /splitsSource/)
   assert.match(activitiesDetailRoute, /extractActivitySplits/)
-  assert.match(activitiesDetailRoute, /session\?\.accessToken/)
+  assert.match(activitiesDetailRoute, /session\.accessToken/)
   assert.match(activitiesAnalyticsRoute, /applyScopeToYearAnalytics/)
   assert.match(activitiesAnalyticsRoute, /ANALYTICS_CACHE_VERSION/)
   assert.match(activitiesAnalyticsRoute, /rebuildYearActivityCache/)
@@ -106,9 +110,11 @@ try {
   assert.match(dashboard, /api\/activities\/analytics/)
   assert.match(dashboard, /cpt-panel-prefs:/)
   assert.match(dashboard, /Carregando parciais/)
+  assert.match(dashboard, /Disponivel apenas para contas pro e master/)
 
   console.log('Smoke checks aprovados.')
 } catch (error) {
   console.error('Smoke checks falharam.')
   throw error
 }
+

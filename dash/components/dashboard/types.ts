@@ -32,6 +32,8 @@ export interface ActivitySplit {
 export interface ActivityDetailPayload {
   activity: Activity
   splits: ActivitySplit[]
+  splitsAccess: boolean
+  splitsSource?: 'cache' | 'strava' | 'unavailable'
 }
 
 export interface Props {

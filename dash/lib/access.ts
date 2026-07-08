@@ -66,6 +66,10 @@ export function getUserPlan(stravaId: number, userData?: UserShape): UserPlan {
   return 'free'
 }
 
+export function canAccessActivitySplits(stravaId: number, userData?: UserShape) {
+  return hasMasterAccess(stravaId, userData) || getUserPlan(stravaId, userData) === 'pro'
+}
+
 export function getUserScope(stravaId: number, userData?: UserShape): UserScope {
   const role: UserRole = hasMasterAccess(stravaId, userData)
     ? 'master'

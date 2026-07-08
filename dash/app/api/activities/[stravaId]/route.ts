@@ -1,6 +1,6 @@
 import { getServerSession } from 'next-auth'
 import { fetchActivity, extractActivitySplits } from '@/lib/strava'
-import { getUserScope } from '@/lib/access'
+import { canAccessActivitySplits, getUserScope } from '@/lib/access'
 import { getActivityYear, listYearCacheIndexes, rebuildYearActivityCaches, summarizeYearCacheIndexes } from '@/lib/activity-cache'
 import { authOptions } from '@/lib/auth'
 import { isQualifiedRun, toDashboardActivity } from '@/lib/dashboard'
@@ -10,7 +10,7 @@ import { activitiesRef, metaRef, userRef } from '@/lib/firebase'
 export async function GET(_req: Request, context: { params: Promise<{ stravaId: string }> }) {
   const session = await getServerSession(authOptions)
 
-  if (!session?.stravaId || !session?.accessToken) {
+  if (!session?.stravaId) {
     return Response.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
@@ -26,12 +26,55 @@ export async function GET(_req: Request, context: { params: Promise<{ stravaId: 
     return Response.json({ error: 'Activity not found' }, { status: 404 })
   }
 
-  try {
-    const detail = await fetchActivity(session.accessToken, activityId)
+  const userSnap = await userRef(session.stravaId).get()
+  const userData = userSnap.exists ? userSnap.data() : null
+  const splitsAccess = canAccessActivitySplits(session.stravaId, userData)
+  const activity = toDashboardActivity(activitySnap.data())
+  const cachedData = activitySnap.data() ?? {}
+  const hasCachedSplits = Boolean(cachedData.splitsFetchedAt) || Array.isArray(cachedData.splits)
+
+  if (!splitsAccess) {
     return Response.json({
       ok: true,
-      activity: toDashboardActivity(activitySnap.data()),
-      splits: extractActivitySplits(detail),
+      activity,
+      splits: [],
+      splitsAccess: false,
+      splitsSource: 'unavailable',
+    })
+  }
+
+  if (hasCachedSplits) {
+    return Response.json({
+      ok: true,
+      activity,
+      splits: Array.isArray(cachedData.splits) ? cachedData.splits : [],
+      splitsAccess: true,
+      splitsSource: 'cache',
+    })
+  }
+
+  if (!session.accessToken) {
+    return Response.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
+  try {
+    const detail = await fetchActivity(session.accessToken, activityId)
+    const splits = extractActivitySplits(detail)
+
+    await ref.set(
+      {
+        splits,
+        splitsFetchedAt: new Date(),
+      },
+      { merge: true }
+    )
+
+    return Response.json({
+      ok: true,
+      activity,
+      splits,
+      splitsAccess: true,
+      splitsSource: 'strava',
     })
   } catch (error) {
     return Response.json(

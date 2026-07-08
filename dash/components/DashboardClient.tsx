@@ -97,6 +97,10 @@ export default function DashboardClient({ initialActivities, initialAnalytics, i
   const [selectedActivityError, setSelectedActivityError] = useState('')
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false)
   const [panelPrefsHydrated, setPanelPrefsHydrated] = useState(false)
+  const viewerRole = String(meta?.viewerRole ?? 'unknown')
+  const viewerPlan = String(meta?.viewerPlan ?? 'unknown')
+  const viewerAdmin = Boolean(meta?.viewerAdmin ?? isAdmin)
+  const canViewActivitySplits = viewerRole === 'master' || viewerPlan === 'pro'
 
   useEffect(() => {
     const saved = localStorage.getItem('cpt-theme')
@@ -493,6 +497,13 @@ export default function DashboardClient({ initialActivities, initialAnalytics, i
       return
     }
 
+    if (!canViewActivitySplits) {
+      setSelectedActivitySplits([])
+      setSelectedActivityError('')
+      setSelectedActivityLoading(false)
+      return
+    }
+
     const activityId = selectedActivity.stravaId
     let active = true
     setSelectedActivityLoading(true)
@@ -508,6 +519,10 @@ export default function DashboardClient({ initialActivities, initialAnalytics, i
         }
 
         if (!active) return
+        if (data.splitsAccess === false) {
+          setSelectedActivitySplits([])
+          return
+        }
         setSelectedActivitySplits(Array.isArray(data.splits) ? data.splits : [])
       } catch (error) {
         if (!active) return
@@ -522,7 +537,8 @@ export default function DashboardClient({ initialActivities, initialAnalytics, i
     return () => {
       active = false
     }
-  }, [selectedActivity])
+  }, [canViewActivitySplits, selectedActivity])
+
 
   useEffect(() => {
     if (!selectedYears.length || loadingAnalyticsYears.length > 0) return
@@ -679,9 +695,6 @@ export default function DashboardClient({ initialActivities, initialAnalytics, i
   const yearLabel = allYearsSelected ? 'historico completo' : selectedYears.length === 1 ? selectedYears[0] : `${selectedYears.length} anos`
   const windowLabel = activeWindow.label
   const totalActivities = Number(meta?.totalActivities ?? 0)
-  const viewerRole = String(meta?.viewerRole ?? 'unknown')
-  const viewerPlan = String(meta?.viewerPlan ?? 'unknown')
-  const viewerAdmin = Boolean(meta?.viewerAdmin ?? isAdmin)
   const viewerScopeLabel = meta?.viewerScope?.fullAccess
     ? 'all'
     : `${Array.isArray(meta?.viewerScope?.types) ? meta.viewerScope.types.join(', ') : '-'} | ${Array.isArray(meta?.viewerScope?.years) ? meta.viewerScope.years.join(', ') : '-'}`
@@ -1531,8 +1544,8 @@ export default function DashboardClient({ initialActivities, initialAnalytics, i
               <DetailItem label="Tempo" value={fmt.dur(selectedActivity.durationSec)} />
               <DetailItem label="Pace" value={selectedActivity.type === 'Ride' ? fmt.speed(selectedActivity.distanceKm, selectedActivity.durationSec) : `${fmt.pace(selectedActivity.paceSec)}/km`} />
               <DetailItem label="Elevacao" value={selectedActivity.elevationGain ? `${Math.round(selectedActivity.elevationGain)} m` : '-'} />
-              <DetailItem label="FC media" value={selectedActivity.hrAvg ? `${Math.round(selectedActivity.hrAvg)} bpm` : '-'} />
-              <DetailItem label="FC maxima" value={selectedActivity.hrMax ? `${Math.round(selectedActivity.hrMax)} bpm` : '-'} />
+              <DetailItem label="FC media" value={selectedActivity.hrAvg != null ? `${Math.round(selectedActivity.hrAvg)} bpm` : '-'} />
+              <DetailItem label="FC maxima" value={selectedActivity.hrMax != null ? `${Math.round(selectedActivity.hrMax)} bpm` : '-'} />
               <DetailItem label="Kudos" value={String(selectedActivity.kudos ?? 0)} />
               <DetailItem label="Strava ID" value={String(selectedActivity.stravaId)} />
               <DetailItem label="Analise" value={selectedActivity.excludedFromMetrics ? 'Ignorada nas analises' : 'Ativa nas analises'} />
@@ -1543,14 +1556,21 @@ export default function DashboardClient({ initialActivities, initialAnalytics, i
                   <p className="panel-eyebrow">Parciais</p>
                   <h3>Km a km</h3>
                 </div>
-                <span className="panel-subtitle">Detalhe consultado sob demanda no Strava.</span>
+                <span className="panel-subtitle">
+                  {canViewActivitySplits ? 'Detalhe consultado uma vez e reaproveitado da base.' : 'Disponivel apenas para contas pro e master.'}
+                </span>
               </div>
-              {selectedActivityLoading && <p className="sync-message" style={{ marginTop: 0 }}>Carregando parciais...</p>}
-              {!selectedActivityLoading && selectedActivityError && <p className="sync-message" style={{ marginTop: 0 }}>{selectedActivityError}</p>}
-              {!selectedActivityLoading && !selectedActivityError && !selectedActivitySplits.length && (
+              {!canViewActivitySplits && (
+                <p className="sync-message" style={{ marginTop: 0 }}>
+                  As parciais km a km ficam restritas a contas pro e master para controlar custo e leitura detalhada.
+                </p>
+              )}
+              {canViewActivitySplits && selectedActivityLoading && <p className="sync-message" style={{ marginTop: 0 }}>Carregando parciais...</p>}
+              {canViewActivitySplits && !selectedActivityLoading && selectedActivityError && <p className="sync-message" style={{ marginTop: 0 }}>{selectedActivityError}</p>}
+              {canViewActivitySplits && !selectedActivityLoading && !selectedActivityError && !selectedActivitySplits.length && (
                 <p className="sync-message" style={{ marginTop: 0 }}>O Strava nao retornou parciais metricas para esta atividade.</p>
               )}
-              {!selectedActivityLoading && !selectedActivityError && selectedActivitySplits.length > 0 && (
+              {canViewActivitySplits && !selectedActivityLoading && !selectedActivityError && selectedActivitySplits.length > 0 && (
                 <div className="activity-splits-table-wrap">
                   <table className="activity-splits-table">
                     <thead>
