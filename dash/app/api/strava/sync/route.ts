@@ -8,7 +8,8 @@ import { BEST_EFFORT_FETCH_LIMIT, extractBestEfforts, fetchActivities, fetchActi
 const SYNC_LOCK_WINDOW_MS = 10 * 60 * 1000
 const INCREMENTAL_OVERLAP_SEC = 12 * 60 * 60
 const INCREMENTAL_SYNC_MIN_INTERVAL_MS = 60 * 1000
-const MAX_INCREMENTAL_CURSOR_FUTURE_MS = 15 * 60 * 1000
+const MAX_INCREMENTAL_CURSOR_FUTURE_MS = 0
+const FUTURE_CURSOR_RECOVERY_OVERLAP_SEC = 7 * 24 * 60 * 60
 
 type StoredScope = {
   fullAccess?: boolean
@@ -149,7 +150,10 @@ export async function POST(req: Request) {
     const latestSavedWasFutureClamped = latestSavedMs != null && clampedLatestSavedMs != null && latestSavedMs > clampedLatestSavedMs
 
     const incrementalCursor = incrementalAfter != null
-      ? Math.max(incrementalAfter - INCREMENTAL_OVERLAP_SEC, 0)
+      ? Math.max(
+          incrementalAfter - (latestSavedWasFutureClamped ? FUTURE_CURSOR_RECOVERY_OVERLAP_SEC : INCREMENTAL_OVERLAP_SEC),
+          0
+        )
       : undefined
 
     const shouldRunIncremental = effectiveRequestedMode !== 'full' && historicalBackfillCompleted && incrementalAfter != null
