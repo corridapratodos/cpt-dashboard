@@ -1,4 +1,4 @@
-import test from 'node:test'
+﻿import test from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 
@@ -24,6 +24,7 @@ test('tokens OAuth usam camada de persistencia dedicada e webhook prioriza heade
   assert.match(auth, /buildStoredOAuthTokenPayload/)
   assert.match(webhookRoute, /req\.headers\.get\('x-cpt-webhook-token'\) \?\? req\.nextUrl\.searchParams\.get\('token'\)/)
   assert.match(webhookRoute, /readStoredOAuthTokens/)
+  assert.match(webhookRoute, /mergeAvailableYears/)
   assert.match(oauthTokens, /OAUTH_TOKEN_ENCRYPTION_KEY/)
 })
 
@@ -88,3 +89,4 @@ test('login e painel expoem links legais e consumo de analytics cache', () => {
   assert.match(dashboard, /computeDashboardSlices/)
   assert.match(dashboard, /api\/activities\/analytics/)
 })
+

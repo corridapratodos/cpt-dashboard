@@ -1,6 +1,7 @@
-import { NextRequest } from 'next/server'
+﻿import { NextRequest } from 'next/server'
 import { getUserScope, isActivityAllowedForScope } from '@/lib/access'
 import { getActivityYear, listYearCacheIndexes, rebuildYearActivityCaches, summarizeYearCacheIndexes } from '@/lib/activity-cache'
+import { mergeAvailableYears } from '@/lib/dashboard'
 import { activitiesRef, getDb, metaRef } from '@/lib/firebase'
 import { buildStoredOAuthTokenPayload, readStoredOAuthTokens } from '@/lib/oauth-tokens'
 import { getWebhookPostToken } from '@/lib/security'
@@ -82,7 +83,10 @@ export async function POST(req: NextRequest) {
     }
 
     const db = getDb()
-    const tokenDoc = await db.collection('users').doc(String(ownerId)).get()
+    const [tokenDoc, ownerMetaSnap] = await Promise.all([
+      db.collection('users').doc(String(ownerId)).get(),
+      metaRef(ownerId).get(),
+    ])
     if (!tokenDoc.exists) {
       return Response.json({ ok: true, skipped: true, reason: 'unknown_owner' })
     }
@@ -125,16 +129,23 @@ export async function POST(req: NextRequest) {
 
     const cacheIndexes = await listYearCacheIndexes(ownerId)
     const cacheSummary = summarizeYearCacheIndexes(cacheIndexes)
+    const ownerMetaData = ownerMetaSnap.exists ? ownerMetaSnap.data() : null
+    const nextAvailableYears = mergeAvailableYears(
+      Array.isArray(ownerMetaData?.availableYears) ? ownerMetaData.availableYears.map(String) : [],
+      cacheSummary.availableYears,
+      activityYear ? [activityYear] : [],
+    )
 
     await metaRef(ownerId).set(
       {
         totalActivities: cacheSummary.totalActivities,
         totalRuns: cacheSummary.totalRuns,
         totalsByType: cacheSummary.totalsByType,
-        availableYears: cacheSummary.availableYears,
+        availableYears: nextAvailableYears,
         newestActivityAt: cacheSummary.newestActivityAt,
         lastWebhookActivityAt: new Date(),
         lastWebhookActivityId: activityId,
+        metadataYearSpanVerifiedCount: Math.max(Number(ownerMetaData?.metadataYearSpanVerifiedCount ?? 0), nextAvailableYears.length),
         dataScope: {
           fullAccess: scope.fullAccess,
           allowedYears: scope.allowedYears,

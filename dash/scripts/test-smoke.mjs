@@ -12,6 +12,8 @@ try {
   assert.match(page, /getUserScope/)
   assert.match(page, /METADATA_REPAIR_COOLDOWN_MS/)
   assert.match(page, /metadataRepairAttemptedAt/)
+  assert.match(page, /metadataYearSpanVerifiedCount/)
+  assert.match(page, /mergeAvailableYears/)
   assert.match(page, /listYearCacheIndexes/)
   assert.match(page, /loadYearActivitiesFromCache/)
   assert.match(page, /applyScopeToYearAnalytics/)
@@ -38,12 +40,14 @@ try {
   assert.match(syncRoute, /latestSavedWasFutureClamped/)
   assert.match(syncRoute, /isEligibleForBestEffortBackfill/)
   assert.match(syncRoute, /rebuildYearActivityCaches/)
+  assert.match(syncRoute, /mergeAvailableYears/)
   assert.match(syncRoute, /cacheYearsRebuilt/)
 
   const webhookRoute = read('app/api/strava/webhook/route.ts')
   assert.match(webhookRoute, /getWebhookPostToken/)
   assert.match(webhookRoute, /x-cpt-webhook-token/)
   assert.match(webhookRoute, /unknown_owner/)
+  assert.match(webhookRoute, /mergeAvailableYears/)
   assert.match(webhookRoute, /rebuildYearActivityCaches/)
 
   const backfillRoute = read('app/api/admin/backfill-efforts/route.ts')
@@ -132,5 +136,6 @@ try {
   console.error('Smoke checks falharam.')
   throw error
 }
+
 
 

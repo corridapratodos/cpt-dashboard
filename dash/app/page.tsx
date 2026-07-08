@@ -1,4 +1,4 @@
-import { getServerSession } from 'next-auth'
+﻿import { getServerSession } from 'next-auth'
 import { redirect } from 'next/navigation'
 import DashboardClient from '@/components/DashboardClient'
 import LegalGate from '@/components/LegalGate'
@@ -9,6 +9,7 @@ import {
   buildActivitiesQuery,
   buildSyncSummary,
   getVisibleYears,
+  mergeAvailableYears,
   serializeFirestoreValue,
   toDashboardActivity,
 } from '@/lib/dashboard'
@@ -41,22 +42,27 @@ export default async function HomePage() {
   const cacheIndexes = await listYearCacheIndexes(session.stravaId)
   const cacheSummary = summarizeYearCacheIndexes(cacheIndexes)
 
-  let availableYears = getVisibleYears(
-    scope,
-    (Array.isArray(meta?.availableYears) && meta.availableYears.length ? meta.availableYears : cacheSummary.availableYears) as string[] | undefined
+  const mergedKnownYears = mergeAvailableYears(
+    Array.isArray(meta?.availableYears) ? meta.availableYears.map(String) : [],
+    cacheSummary.availableYears,
   )
 
+  let availableYears = getVisibleYears(scope, mergedKnownYears)
+
   const lastRepairAttemptAt = parseStoredDate(meta?.metadataRepairAttemptedAt)
-  const lastRepairedAt = parseStoredDate(meta?.metadataRepairedAt)
+  const verifiedYearSpanCount = Number(meta?.metadataYearSpanVerifiedCount ?? 0)
   const shouldRepairYears =
     scope.fullAccess &&
-    !lastRepairedAt &&
     Number(meta?.totalActivities ?? 0) > 0 &&
     availableYears.length <= 1 &&
-    (!lastRepairAttemptAt || Date.now() - lastRepairAttemptAt.getTime() >= METADATA_REPAIR_COOLDOWN_MS)
+    (
+      verifiedYearSpanCount !== availableYears.length ||
+      !lastRepairAttemptAt ||
+      Date.now() - lastRepairAttemptAt.getTime() >= METADATA_REPAIR_COOLDOWN_MS
+    )
 
   if (shouldRepairYears) {
-    if (cacheSummary.availableYears.length) {
+    if (cacheSummary.availableYears.length > 1) {
       availableYears = cacheSummary.availableYears
       meta = {
         ...meta,
@@ -65,6 +71,7 @@ export default async function HomePage() {
         totalRuns: cacheSummary.totalRuns,
         totalsByType: cacheSummary.totalsByType,
         newestActivityAt: cacheSummary.newestActivityAt,
+        metadataYearSpanVerifiedCount: cacheSummary.availableYears.length,
       }
 
       await metaRef(session.stravaId).set(
@@ -76,6 +83,8 @@ export default async function HomePage() {
           newestActivityAt: cacheSummary.newestActivityAt,
           metadataRepairedAt: new Date(),
           metadataRepairAttemptedAt: new Date(),
+          metadataYearSpanVerifiedAt: new Date(),
+          metadataYearSpanVerifiedCount: cacheSummary.availableYears.length,
         },
         { merge: true }
       )
@@ -93,6 +102,7 @@ export default async function HomePage() {
           totalRuns: repairSummary.totalRuns,
           totalsByType: repairSummary.totalsByType,
           newestActivityAt: repairSummary.newestActivityAt,
+          metadataYearSpanVerifiedCount: repairSummary.availableYears.length,
         }
 
         await metaRef(session.stravaId).set(
@@ -104,6 +114,8 @@ export default async function HomePage() {
             newestActivityAt: repairSummary.newestActivityAt,
             metadataRepairedAt: new Date(),
             metadataRepairAttemptedAt: new Date(),
+            metadataYearSpanVerifiedAt: new Date(),
+            metadataYearSpanVerifiedCount: repairSummary.availableYears.length,
           },
           { merge: true }
         )
@@ -111,6 +123,8 @@ export default async function HomePage() {
         await metaRef(session.stravaId).set(
           {
             metadataRepairAttemptedAt: new Date(),
+            metadataYearSpanVerifiedAt: new Date(),
+            metadataYearSpanVerifiedCount: 0,
           },
           { merge: true }
         )
@@ -164,5 +178,3 @@ export default async function HomePage() {
     />
   )
 }
-
-

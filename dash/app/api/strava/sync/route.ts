@@ -1,9 +1,10 @@
-import { getServerSession } from 'next-auth'
+﻿import { getServerSession } from 'next-auth'
 import { isRunLikeType } from '@/lib/activity-types'
 import { authOptions } from '@/lib/auth'
 import { FULL_SYNC_COOLDOWN_MS, getUserScope, hasAdminAccess, isActivityAllowedForScope, parseStoredDate } from '@/lib/access'
 import { getActivityYear, listYearCacheIndexes, rebuildYearActivityCaches, summarizeYearCacheIndexes } from '@/lib/activity-cache'
 import { activitiesRef, metaRef, userRef } from '@/lib/firebase'
+import { mergeAvailableYears } from '@/lib/dashboard'
 import { BEST_EFFORT_FETCH_LIMIT, extractBestEfforts, fetchActivities, fetchActivity, fetchBestEffortsForActivities, isRealRun, mapActivity } from '@/lib/strava'
 
 const SYNC_LOCK_WINDOW_MS = 10 * 60 * 1000
@@ -30,6 +31,7 @@ type StoredMeta = {
   availableYears?: string[]
   newestActivityAt?: string | null
   lastSync?: unknown
+  metadataYearSpanVerifiedCount?: number
 } | null
 
 function hasWiderYears(current: string[] | 'all', previous: string[] | 'all') {
@@ -268,6 +270,11 @@ export async function POST(req: Request) {
 
     const cacheIndexes = await listYearCacheIndexes(session.stravaId)
     const cacheSummary = summarizeYearCacheIndexes(cacheIndexes)
+    const nextAvailableYears = mergeAvailableYears(
+      Array.isArray(metaData?.availableYears) ? metaData.availableYears.map(String) : [],
+      cacheSummary.availableYears,
+      cacheYears
+    )
 
     await metaRef(session.stravaId).set(
       {
@@ -278,7 +285,7 @@ export async function POST(req: Request) {
         totalActivities: cacheSummary.totalActivities,
         totalRuns: cacheSummary.totalRuns,
         totalsByType: cacheSummary.totalsByType,
-        availableYears: cacheSummary.availableYears,
+        availableYears: nextAvailableYears,
         newestActivityAt: cacheSummary.newestActivityAt,
         lastSyncAddedActivities: newMappedActivities.length,
         lastSyncAddedQualifiedRuns: newValidRuns.length,
@@ -290,6 +297,7 @@ export async function POST(req: Request) {
         bestEffortBackfilledActivities: backfilledCount,
         historicalBackfillCompleted: true,
         metadataRepairedAt: new Date(),
+        metadataYearSpanVerifiedCount: Math.max(Number(metaData?.metadataYearSpanVerifiedCount ?? 0), nextAvailableYears.length),
         syncInProgress: false,
         syncRequestedMode: effectiveRequestedMode,
         syncFinishedAt: new Date(),
@@ -316,7 +324,7 @@ export async function POST(req: Request) {
       historicalBackfillCompleted: true,
       admin: isAdmin,
       totalActivities: cacheSummary.totalActivities,
-      availableYears: cacheSummary.availableYears,
+      availableYears: nextAvailableYears,
       bestEffortCoverage: {
         eligible: bestEffortBackfill.eligibleCount,
         fetched: bestEffortBackfill.fetchedCount,
@@ -358,3 +366,4 @@ export async function POST(req: Request) {
     )
   }
 }
+

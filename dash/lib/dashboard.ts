@@ -1,4 +1,4 @@
-import { Query } from 'firebase-admin/firestore'
+﻿import { Query } from 'firebase-admin/firestore'
 import { CURRENT_YEAR, FREE_PLAN_TYPES, type UserScope } from '@/lib/access'
 import type { StoredBestEffort } from '@/lib/activity-types'
 
@@ -91,6 +91,25 @@ export function extractAvailableYears(activities: Array<{ date: string }>) {
   ).sort((a, b) => Number(b) - Number(a))
 }
 
+export function mergeAvailableYears(
+  preservedYears: string[] | undefined,
+  nextYears: string[] | undefined,
+  replacedYears: Iterable<string> = [],
+) {
+  const replaced = new Set(Array.from(replacedYears, String))
+  const merged = new Set<string>()
+
+  for (const year of preservedYears ?? []) {
+    if (/^\d{4}$/.test(year) && !replaced.has(year)) merged.add(year)
+  }
+
+  for (const year of nextYears ?? []) {
+    if (/^\d{4}$/.test(year)) merged.add(year)
+  }
+
+  return Array.from(merged).sort((a, b) => Number(b) - Number(a))
+}
+
 export function buildSyncSummary(activities: StoredActivity[]): SyncSummary {
   const totalsByType = activities.reduce<Record<string, number>>((acc, activity) => {
     acc[activity.type] = (acc[activity.type] ?? 0) + 1
@@ -179,3 +198,4 @@ export function buildActivitiesQuery(baseQuery: Query, year: string, scope?: Use
 
   return query.orderBy('date', 'desc')
 }
+
