@@ -17,6 +17,16 @@ test('home page exige aceite legal antes do dashboard', () => {
   assert.match(page, /applyScopeToYearAnalytics/)
 })
 
+test('tokens OAuth usam camada de persistencia dedicada e webhook prioriza header', () => {
+  const auth = read('lib/auth.ts')
+  const webhookRoute = read('app/api/strava/webhook/route.ts')
+  const oauthTokens = read('lib/oauth-tokens.ts')
+  assert.match(auth, /buildStoredOAuthTokenPayload/)
+  assert.match(webhookRoute, /req\.headers\.get\('x-cpt-webhook-token'\) \?\? req\.nextUrl\.searchParams\.get\('token'\)/)
+  assert.match(webhookRoute, /readStoredOAuthTokens/)
+  assert.match(oauthTokens, /OAUTH_TOKEN_ENCRYPTION_KEY/)
+})
+
 test('full sync esta restrito a admin no backend', () => {
   const route = read('app/api/strava/sync/route.ts')
   assert.match(route, /requestedMode === 'full' && !isAdmin/)

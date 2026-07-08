@@ -30,6 +30,20 @@ function loadEnvFile(fileName) {
   }
 }
 
+function isValidEncryptionKey(raw) {
+  const value = raw?.trim()
+  if (!value) return true
+  if (/^[a-fA-F0-9]{64}$/.test(value)) return true
+  if (value.length === 32) return true
+
+  try {
+    const decoded = Buffer.from(value, 'base64')
+    return decoded.length === 32 && decoded.toString('base64') === value
+  } catch {
+    return false
+  }
+}
+
 loadEnvFile('.env.local')
 loadEnvFile('.env')
 
@@ -75,6 +89,11 @@ if (!/^\d+$/.test(process.env.STRAVA_CLIENT_ID)) {
 
 if (process.env.NEXTAUTH_SECRET.length < 24) {
   console.error('NEXTAUTH_SECRET muito curto. Use pelo menos 24 caracteres.')
+  process.exit(1)
+}
+
+if (!isValidEncryptionKey(process.env.OAUTH_TOKEN_ENCRYPTION_KEY)) {
+  console.error('OAUTH_TOKEN_ENCRYPTION_KEY precisa ser base64 de 32 bytes, hex de 64 chars ou string de 32 chars.')
   process.exit(1)
 }
 

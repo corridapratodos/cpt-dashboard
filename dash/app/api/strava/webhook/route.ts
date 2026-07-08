@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server'
 import { getUserScope, isActivityAllowedForScope } from '@/lib/access'
 import { getActivityYear, listYearCacheIndexes, rebuildYearActivityCaches, summarizeYearCacheIndexes } from '@/lib/activity-cache'
 import { activitiesRef, getDb, metaRef } from '@/lib/firebase'
+import { buildStoredOAuthTokenPayload, readStoredOAuthTokens } from '@/lib/oauth-tokens'
 import { getWebhookPostToken } from '@/lib/security'
 import { extractBestEfforts, fetchActivity, mapActivity } from '@/lib/strava'
 
@@ -9,7 +10,7 @@ function isAuthorizedWebhookRequest(req: NextRequest) {
   const expectedToken = getWebhookPostToken()
   if (!expectedToken) return false
 
-  const providedToken = req.nextUrl.searchParams.get('token') ?? req.headers.get('x-cpt-webhook-token')
+  const providedToken = req.headers.get('x-cpt-webhook-token') ?? req.nextUrl.searchParams.get('token')
   return providedToken === expectedToken
 }
 
@@ -31,9 +32,12 @@ async function refreshWebhookAccessToken(ownerId: number, refreshToken: string) 
   }
 
   await getDb().collection('users').doc(String(ownerId)).update({
-    accessToken: data.access_token,
-    refreshToken: data.refresh_token,
-    expiresAt: data.expires_at,
+    updatedAt: new Date(),
+    ...buildStoredOAuthTokenPayload({
+      accessToken: data.access_token as string,
+      refreshToken: data.refresh_token as string,
+      expiresAt: Number(data.expires_at),
+    }),
   })
 
   return {
@@ -84,13 +88,14 @@ export async function POST(req: NextRequest) {
     }
 
     const userData = tokenDoc.data()
-    if (!userData?.accessToken) {
+    const storedTokens = readStoredOAuthTokens(userData)
+    if (!storedTokens?.accessToken) {
       return Response.json({ ok: true, skipped: true, reason: 'missing_access_token' })
     }
 
-    let accessToken = String(userData.accessToken)
-    const refreshToken = String(userData.refreshToken ?? '')
-    let expiresAt = Number(userData.expiresAt ?? 0)
+    let accessToken = storedTokens.accessToken
+    const refreshToken = storedTokens.refreshToken
+    let expiresAt = storedTokens.expiresAt
 
     if (!refreshToken || !expiresAt) {
       return Response.json({ ok: true, skipped: true, reason: 'incomplete_user_tokens' })
@@ -145,7 +150,10 @@ export async function POST(req: NextRequest) {
       alreadyExisted: existingSnap.exists,
       cacheYear: activityYear,
     })
-  } catch {
+  } catch (error) {
+    console.error('strava webhook failed', {
+      reason: error instanceof Error ? error.message : 'unknown',
+    })
     return Response.json({ error: 'Webhook processing failed' }, { status: 500 })
   }
 }

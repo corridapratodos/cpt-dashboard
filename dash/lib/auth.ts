@@ -1,8 +1,9 @@
 import type { AuthOptions } from 'next-auth'
 import StravaProvider from 'next-auth/providers/strava'
 import { getUserPlan, hasMasterAccess } from '@/lib/access'
-import { isAdminBootstrapEnabled, isStravaLoginAllowed } from '@/lib/security'
 import { getDb, userRef } from '@/lib/firebase'
+import { buildStoredOAuthTokenPayload } from '@/lib/oauth-tokens'
+import { isAdminBootstrapEnabled, isStravaLoginAllowed } from '@/lib/security'
 
 export const authOptions: AuthOptions = {
   providers: [
@@ -74,13 +75,15 @@ export const authOptions: AuthOptions = {
                   ? `${(profile as any).firstname} ${(profile as any).lastname}`
                   : token.name ?? null,
               profile: (profile as any)?.profile ?? token.picture ?? null,
-              accessToken: token.accessToken,
-              refreshToken: token.refreshToken,
-              expiresAt: token.expiresAt,
               role,
               plan,
               createdAt: existingData?.createdAt ?? new Date(),
               updatedAt: new Date(),
+              ...buildStoredOAuthTokenPayload({
+                accessToken: token.accessToken as string,
+                refreshToken: token.refreshToken as string,
+                expiresAt: token.expiresAt as number,
+              }),
             },
             { merge: true }
           )
@@ -124,17 +127,23 @@ async function refreshAccessToken(token: any) {
     if (refreshedToken.stravaId) {
       await userRef(refreshedToken.stravaId as number).set(
         {
-          accessToken: refreshedToken.accessToken,
-          refreshToken: refreshedToken.refreshToken,
-          expiresAt: refreshedToken.expiresAt,
           updatedAt: new Date(),
+          ...buildStoredOAuthTokenPayload({
+            accessToken: refreshedToken.accessToken,
+            refreshToken: refreshedToken.refreshToken,
+            expiresAt: refreshedToken.expiresAt,
+          }),
         },
         { merge: true }
       )
     }
 
     return refreshedToken
-  } catch {
+  } catch (error) {
+    console.error('refreshAccessToken failed', {
+      stravaId: token?.stravaId ?? null,
+      reason: error instanceof Error ? error.message : 'unknown',
+    })
     return { ...token, error: 'RefreshAccessTokenError' }
   }
 }
