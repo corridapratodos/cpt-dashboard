@@ -64,6 +64,7 @@ export default function DashboardClient({ initialActivities, initialAnalytics, i
   const [weightData, setWeightData] = useState<WeightRecord[]>([])
   const [activityReviewing, setActivityReviewing] = useState(false)
   const [syncMsg, setSyncMsg] = useState('')
+  const [blockingAlert, setBlockingAlert] = useState<{ title: string; message: string } | null>(null)
   const [theme, setTheme] = useState<ThemeMode>('dark')
   const [yearAnalytics, setYearAnalytics] = useState<Record<string, ActivityYearAnalytics>>(
     initialAnalytics && initialYear !== 'all' ? { [initialYear]: initialAnalytics } : {}
@@ -224,6 +225,10 @@ export default function DashboardClient({ initialActivities, initialAnalytics, i
     setTheme(next)
   }
 
+  const showBlockingAlert = (title: string, message: string) => {
+    setBlockingAlert({ title, message })
+  }
+
   const handleSync = async (mode: SyncMode = 'incremental') => {
     if (mode === 'full') {
       const confirmed = window.confirm('Reconstruir o historico vai reprocessar toda a base do atleta. Deseja continuar?')
@@ -232,6 +237,7 @@ export default function DashboardClient({ initialActivities, initialAnalytics, i
 
     setSyncing(true)
     setSyncMsg('')
+    setBlockingAlert(null)
 
     try {
       const res = await fetch(`/api/strava/sync?mode=${mode}`, { method: 'POST' })
@@ -253,7 +259,9 @@ export default function DashboardClient({ initialActivities, initialAnalytics, i
       setCacheRevision((current) => current + 1)
       setPage(1)
     } catch (error) {
-      setSyncMsg(error instanceof Error ? error.message : 'Erro ao sincronizar')
+      const message = error instanceof Error ? error.message : 'Erro ao sincronizar'
+      setSyncMsg(message)
+      showBlockingAlert('Sincronizacao nao concluida', message)
     } finally {
       setSyncing(false)
     }
@@ -1360,6 +1368,24 @@ export default function DashboardClient({ initialActivities, initialAnalytics, i
 
         <p className="legal-footnote">A exclusao remove seu historico salvo do Firestore. Se quiser encerrar o acesso de origem, revogue tambem o app nas configuracoes do Strava.</p>
       </section>
+      {blockingAlert && (
+        <div className="modal-scrim modal-scrim-critical" onClick={() => setBlockingAlert(null)}>
+          <div className="modal-card status-modal-card" onClick={(event) => event.stopPropagation()}>
+            <div className="panel-header compact">
+              <div>
+                <p className="panel-eyebrow">Sincronizacao</p>
+                <h3>{blockingAlert.title}</h3>
+              </div>
+            </div>
+            <p className="status-modal-copy">{blockingAlert.message}</p>
+            <div className="modal-actions-row status-modal-actions">
+              <button type="button" className="btn btn-primary" onClick={() => setBlockingAlert(null)}>
+                Entendi
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       {selectedActivity && (
         <div className="modal-scrim" onClick={() => setSelectedActivity(null)}>
           <div className="modal-card" onClick={(event) => event.stopPropagation()}>
