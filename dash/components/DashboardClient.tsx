@@ -1,7 +1,7 @@
 'use client'
 
 import type { ReactNode } from 'react'
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { ActivityYearAnalytics } from '@/lib/analytics-types'
 import { signOut } from 'next-auth/react'
 import {
@@ -18,7 +18,7 @@ import {
   XAxis,
   YAxis,
 } from 'recharts'
-import type { Activity, ActivityDetailPayload, ActivitySplit, Props, SleepRecord, SyncMode, ThemeMode, WeightRecord } from './dashboard/types'
+import type { Activity, Props, SleepRecord, ThemeMode, WeightRecord } from './dashboard/types'
 import { Sidebar } from './Sidebar'
 import { buildActiveAccent, buildSportSummaryLabel, computeDashboardSlices, type WindowMode } from './dashboard/analytics'
 import {
@@ -38,8 +38,13 @@ import {
   sportMeta,
 } from './dashboard/helpers'
 import { AnalysisTile, CompareTile, DetailItem, InsightItem, MetricCard, Panel, SectionLead } from './dashboard/ui'
-
-const PANEL_WINDOW_MODES: WindowMode[] = ['year', 'month', 'week', 'rolling28']
+import { useActivityDetail } from './dashboard/useActivityDetail'
+import { usePanelPreferences } from './dashboard/usePanelPreferences'
+import { ActivityDetailModal } from './dashboard/ActivityDetailModal'
+import { useDashboardSync } from './dashboard/useDashboardSync'
+import { useDashboardHistory } from './dashboard/useDashboardHistory'
+import { AdminControlPanel } from './dashboard/AdminControlPanel'
+import { SyncStatusModal } from './dashboard/SyncStatusModal'
 
 export default function DashboardClient({ initialActivities, initialAnalytics, initialYear, availableYears, isAdmin, meta, userName }: Props) {
   const actualYears = useMemo(
@@ -62,16 +67,9 @@ export default function DashboardClient({ initialActivities, initialAnalytics, i
   )
 
 
-  const [syncing, setSyncing] = useState(false)
   const [deleting, setDeleting] = useState(false)
-  const [backfilling, setBackfilling] = useState(false)
-  const [uploadingHealth, setUploadingHealth] = useState(false)
-  const [healthUploadMsg, setHealthUploadMsg] = useState('')
   const [sleepData, setSleepData] = useState<SleepRecord[]>([])
   const [weightData, setWeightData] = useState<WeightRecord[]>([])
-  const [activityReviewing, setActivityReviewing] = useState(false)
-  const [syncMsg, setSyncMsg] = useState('')
-  const [blockingAlert, setBlockingAlert] = useState<{ title: string; message: string } | null>(null)
   const [theme, setTheme] = useState<ThemeMode>('dark')
   const [yearAnalytics, setYearAnalytics] = useState<Record<string, ActivityYearAnalytics>>(
     initialAnalytics && initialYear !== 'all' ? { [initialYear]: initialAnalytics } : {}
@@ -87,20 +85,12 @@ export default function DashboardClient({ initialActivities, initialAnalytics, i
   const [selectedWeekKey, setSelectedWeekKey] = useState<string>('')
   const [previewMode, setPreviewMode] = useState<'admin' | 'athlete'>('admin')
   const [page, setPage] = useState(1)
-  const [historyLoading, setHistoryLoading] = useState(false)
-  const [historyActivities, setHistoryActivities] = useState<Activity[]>(initialActivities.slice(0, ROWS_STEP))
-  const [historyCount, setHistoryCount] = useState(0)
-  const [historyPageCount, setHistoryPageCount] = useState(1)
-  const [selectedActivity, setSelectedActivity] = useState<Activity | null>(null)
-  const [selectedActivitySplits, setSelectedActivitySplits] = useState<ActivitySplit[]>([])
-  const [selectedActivityLoading, setSelectedActivityLoading] = useState(false)
-  const [selectedActivityError, setSelectedActivityError] = useState('')
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false)
-  const [panelPrefsHydrated, setPanelPrefsHydrated] = useState(false)
   const viewerRole = String(meta?.viewerRole ?? 'unknown')
   const viewerPlan = String(meta?.viewerPlan ?? 'unknown')
   const viewerAdmin = Boolean(meta?.viewerAdmin ?? isAdmin)
   const canViewActivitySplits = viewerRole === 'master' || viewerPlan === 'pro'
+
 
   useEffect(() => {
     const saved = localStorage.getItem('cpt-theme')
@@ -109,81 +99,46 @@ export default function DashboardClient({ initialActivities, initialAnalytics, i
     setTheme(mode)
   }, [])
 
+  const panelPrefs = usePanelPreferences(
+    panelPrefsKey,
+    { selectedYears, selectedSports, windowMode, selectedMonthKey, selectedWeekKey, previewMode },
+    actualYears,
+    defaultYearSelection,
+  )
+
+
+  const markYearsDirty = useCallback((years: string[]) => {
+    setPartialAnalyticsYears((current) => {
+      const next = { ...current }
+      for (const year of years) next[year] = true
+      return next
+    })
+  }, [])
+
+  const bumpCacheRevision = useCallback(() => {
+    setCacheRevision((current) => current + 1)
+  }, [])
+
+  const dashboardSync = useDashboardSync({
+    selectedYears,
+    onYearsDirty: markYearsDirty,
+    onCacheBump: bumpCacheRevision,
+    onPageReset: () => setPage(1),
+  })
 
   useEffect(() => {
-    if (panelPrefsHydrated) return
+    if (!panelPrefs.hydrated || !panelPrefs.initial) return
+    const saved = panelPrefs.initial
+    if (saved.selectedYears?.length) setSelectedYears(saved.selectedYears)
+    if (saved.selectedSports?.length) setSelectedSports(saved.selectedSports)
+    if (saved.windowMode) setWindowMode(saved.windowMode)
+    if (saved.selectedMonthKey) setSelectedMonthKey(saved.selectedMonthKey)
+    if (saved.selectedWeekKey) setSelectedWeekKey(saved.selectedWeekKey)
+    if (saved.previewMode) setPreviewMode(saved.previewMode)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [panelPrefs.hydrated])
 
-    try {
-      const raw = localStorage.getItem(panelPrefsKey)
-      if (!raw) {
-        setPanelPrefsHydrated(true)
-        return
-      }
-
-      const saved = JSON.parse(raw) as {
-        selectedYears?: string[]
-        selectedSports?: string[]
-        windowMode?: WindowMode
-        selectedMonthKey?: string
-        selectedWeekKey?: string
-        previewMode?: 'admin' | 'athlete'
-      }
-
-      const restoredYears = Array.isArray(saved.selectedYears)
-        ? saved.selectedYears.filter((year) => actualYears.includes(year)).sort((a, b) => Number(b) - Number(a))
-        : []
-
-      if (restoredYears.length) {
-        setSelectedYears(restoredYears)
-      } else if (defaultYearSelection.length) {
-        setSelectedYears(defaultYearSelection)
-      }
-
-      if (Array.isArray(saved.selectedSports) && saved.selectedSports.length) {
-        setSelectedSports(Array.from(new Set(saved.selectedSports.map(String).filter(Boolean))))
-      }
-
-      if (typeof saved.windowMode === 'string' && PANEL_WINDOW_MODES.includes(saved.windowMode)) {
-        setWindowMode(saved.windowMode)
-      }
-
-      if (typeof saved.selectedMonthKey === 'string') {
-        setSelectedMonthKey(saved.selectedMonthKey)
-      }
-
-      if (typeof saved.selectedWeekKey === 'string') {
-        setSelectedWeekKey(saved.selectedWeekKey)
-      }
-
-      if (saved.previewMode === 'admin' || saved.previewMode === 'athlete') {
-        setPreviewMode(saved.previewMode)
-      }
-    } catch {
-      // Prefer defaults when persistence is invalid.
-    } finally {
-      setPanelPrefsHydrated(true)
-    }
-  }, [actualYears, defaultYearSelection, panelPrefsHydrated, panelPrefsKey])
-
-  useEffect(() => {
-    if (!panelPrefsHydrated) return
-
-    try {
-      localStorage.setItem(
-        panelPrefsKey,
-        JSON.stringify({
-          selectedYears,
-          selectedSports,
-          windowMode,
-          selectedMonthKey,
-          selectedWeekKey,
-          previewMode,
-        })
-      )
-    } catch {
-      // Ignore browser storage failures.
-    }
-  }, [panelPrefsHydrated, panelPrefsKey, previewMode, selectedMonthKey, selectedSports, selectedWeekKey, selectedYears, windowMode])
+  // Panel preferences persistence is now handled by usePanelPreferences hook.
 
   useEffect(() => {
     if (!isAdmin) return
@@ -208,10 +163,6 @@ export default function DashboardClient({ initialActivities, initialAnalytics, i
   }, [actualYears, selectedYears.length])
 
   useEffect(() => {
-    setPage(1)
-  }, [selectedYears, selectedSports, selectedMonthKey, selectedWeekKey, windowMode])
-
-  useEffect(() => {
     if (!selectedYears.length) return
 
     let active = true
@@ -221,7 +172,7 @@ export default function DashboardClient({ initialActivities, initialAnalytics, i
 
     async function loadAnalyticsYears() {
       setLoadingAnalyticsYears(yearsToLoad)
-      setSyncMsg('')
+      dashboardSync.setSyncMsg('')
 
       try {
         const cachedResponses: ActivityYearAnalytics[] = []
@@ -295,7 +246,7 @@ export default function DashboardClient({ initialActivities, initialAnalytics, i
         })
       } catch (error) {
         if (!active) return
-        setSyncMsg(error instanceof Error ? error.message : 'Nao foi possivel carregar os agregados analiticos.')
+        dashboardSync.setSyncMsg(error instanceof Error ? error.message : 'Nao foi possivel carregar os agregados analiticos.')
       } finally {
         if (active) setLoadingAnalyticsYears([])
       }
@@ -314,54 +265,12 @@ export default function DashboardClient({ initialActivities, initialAnalytics, i
     setTheme(next)
   }
 
-  const showBlockingAlert = (title: string, message: string) => {
-    setBlockingAlert({ title, message })
-  }
-
-  const handleSync = async (mode: SyncMode = 'incremental') => {
-    if (mode === 'full') {
-      const confirmed = window.confirm('Reconstruir o historico vai reprocessar toda a base do atleta. Deseja continuar?')
-      if (!confirmed) return
-    }
-
-    setSyncing(true)
-    setSyncMsg('')
-    setBlockingAlert(null)
-
-    try {
-      const res = await fetch(`/api/strava/sync?mode=${mode}`, { method: 'POST' })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data?.error ?? 'Erro ao sincronizar')
-      const modeLabel = data.mode === 'incremental' ? 'incremental' : 'completo'
-      const processedLabel = data.processed && data.processed !== data.synced
-        ? `, ${data.processed} processadas`
-        : ''
-      setSyncMsg(`${data.synced} atividades novas sincronizadas (${modeLabel}${processedLabel})`)
-      const rebuiltYears = Array.isArray(data.cacheYearsRebuilt) && data.cacheYearsRebuilt.length
-        ? data.cacheYearsRebuilt.map(String)
-        : selectedYears
-      setPartialAnalyticsYears((current) => {
-        const next = { ...current }
-        for (const year of rebuiltYears) next[year] = true
-        return next
-      })
-      setCacheRevision((current) => current + 1)
-      setPage(1)
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Erro ao sincronizar'
-      setSyncMsg(message)
-      showBlockingAlert('Sincronizacao nao concluida', message)
-    } finally {
-      setSyncing(false)
-    }
-  }
-
   const handleDeleteAccount = async () => {
     const confirmed = window.confirm('Isso vai excluir todos os seus dados sincronizados do CPT Dashboard. Deseja continuar?')
     if (!confirmed) return
 
     setDeleting(true)
-    setSyncMsg('')
+    dashboardSync.setSyncMsg('')
 
     try {
       const res = await fetch('/api/account', { method: 'DELETE' })
@@ -369,47 +278,12 @@ export default function DashboardClient({ initialActivities, initialAnalytics, i
       if (!res.ok) throw new Error(data?.error ?? 'Nao foi possivel excluir os dados.')
       await signOut({ callbackUrl: '/login' })
     } catch (error) {
-      setSyncMsg(error instanceof Error ? error.message : 'Nao foi possivel excluir os dados.')
+      dashboardSync.setSyncMsg(error instanceof Error ? error.message : 'Nao foi possivel excluir os dados.')
       setDeleting(false)
     }
   }
 
 
-  function applyActivityUpdate(updated: Activity) {
-    const year = updated.date.slice(0, 4)
-
-    setHistoryActivities((current) =>
-      current.map((activity) => (activity.stravaId === updated.stravaId ? updated : activity))
-    )
-    setSelectedActivity((current) => (current?.stravaId === updated.stravaId ? updated : current))
-    setPartialAnalyticsYears((current) => ({
-      ...current,
-      [year]: true,
-    }))
-    setCacheRevision((current) => current + 1)
-  }
-
-  async function handleActivityExclusion(excludedFromMetrics: boolean) {
-    if (!selectedActivity) return
-
-    setActivityReviewing(true)
-    setSyncMsg('')
-
-    try {
-      const res = await fetch(`/api/activities/${selectedActivity.stravaId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ excludedFromMetrics }),
-      })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data?.error ?? 'Nao foi possivel atualizar a atividade.')
-      applyActivityUpdate(data.activity as Activity)
-    } catch (error) {
-      setSyncMsg(error instanceof Error ? error.message : 'Nao foi possivel atualizar a atividade.')
-    } finally {
-      setActivityReviewing(false)
-    }
-  }
   const computed = useMemo(
     () =>
       computeDashboardSlices({
@@ -446,6 +320,38 @@ export default function DashboardClient({ initialActivities, initialAnalytics, i
     periodBenchmark,
     records,
   } = computed
+
+
+  const {
+    page: historyPage,
+    setPage: setHistoryPage,
+    historyLoading,
+    historyActivities,
+    historyCount,
+    historyPageCount,
+    replaceActivity,
+  } = useDashboardHistory({
+    initialActivities,
+    page,
+    setPage,
+    pageSize: ROWS_STEP,
+    historyCacheKeyPrefix,
+    selectedYears,
+    selectedSports,
+    allSportsSelected,
+    activeWindowStart: activeWindow.start,
+    activeWindowEnd: activeWindow.end,
+    loadingAnalytics: loadingAnalyticsYears.length > 0,
+    setSyncMsg: dashboardSync.setSyncMsg,
+  })
+
+  const handleActivityUpdated = useCallback((updated: Activity) => {
+    replaceActivity(updated)
+    markYearsDirty([updated.date.slice(0, 4)])
+    bumpCacheRevision()
+  }, [bumpCacheRevision, markYearsDirty, replaceActivity])
+
+  const activityDetail = useActivityDetail(canViewActivitySplits, handleActivityUpdated, dashboardSync.setSyncMsg)
 
   useEffect(() => {
     if (!availableSports.length) return
@@ -489,132 +395,8 @@ export default function DashboardClient({ initialActivities, initialAnalytics, i
   }, [selectedWeekKey, weekOptions])
 
 
-  useEffect(() => {
-    if (!selectedActivity) {
-      setSelectedActivitySplits([])
-      setSelectedActivityError('')
-      setSelectedActivityLoading(false)
-      return
-    }
+  // Activity detail fetching is now handled by useActivityDetail hook.
 
-    if (!canViewActivitySplits) {
-      setSelectedActivitySplits([])
-      setSelectedActivityError('')
-      setSelectedActivityLoading(false)
-      return
-    }
-
-    const activityId = selectedActivity.stravaId
-    let active = true
-    setSelectedActivityLoading(true)
-    setSelectedActivityError('')
-    setSelectedActivitySplits([])
-
-    async function loadActivityDetail() {
-      try {
-        const res = await fetch(`/api/activities/${activityId}`)
-        const data = (await res.json()) as ActivityDetailPayload & { error?: string }
-        if (!res.ok) {
-          throw new Error(data?.error ?? 'Nao foi possivel carregar o detalhe da atividade.')
-        }
-
-        if (!active) return
-        if (data.splitsAccess === false) {
-          setSelectedActivitySplits([])
-          return
-        }
-        setSelectedActivitySplits(Array.isArray(data.splits) ? data.splits : [])
-      } catch (error) {
-        if (!active) return
-        setSelectedActivityError(error instanceof Error ? error.message : 'Nao foi possivel carregar o detalhe da atividade.')
-      } finally {
-        if (active) setSelectedActivityLoading(false)
-      }
-    }
-
-    void loadActivityDetail()
-
-    return () => {
-      active = false
-    }
-  }, [canViewActivitySplits, selectedActivity])
-
-
-  useEffect(() => {
-    if (!selectedYears.length || loadingAnalyticsYears.length > 0) return
-
-    let active = true
-
-    async function loadHistoryPage() {
-      setHistoryLoading(true)
-
-      try {
-        const params = new URLSearchParams()
-        params.set('years', selectedYears.join(','))
-        params.set('page', String(page))
-        params.set('pageSize', String(ROWS_STEP))
-
-        if (!allSportsSelected && selectedSports.length) {
-          params.set('sports', selectedSports.join(','))
-        }
-
-        if (activeWindow.start) {
-          params.set('start', activeWindow.start.toISOString().slice(0, 10))
-        }
-
-        if (activeWindow.end) {
-          params.set('end', activeWindow.end.toISOString().slice(0, 10))
-        }
-
-        const historyCacheKey = `${historyCacheKeyPrefix}:${params.toString()}`
-
-        try {
-          const cached = sessionStorage.getItem(historyCacheKey)
-          if (cached) {
-            const parsed = JSON.parse(cached) as { activities?: Activity[]; count?: number; pageCount?: number }
-            if (!active) return
-            setHistoryActivities((parsed.activities ?? []) as Activity[])
-            setHistoryCount(Number(parsed.count ?? 0))
-            setHistoryPageCount(Number(parsed.pageCount ?? 1))
-            return
-          }
-        } catch {}
-
-        const res = await fetch(`/api/activities/history?${params.toString()}`)
-        const data = await res.json()
-        if (!res.ok) {
-          throw new Error(data?.error ?? 'Nao foi possivel carregar o historico paginado.')
-        }
-
-        try {
-          sessionStorage.setItem(
-            historyCacheKey,
-            JSON.stringify({
-              activities: data.activities ?? [],
-              count: Number(data.count ?? 0),
-              pageCount: Number(data.pageCount ?? 1),
-            })
-          )
-        } catch {}
-
-        if (!active) return
-        setHistoryActivities((data.activities ?? []) as Activity[])
-        setHistoryCount(Number(data.count ?? 0))
-        setHistoryPageCount(Number(data.pageCount ?? 1))
-      } catch (error) {
-        if (!active) return
-        setSyncMsg(error instanceof Error ? error.message : 'Nao foi possivel carregar o historico paginado.')
-      } finally {
-        if (active) setHistoryLoading(false)
-      }
-    }
-
-    void loadHistoryPage()
-
-    return () => {
-      active = false
-    }
-  }, [activeWindow.end, activeWindow.start, allSportsSelected, historyCacheKeyPrefix, loadingAnalyticsYears.length, page, selectedSports, selectedYears])
 
   const analysisInsights = useMemo(() => {
     const insights: Array<{ title: string; copy: string }> = []
@@ -771,11 +553,11 @@ export default function DashboardClient({ initialActivities, initialAnalytics, i
             <p className="hero-copy">O dashboard ja esta pronto para leitura multiesporte com foco em corrida. Falta puxar seus treinos do Strava.</p>
           </div>
           <div className="hero-actions hero-actions-stacked">
-            <button onClick={() => handleSync('incremental')} disabled={syncing} className="btn btn-primary" type="button">
-              {syncing ? 'Sincronizando...' : 'Sincronizar Strava'}
+            <button onClick={() => dashboardSync.handleSync('incremental')} disabled={dashboardSync.syncing} className="btn btn-primary" type="button">
+              {dashboardSync.syncing ? 'Sincronizando...' : 'Sincronizar Strava'}
             </button>
             {viewerAdmin && (
-              <button onClick={() => handleSync('full')} disabled={syncing} className="btn btn-outline" type="button">
+              <button onClick={() => dashboardSync.handleSync('full')} disabled={dashboardSync.syncing} className="btn btn-outline" type="button">
                 Reconstruir historico
               </button>
             )}
@@ -821,8 +603,8 @@ export default function DashboardClient({ initialActivities, initialAnalytics, i
               <button onClick={handleThemeToggle} className="btn btn-ghost" type="button">
                 {theme === 'dark' ? 'Modo claro' : 'Modo escuro'}
               </button>
-              <button onClick={() => handleSync('incremental')} disabled={syncing || deleting || loadingYears.length > 0} className="btn btn-primary" type="button">
-                {syncing ? 'Sincronizando...' : 'Atualizar'}
+              <button onClick={() => dashboardSync.handleSync('incremental')} disabled={dashboardSync.syncing || deleting || loadingYears.length > 0} className="btn btn-primary" type="button">
+                {dashboardSync.syncing ? 'Sincronizando...' : 'Atualizar'}
               </button>
               <button onClick={() => signOut({ callbackUrl: '/login' })} className="btn btn-ghost" type="button">
                 Sair
@@ -939,99 +721,22 @@ export default function DashboardClient({ initialActivities, initialAnalytics, i
         <main className="shell">
 
         {showOperatorNotes && (
-        <div id="admin" className="control-panel">
-              <div className="admin-tools">
-                <div>
-                  <p className="control-label">Ferramentas de administrador</p>
-                  <strong>Reconstrucao completa protegida por cooldown</strong>
-                </div>
-                <div className="admin-actions-row">
-                  <button onClick={() => handleSync('full')} disabled={syncing || deleting || backfilling || loadingYears.length > 0} className="btn btn-outline" type="button">
-                    Full sync
-                  </button>
-                  <button
-                    type="button"
-                    className="btn btn-outline"
-                    disabled={syncing || deleting || backfilling || loadingYears.length > 0}
-                    onClick={async () => {
-                      setBackfilling(true)
-                      setSyncMsg('')
-                      try {
-                        const res = await fetch('/api/admin/backfill-efforts', { method: 'POST' })
-                        const data = await res.json()
-                        if (!res.ok) throw new Error(data?.error ?? 'Erro no backfill')
-                        setSyncMsg(`Best efforts: ${data.enriched} enriquecidas de ${data.processed} processadas. Restam ${data.remaining}.`)
-                        if (data.enriched > 0) {
-                          setPartialAnalyticsYears((current) => {
-                            const next = { ...current }
-                            for (const year of selectedYears) next[year] = true
-                            return next
-                          })
-                          setCacheRevision((current) => current + 1)
-                        }
-                      } catch (error) {
-                        setSyncMsg(error instanceof Error ? error.message : 'Erro no backfill')
-                      } finally {
-                        setBackfilling(false)
-                      }
-                    }}
-                  >
-                    {backfilling ? 'Buscando best efforts...' : 'Backfill best efforts'}
-                  </button>
-                </div>
-              </div>
+          <AdminControlPanel
+            loadingLabel={loadingLabel}
+            syncMsg={dashboardSync.syncMsg}
+            syncing={dashboardSync.syncing}
+            deleting={deleting}
+            backfilling={dashboardSync.backfilling}
+            loadingYears={loadingYears.length}
+            onFullSync={() => dashboardSync.handleSync('full')}
+            onBackfill={dashboardSync.handleBackfillBestEfforts}
+          />
 
-              <div className="admin-tools" style={{ marginTop: '1rem' }}>
-                <div>
-                  <p className="control-label">Dados de saude</p>
-                  <strong>Upload de sono e peso (Garmin CSV)</strong>
-                </div>
-                <div className="admin-actions-row" style={{ alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem' }}>
-                  <label className="btn btn-outline" style={{ cursor: 'pointer' }}>
-                    {uploadingHealth ? 'Enviando...' : 'Selecionar arquivos CSV'}
-                    <input
-                      type="file"
-                      accept=".csv"
-                      multiple
-                      style={{ display: 'none' }}
-                      disabled={uploadingHealth}
-                      onChange={async (e) => {
-                        const files = e.target.files
-                        if (!files?.length) return
-                        setUploadingHealth(true)
-                        setHealthUploadMsg('')
-                        const form = new FormData()
-                        for (const f of Array.from(files)) form.append('files', f)
-                        try {
-                          const res = await fetch('/api/admin/upload-health', { method: 'POST', body: form })
-                          const data = await res.json()
-                          if (!res.ok) throw new Error(data?.error ?? 'Erro no upload')
-                          const parts: string[] = []
-                          if (data.sleepSaved) parts.push(`${data.sleepSaved} registros de sono`)
-                          if (data.weightSaved) parts.push(`${data.weightSaved} registros de peso`)
-                          if (data.skipped) parts.push(`${data.skipped} linhas ignoradas`)
-                          if (data.errors?.length) parts.push(data.errors.join('; '))
-                          setHealthUploadMsg(parts.length ? parts.join(' | ') : 'Nenhum dado importado.')
-                        } catch (error) {
-                          setHealthUploadMsg(error instanceof Error ? error.message : 'Erro no upload')
-                        } finally {
-                          setUploadingHealth(false)
-                          e.target.value = ''
-                        }
-                      }}
-                    />
-                  </label>
-                  {healthUploadMsg && <span className="sync-message" style={{ margin: 0 }}>{healthUploadMsg}</span>}
-                </div>
-              </div>
-            {loadingLabel && <p className="sync-message">{loadingLabel}</p>}
-            {syncMsg && <p className="sync-message">{syncMsg}</p>}
-        </div>
         )}
-        {!showOperatorNotes && (loadingLabel || syncMsg) && (
+        {!showOperatorNotes && (loadingLabel || dashboardSync.syncMsg) && (
           <div className="hero-messages">
             {loadingLabel && <p className="sync-message">{loadingLabel}</p>}
-            {syncMsg && <p className="sync-message">{syncMsg}</p>}
+            {dashboardSync.syncMsg && <p className="sync-message">{dashboardSync.syncMsg}</p>}
           </div>
         )}
 
@@ -1424,7 +1129,7 @@ export default function DashboardClient({ initialActivities, initialAnalytics, i
                       <DetailItem label="FC media" value={activity.hrAvg ? `${Math.round(activity.hrAvg)} bpm` : '-'} />
                     </div>
                     <div className="mobile-activity-actions">
-                      <button type="button" className="btn btn-ghost btn-inline" onClick={() => setSelectedActivity(activity)}>
+                      <button type="button" className="btn btn-ghost btn-inline" onClick={() => activityDetail.select(activity)}>
                         Ver detalhe
                       </button>
                     </div>
@@ -1463,7 +1168,7 @@ export default function DashboardClient({ initialActivities, initialAnalytics, i
                         <td>{activity.hrAvg ? `${Math.round(activity.hrAvg)} bpm` : '-'}</td>
                         <td>{activity.elevationGain > 0 ? `${Math.round(activity.elevationGain)} m` : '-'}</td>
                         <td>
-                          <button type="button" className="btn btn-ghost btn-inline" onClick={() => setSelectedActivity(activity)}>
+                          <button type="button" className="btn btn-ghost btn-inline" onClick={() => activityDetail.select(activity)}>
                             Ver
                           </button>
                         </td>
@@ -1475,11 +1180,11 @@ export default function DashboardClient({ initialActivities, initialAnalytics, i
             </div>
 
             <div className="table-actions table-actions-spread">
-              <button type="button" className="btn btn-ghost" disabled={page <= 1} onClick={() => setPage((current) => Math.max(1, current - 1))}>
+              <button type="button" className="btn btn-ghost" disabled={historyPage <= 1} onClick={() => setHistoryPage((current) => Math.max(1, current - 1))}>
                 Pagina anterior
               </button>
-              <span className="pill pill-ghost">Pagina {page} de {pageCount}</span>
-              <button type="button" className="btn btn-ghost" disabled={page >= pageCount} onClick={() => setPage((current) => Math.min(pageCount, current + 1))}>
+              <span className="pill pill-ghost">Pagina {historyPage} de {pageCount}</span>
+              <button type="button" className="btn btn-ghost" disabled={historyPage >= pageCount} onClick={() => setHistoryPage((current) => Math.min(pageCount, current + 1))}>
                 Proxima pagina
               </button>
             </div>
@@ -1499,120 +1204,31 @@ export default function DashboardClient({ initialActivities, initialAnalytics, i
         <div className="legal-actions-grid">
           <a href="/privacy" className="btn btn-ghost">Politica de privacidade</a>
           <a href="/terms" className="btn btn-ghost">Termos de uso</a>
-          <button onClick={handleDeleteAccount} disabled={deleting || syncing} className="btn btn-outline danger-button" type="button">
+          <button onClick={handleDeleteAccount} disabled={deleting || dashboardSync.syncing} className="btn btn-outline danger-button" type="button">
             {deleting ? 'Excluindo dados...' : 'Excluir meus dados'}
           </button>
         </div>
 
         <p className="legal-footnote">A exclusao remove seu historico salvo do Firestore. Se quiser encerrar o acesso de origem, revogue tambem o app nas configuracoes do Strava.</p>
       </section>
-      {blockingAlert && (
-        <div className="modal-scrim modal-scrim-critical" onClick={() => setBlockingAlert(null)}>
-          <div className="modal-card status-modal-card" onClick={(event) => event.stopPropagation()}>
-            <div className="panel-header compact">
-              <div>
-                <p className="panel-eyebrow">Sincronizacao</p>
-                <h3>{blockingAlert.title}</h3>
-              </div>
-            </div>
-            <p className="status-modal-copy">{blockingAlert.message}</p>
-            <div className="modal-actions-row status-modal-actions">
-              <button type="button" className="btn btn-primary" onClick={() => setBlockingAlert(null)}>
-                Entendi
-              </button>
-            </div>
-          </div>
-        </div>
+      {dashboardSync.blockingAlert && (
+        <SyncStatusModal
+          title={dashboardSync.blockingAlert.title}
+          message={dashboardSync.blockingAlert.message}
+          onClose={dashboardSync.clearBlockingAlert}
+        />
       )}
-      {selectedActivity && (
-        <div className="modal-scrim" onClick={() => setSelectedActivity(null)}>
-          <div className="modal-card" onClick={(event) => event.stopPropagation()}>
-            <div className="panel-header compact">
-              <div>
-                <p className="panel-eyebrow">Detalhe da atividade</p>
-                <div className="modal-title-row">
-                  <h3>{getDisplayName(selectedActivity.name)}</h3>
-                  {selectedActivity.excludedFromMetrics && <span className="analysis-badge">Ignorada nas analises</span>}
-                </div>
-              </div>
-              <button type="button" className="btn btn-ghost btn-inline" onClick={() => setSelectedActivity(null)}>Fechar</button>
-            </div>
-            <div className="detail-grid">
-              <DetailItem label="Data" value={fmt.fullDate(selectedActivity.date)} />
-              <DetailItem label="Tipo" value={getSportLabel(selectedActivity.type)} />
-              <DetailItem label="Distancia" value={`${fmt.dist(selectedActivity.distanceKm)} km`} />
-              <DetailItem label="Tempo" value={fmt.dur(selectedActivity.durationSec)} />
-              <DetailItem label="Pace" value={selectedActivity.type === 'Ride' ? fmt.speed(selectedActivity.distanceKm, selectedActivity.durationSec) : `${fmt.pace(selectedActivity.paceSec)}/km`} />
-              <DetailItem label="Elevacao" value={selectedActivity.elevationGain ? `${Math.round(selectedActivity.elevationGain)} m` : '-'} />
-              <DetailItem label="FC media" value={selectedActivity.hrAvg != null ? `${Math.round(selectedActivity.hrAvg)} bpm` : '-'} />
-              <DetailItem label="FC maxima" value={selectedActivity.hrMax != null ? `${Math.round(selectedActivity.hrMax)} bpm` : '-'} />
-              <DetailItem label="Kudos" value={String(selectedActivity.kudos ?? 0)} />
-              <DetailItem label="Strava ID" value={String(selectedActivity.stravaId)} />
-              <DetailItem label="Analise" value={selectedActivity.excludedFromMetrics ? 'Ignorada nas analises' : 'Ativa nas analises'} />
-            </div>
-            <div className="activity-splits-panel">
-              <div className="panel-header compact">
-                <div>
-                  <p className="panel-eyebrow">Parciais</p>
-                  <h3>Km a km</h3>
-                </div>
-                <span className="panel-subtitle">
-                  {canViewActivitySplits ? 'Detalhe consultado uma vez e reaproveitado da base.' : 'Disponivel apenas para contas pro e master.'}
-                </span>
-              </div>
-              {!canViewActivitySplits && (
-                <p className="sync-message" style={{ marginTop: 0 }}>
-                  As parciais km a km ficam restritas a contas pro e master para controlar custo e leitura detalhada.
-                </p>
-              )}
-              {canViewActivitySplits && selectedActivityLoading && <p className="sync-message" style={{ marginTop: 0 }}>Carregando parciais...</p>}
-              {canViewActivitySplits && !selectedActivityLoading && selectedActivityError && <p className="sync-message" style={{ marginTop: 0 }}>{selectedActivityError}</p>}
-              {canViewActivitySplits && !selectedActivityLoading && !selectedActivityError && !selectedActivitySplits.length && (
-                <p className="sync-message" style={{ marginTop: 0 }}>O Strava nao retornou parciais metricas para esta atividade.</p>
-              )}
-              {canViewActivitySplits && !selectedActivityLoading && !selectedActivityError && selectedActivitySplits.length > 0 && (
-                <div className="activity-splits-table-wrap">
-                  <table className="activity-splits-table">
-                    <thead>
-                      <tr>
-                        <th>Km</th>
-                        <th>Tempo</th>
-                        <th>Pace</th>
-                        <th>FC</th>
-                        <th>Elev.</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {selectedActivitySplits.map((split) => (
-                        <tr key={`${selectedActivity.stravaId}-${split.index}`}>
-                          <td>{split.index}</td>
-                          <td>{fmt.clock(split.movingSec ?? split.elapsedSec)}</td>
-                          <td>{split.paceSec != null ? `${fmt.pace(split.paceSec)}/km` : '-'}</td>
-                          <td>{split.hrAvg != null ? `${Math.round(split.hrAvg)} bpm` : '-'}</td>
-                          <td>{split.elevationGain != null ? `${Math.round(split.elevationGain)} m` : '-'}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
-            <div className="modal-actions-row">
-              <button
-                type="button"
-                className={`btn ${selectedActivity.excludedFromMetrics ? 'btn-ghost' : 'btn-outline'}`}
-                disabled={activityReviewing}
-                onClick={() => handleActivityExclusion(!selectedActivity.excludedFromMetrics)}
-              >
-                {activityReviewing
-                  ? 'Atualizando...'
-                  : selectedActivity.excludedFromMetrics
-                    ? 'Reativar nas analises'
-                    : 'Ignorar nas analises'}
-              </button>
-            </div>
-          </div>
-        </div>
+      {activityDetail.selectedActivity && (
+        <ActivityDetailModal
+          activity={activityDetail.selectedActivity}
+          splits={activityDetail.splits}
+          splitsLoading={activityDetail.loading}
+          splitsError={activityDetail.error}
+          canViewSplits={canViewActivitySplits}
+          reviewing={activityDetail.reviewing}
+          onClose={() => activityDetail.select(null)}
+          onToggleExclusion={activityDetail.toggleExclusion}
+        />
       )}
         </main>
       </div>

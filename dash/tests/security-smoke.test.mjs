@@ -67,7 +67,7 @@ test('cache anual em chunks e analytics existem para cortar leituras por tela', 
 
 test('backfill de best efforts evita varredura completa da base', () => {
   const backfillRoute = read('app/api/admin/backfill-efforts/route.ts')
-  assert.match(backfillRoute, /where\('bestEfforts', '==', \[\]\)/)
+  assert.match(backfillRoute, /isEligibleForBestEfforts/)
   assert.match(backfillRoute, /rebuildYearActivityCaches/)
 })
 

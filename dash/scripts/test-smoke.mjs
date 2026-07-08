@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs'
+﻿import { readFileSync } from 'node:fs'
 import assert from 'node:assert/strict'
 
 function read(path) {
@@ -97,6 +97,13 @@ try {
   const middleware = read('middleware.ts')
   const gate = read('components/LegalGate.tsx')
   const dashboard = read('components/DashboardClient.tsx')
+  const activityDetailModal = read('components/dashboard/ActivityDetailModal.tsx')
+  const useActivityDetail = read('components/dashboard/useActivityDetail.ts')
+  const usePanelPreferences = read('components/dashboard/usePanelPreferences.ts')
+  const useDashboardSync = read('components/dashboard/useDashboardSync.ts')
+  const useDashboardHistory = read('components/dashboard/useDashboardHistory.ts')
+  const adminControlPanel = read('components/dashboard/AdminControlPanel.tsx')
+  const syncStatusModal = read('components/dashboard/SyncStatusModal.tsx')
   assert.match(login, /\/privacy/)
   assert.match(login, /\/terms/)
   assert.match(accessPage, /PreAccessGate/)
@@ -105,16 +112,25 @@ try {
   assert.match(middleware, /\/access/)
   assert.match(gate, /Aceitar e entrar no painel/)
   assert.match(dashboard, /Excluir meus dados/)
-  assert.match(dashboard, /loadHistoryPage/)
   assert.match(dashboard, /computeDashboardSlices/)
   assert.match(dashboard, /api\/activities\/analytics/)
+  assert.match(dashboard, /useDashboardSync/)
+  assert.match(dashboard, /useDashboardHistory/)
+  assert.match(dashboard, /ActivityDetailModal/)
+  assert.match(activityDetailModal, /Carregando parciais/)
+  assert.match(activityDetailModal, /Disponivel apenas para contas pro e master/)
+  assert.match(useActivityDetail, /api\/activities\/\$\{activityId\}/)
   assert.match(dashboard, /cpt-panel-prefs:/)
-  assert.match(dashboard, /Carregando parciais/)
-  assert.match(dashboard, /Disponivel apenas para contas pro e master/)
+  assert.match(usePanelPreferences, /localStorage\.getItem\(key\)/)
+  assert.match(useDashboardSync, /api\/strava\/sync/)
+  assert.match(useDashboardHistory, /api\/activities\/history/)
+  assert.match(adminControlPanel, /Backfill best efforts/)
+  assert.match(syncStatusModal, /Sincronizacao/)
 
   console.log('Smoke checks aprovados.')
 } catch (error) {
   console.error('Smoke checks falharam.')
   throw error
 }
+
 
