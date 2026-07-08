@@ -41,6 +41,16 @@ type LoadedYearCache = {
   index: YearCacheIndex
 }
 
+type YearCacheChunkMeta = {
+  id: string
+  index: number
+  activityCount: number
+  newestDate: string | null
+  oldestDate: string | null
+  totalsByType: Record<string, number>
+  cacheVersion: number
+}
+
 function getYearBounds(year: string) {
   const numericYear = Number(year)
   if (!Number.isFinite(numericYear) || numericYear < 2000) {
@@ -61,6 +71,13 @@ function chunkActivities(activities: CachedActivity[]) {
   }
 
   return chunks
+}
+
+function summarizeActivitiesByType(activities: CachedActivity[]) {
+  return activities.reduce<Record<string, number>>((acc, activity) => {
+    acc[activity.type] = (acc[activity.type] ?? 0) + 1
+    return acc
+  }, {})
 }
 
 function asYearCacheIndex(year: string, data: Record<string, unknown>): YearCacheIndex {
@@ -87,6 +104,26 @@ function asYearCacheIndex(year: string, data: Record<string, unknown>): YearCach
         : typeof (data.updatedAt as { toDate?: () => Date })?.toDate === 'function'
           ? (data.updatedAt as { toDate: () => Date }).toDate()
           : new Date(0),
+    cacheVersion: Number(data.cacheVersion ?? 0),
+  }
+}
+
+function asYearCacheChunkMeta(id: string, data: Record<string, unknown>): YearCacheChunkMeta {
+  return {
+    id,
+    index: Number(data.index ?? 0),
+    activityCount: Number(data.activityCount ?? 0),
+    newestDate: data.newestDate ? String(data.newestDate) : null,
+    oldestDate: data.oldestDate ? String(data.oldestDate) : null,
+    totalsByType:
+      data.totalsByType && typeof data.totalsByType === 'object'
+        ? Object.fromEntries(
+            Object.entries(data.totalsByType as Record<string, unknown>).map(([type, count]) => [
+              type,
+              Number(count ?? 0),
+            ])
+          )
+        : {},
     cacheVersion: Number(data.cacheVersion ?? 0),
   }
 }
@@ -157,6 +194,43 @@ export async function loadYearActivitiesFromCache(stravaId: number, year: string
   return { activities, index }
 }
 
+export async function listYearCacheChunkMeta(stravaId: number, year: string) {
+  const indexSnap = await yearCacheIndexRef(stravaId, year).get()
+  if (!indexSnap.exists) return null
+
+  const index = asYearCacheIndex(year, indexSnap.data() ?? {})
+  if (index.cacheVersion !== YEAR_CACHE_VERSION) return null
+
+  const chunkSnap = await yearCacheChunksRef(stravaId, year)
+    .orderBy('index', 'asc')
+    .select('index', 'activityCount', 'newestDate', 'oldestDate', 'totalsByType', 'cacheVersion')
+    .get()
+
+  return {
+    index,
+    chunks: chunkSnap.docs.map((doc) => asYearCacheChunkMeta(doc.id, doc.data() ?? {})),
+  }
+}
+
+export async function loadYearCacheChunksByIds(stravaId: number, year: string, chunkIds: string[]) {
+  const uniqueIds = Array.from(new Set(chunkIds.filter(Boolean)))
+  if (!uniqueIds.length) return new Map<string, CachedActivity[]>()
+
+  const docs = await Promise.all(uniqueIds.map((chunkId) => yearCacheChunkRef(stravaId, year, chunkId).get()))
+
+  return new Map(
+    docs
+      .filter((doc) => doc.exists)
+      .map((doc) => {
+        const data = doc.data() ?? {}
+        const activities = Array.isArray(data.activities)
+          ? data.activities.map((activity) => toDashboardActivity(activity))
+          : []
+        return [doc.id, activities] as const
+      })
+  )
+}
+
 export async function rebuildYearActivityCache(stravaId: number, year: string) {
   const { start, end } = getYearBounds(year)
   const now = new Date()
@@ -212,6 +286,10 @@ export async function rebuildYearActivityCache(stravaId: number, year: string) {
       yearCacheChunkRef(stravaId, year, String(index).padStart(4, '0')),
       {
         index,
+        activityCount: chunk.length,
+        newestDate: chunk[0]?.date ?? null,
+        oldestDate: chunk[chunk.length - 1]?.date ?? null,
+        totalsByType: summarizeActivitiesByType(chunk),
         activities: chunk,
         updatedAt: now,
         cacheVersion: YEAR_CACHE_VERSION,

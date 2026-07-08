@@ -47,6 +47,8 @@ test('cache anual em chunks e analytics existem para cortar leituras por tela', 
   const analytics = read('lib/activity-analytics.ts')
   assert.match(cache, /YEAR_CACHE_CHUNK_SIZE = 120/)
   assert.match(cache, /loadYearActivitiesFromCache/)
+  assert.match(cache, /listYearCacheChunkMeta/)
+  assert.match(cache, /loadYearCacheChunksByIds/)
   assert.match(cache, /rebuildYearActivityCaches/)
   assert.match(cache, /writeYearAnalyticsBatch/)
   assert.match(analytics, /buildYearAnalytics/)

@@ -69,6 +69,8 @@ try {
   assert.match(activitiesRoute, /getUserScope/)
   assert.match(activitiesHistoryRoute, /pageSize/)
   assert.match(activitiesHistoryRoute, /loadYearActivitiesFromCache/)
+  assert.match(activitiesHistoryRoute, /listYearCacheChunkMeta/)
+  assert.match(activitiesHistoryRoute, /year-cache-windowed/)
   assert.match(activitiesRoute, /loadYearActivitiesFromCache/)
   assert.match(activitiesAnalyticsRoute, /applyScopeToYearAnalytics/)
   assert.match(activitiesAnalyticsRoute, /ANALYTICS_CACHE_VERSION/)
