@@ -52,6 +52,32 @@ function scopeNeedsFullRebuild(current: ReturnType<typeof getUserScope>, previou
   )
 }
 
+function getUserFacingSyncError(error: unknown) {
+  const message = error instanceof Error ? error.message : String(error ?? 'Erro desconhecido no sync')
+
+  if (message.includes('Strava API error: 401')) {
+    return 'Sua conexao com o Strava expirou. Saia e entre novamente no painel.'
+  }
+
+  if (message.includes('Strava API error: 429')) {
+    return 'O Strava bloqueou temporariamente novas leituras por limite de uso. Aguarde alguns minutos e tente de novo.'
+  }
+
+  if (message.includes('Strava API error: 403')) {
+    return 'O Strava recusou o acesso a esta sincronizacao. Revise a conexao da conta e tente novamente.'
+  }
+
+  if (message.includes('RESOURCE_EXHAUSTED') || message.includes('Quota exceeded')) {
+    return 'O limite atual do Firebase foi atingido. Aguarde a janela virar ou reduza novas leituras.'
+  }
+
+  if (message.includes('FAILED_PRECONDITION') || message.includes('index')) {
+    return 'O Firestore pediu uma estrutura de indice que ainda nao ficou pronta. Tente novamente em instantes.'
+  }
+
+  return 'Nao foi possivel sincronizar agora. Tente novamente em instantes.'
+}
+
 export async function POST(req: Request) {
   const session = await getServerSession(authOptions)
 
@@ -300,18 +326,27 @@ export async function POST(req: Request) {
       cacheYearsRebuilt: [...cacheYears].sort((a, b) => Number(b) - Number(a)),
     })
   } catch (error) {
+    const syncErrorMessage = error instanceof Error ? error.message : 'Erro desconhecido no sync'
+
+    console.error('strava sync failed', {
+      stravaId: session.stravaId,
+      requestedMode,
+      effectiveRequestedMode,
+      reason: syncErrorMessage,
+    })
+
     await metaRef(session.stravaId).set(
       {
         syncInProgress: false,
         syncLockUntil: null,
         syncErrorAt: new Date(),
-        syncErrorMessage: error instanceof Error ? error.message : 'Erro desconhecido no sync',
+        syncErrorMessage,
       },
       { merge: true }
     )
 
     return Response.json(
-      { error: 'Nao foi possivel sincronizar agora. Tente novamente em instantes.' },
+      { error: getUserFacingSyncError(error) },
       { status: 500 }
     )
   }
