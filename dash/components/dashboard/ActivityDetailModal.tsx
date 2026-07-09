@@ -58,7 +58,6 @@ export function ActivityDetailModal({
                 <p className="panel-eyebrow">Leitura do treino</p>
                 <h3>{interpretation.title}</h3>
               </div>
-              <span className="panel-subtitle">Resumo automatico por regras do proprio bloco, sem chute de contexto externo.</span>
             </div>
             <p className="activity-interpretation-summary">{interpretation.summary}</p>
             <div className="activity-interpretation-list">
@@ -131,3 +130,4 @@ export function ActivityDetailModal({
     </div>
   )
 }
+
