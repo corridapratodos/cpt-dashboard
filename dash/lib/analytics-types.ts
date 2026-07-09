@@ -1,4 +1,4 @@
-﻿import type { StoredBestEffort } from '@/lib/activity-types'
+import type { StoredBestEffort } from '@/lib/activity-types'
 
 export const ANALYTICS_CACHE_VERSION = 2
 export const ANALYTICS_RECORD_TARGETS = [3, 5, 10, 15, 21.1, 30] as const

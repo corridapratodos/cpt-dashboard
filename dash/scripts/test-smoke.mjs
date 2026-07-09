@@ -1,4 +1,4 @@
-﻿import { readFileSync } from 'node:fs'
+import { readFileSync } from 'node:fs'
 import assert from 'node:assert/strict'
 
 function read(path) {
@@ -108,6 +108,9 @@ try {
   const useDashboardHistory = read('components/dashboard/useDashboardHistory.ts')
   const adminControlPanel = read('components/dashboard/AdminControlPanel.tsx')
   const syncStatusModal = read('components/dashboard/SyncStatusModal.tsx')
+  const dashboardExecutiveSection = read('components/dashboard/DashboardExecutiveSection.tsx')
+  const dashboardAnalysisSection = read('components/dashboard/DashboardAnalysisSection.tsx')
+  const dashboardInterpretationSection = read('components/dashboard/DashboardInterpretationSection.tsx')
   assert.match(login, /\/privacy/)
   assert.match(login, /\/terms/)
   assert.match(accessPage, /PreAccessGate/)
@@ -130,12 +133,16 @@ try {
   assert.match(useDashboardHistory, /api\/activities\/history/)
   assert.match(adminControlPanel, /Backfill best efforts/)
   assert.match(syncStatusModal, /Sincronizacao/)
+  assert.match(dashboardExecutiveSection, /Primeira leitura do recorte ativo/)
+  assert.match(dashboardAnalysisSection, /Volume, desempenho, comparacao e consistencia/)
+  assert.match(dashboardInterpretationSection, /Periodo em contexto e interpretacao automatica/)
 
   console.log('Smoke checks aprovados.')
 } catch (error) {
   console.error('Smoke checks falharam.')
   throw error
 }
+
 
 
 

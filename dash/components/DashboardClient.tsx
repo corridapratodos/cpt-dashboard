@@ -1,11 +1,9 @@
-﻿'use client'
+'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { ActivityYearAnalytics } from '@/lib/analytics-types'
 import { signOut } from 'next-auth/react'
 import {
-  Area,
-  AreaChart,
   Bar,
   BarChart,
   CartesianGrid,
@@ -36,7 +34,7 @@ import {
   readingLayers,
   sportMeta,
 } from './dashboard/helpers'
-import { AnalysisTile, CompareTile, DetailItem, InsightItem, MetricCard, Panel, SectionLead } from './dashboard/ui'
+import { DetailItem, Panel, SectionLead } from './dashboard/ui'
 import { useActivityDetail } from './dashboard/useActivityDetail'
 import { usePanelPreferences } from './dashboard/usePanelPreferences'
 import { ActivityDetailModal } from './dashboard/ActivityDetailModal'
@@ -46,6 +44,9 @@ import { AdminControlPanel } from './dashboard/AdminControlPanel'
 import { SyncStatusModal } from './dashboard/SyncStatusModal'
 import { DashboardHeader } from './dashboard/DashboardHeader'
 import { DashboardEmptyState } from './dashboard/DashboardEmptyState'
+import { DashboardExecutiveSection } from './dashboard/DashboardExecutiveSection'
+import { DashboardAnalysisSection } from './dashboard/DashboardAnalysisSection'
+import { DashboardInterpretationSection } from './dashboard/DashboardInterpretationSection'
 
 export default function DashboardClient({ initialActivities, initialAnalytics, initialYear, availableYears, isAdmin, meta, userName }: Props) {
   const actualYears = useMemo(
@@ -635,233 +636,35 @@ export default function DashboardClient({ initialActivities, initialAnalytics, i
         </section>
       ) : (
         <>
-          {stats && (
-            <>
-              <SectionLead
-                id="resumo"
-                eyebrow="Resumo executivo"
-                title="Primeira leitura do recorte ativo"
-                subtitle="Aqui entram os numeros de topo. Eles resumem a janela filtrada antes de abrir a analise detalhada."
-              />
-              <section className="kpi-grid">
-                <MetricCard label="Sessoes ativas" value={String(stats.count)} sub={`${activeWindow.title} | ${focusLabel}`} accent={activeAccent} />
-                <MetricCard label="Distancia" value={`${fmt.dist(stats.totalDist)} km`} sub="volume no recorte ativo" accent={activeAccent} />
-                <MetricCard label="Tempo ativo" value={fmt.dur(stats.totalDur)} sub="movimento no recorte ativo" accent={activeAccent} />
-                <MetricCard
-                  label={stats.mode === 'speed' ? 'Velocidade media' : stats.mode === 'mixed' ? 'Peso da corrida' : 'Pace medio'}
-                  value={stats.mode === 'speed' ? `${stats.avgSpeed.toFixed(1)} km/h` : stats.mode === 'mixed' ? `${stats.shareRun}%` : fmt.pace(stats.avgPace)}
-                  sub={stats.mode === 'mixed' ? 'participacao das sessoes de corrida' : stats.mode === 'speed' ? 'media da janela ativa' : 'ritmo medio por km'}
-                  accent={activeAccent}
-                />
-                <MetricCard label="Maior sessao" value={`${fmt.dist(stats.longest.distanceKm)} km`} sub={fmt.fullDate(stats.longest.date)} accent={activeAccent} />
-                <MetricCard
-                  label={stats.mode === 'speed' ? 'Pico de velocidade' : stats.mode === 'mixed' ? 'Esporte dominante' : 'Melhor pace'}
-                  value={stats.mode === 'speed' ? fmt.speed(stats.fastestSpeed.distanceKm, stats.fastestSpeed.durationSec) : stats.mode === 'mixed' ? getSportLabel(stats.dominantSport?.[0] ?? 'Run') : fmt.pace(stats.fastest?.paceSec ?? null)}
-                  sub={stats.mode === 'mixed' ? `${stats.dominantSport?.[1] ?? 0} sessoes` : stats.mode === 'speed' ? fmt.fullDate(stats.fastestSpeed.date) : stats.fastest ? fmt.fullDate(stats.fastest.date) : 'sem dados'}
-                  accent={activeAccent}
-                />
-              </section>
-            </>
-          )}
-
-          <SectionLead
-            id="volume"
-            eyebrow="Leitura analitica"
-            title="Volume, desempenho, comparacao e consistencia"
-            subtitle="Os paineis abaixo ja nao misturam tudo na mesma camada. Cada bloco responde uma pergunta diferente."
+          <DashboardExecutiveSection
+            stats={stats}
+            activeWindowTitle={activeWindow.title}
+            focusLabel={focusLabel}
+            activeAccent={activeAccent}
           />
-          <section className="dashboard-grid">
-            <Panel eyebrow="Volume" title={activeWindow.volumeTitle} subtitle={activeWindow.volumeSubtitle}>
-              <ResponsiveContainer width="100%" height={260}>
-                <BarChart data={volumeSeries} margin={{ top: 8, right: 4, bottom: 4, left: -16 }}>
-                  <CartesianGrid strokeDasharray="4 4" stroke="var(--grid)" />
-                  <XAxis dataKey="label" tick={{ fill: 'var(--text-muted)', fontSize: 11 }} axisLine={false} tickLine={false} />
-                  <YAxis tick={{ fill: 'var(--text-muted)', fontSize: 11 }} axisLine={false} tickLine={false} />
-                  <Tooltip contentStyle={chartTooltip} itemStyle={chartTooltipItem} labelStyle={chartTooltipLabel} cursor={chartCursor} formatter={(value: number) => [`${value} km`, 'Distancia']} />
-                  <Bar dataKey="km" radius={[8, 8, 0, 0]}>
-                    {volumeSeries.map((entry, index) => (
-                      <Cell key={`${entry.label}-${index}`} fill={activeAccent} fillOpacity={0.95 - index * 0.015} />
-                    ))}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-            </Panel>
 
-            <Panel eyebrow="Desempenho" title={getMetricMode(primarySport) === 'speed' ? 'Velocidade recente' : 'Evolucao recente'} subtitle="Janela curta para acompanhar tendencia do bloco atual">
-              <ResponsiveContainer width="100%" height={260}>
-                <LineChart data={performanceTimeline} margin={{ top: 8, right: 8, bottom: 4, left: -16 }}>
-                  <CartesianGrid strokeDasharray="4 4" stroke="var(--grid)" />
-                  <XAxis dataKey="date" tick={{ fill: 'var(--text-muted)', fontSize: 10 }} axisLine={false} tickLine={false} />
-                  <YAxis
-                    tick={{ fill: 'var(--text-muted)', fontSize: 11 }}
-                    axisLine={false}
-                    tickLine={false}
-                    reversed={getMetricMode(primarySport) !== 'speed'}
-                    tickFormatter={(value) => getMetricMode(primarySport) === 'speed' ? `${Number(value).toFixed(0)} km/h` : fmt.pace(Number(value))}
-                  />
-                  <Tooltip
-                    contentStyle={chartTooltip}
-                    itemStyle={chartTooltipItem}
-                    labelStyle={chartTooltipLabel}
-                    cursor={chartCursor}
-                    formatter={(_value: number, _name: string, item: any) => [
-                      getMetricMode(primarySport) === 'speed' ? item.payload.speedLabel : item.payload.paceLabel,
-                      getMetricMode(primarySport) === 'speed' ? 'Velocidade' : 'Pace',
-                    ]}
-                  />
-                  <Line type="monotone" dataKey="metricValue" stroke={activeAccent} strokeWidth={3} dot={false} />
-                </LineChart>
-              </ResponsiveContainer>
-            </Panel>
-
-            <Panel eyebrow="Comparativo" title={activeWindow.comparisonTitle} subtitle={activeWindow.comparisonSubtitle}>
-              {periodComparison ? (
-                <div className="comparison-grid">
-                  <CompareTile label="Distancia" current={`${fmt.dist(periodComparison.current.distance)} km`} previous={`${fmt.dist(periodComparison.previous.distance)} km`} delta={fmt.pct(periodComparison.distanceChange)} positive={periodComparison.distanceChange >= 0} />
-                  <CompareTile label="Sessoes" current={String(periodComparison.current.sessions)} previous={String(periodComparison.previous.sessions)} delta={fmt.pct(periodComparison.sessionChange)} positive={periodComparison.sessionChange >= 0} />
-                  <CompareTile label="Tempo" current={fmt.dur(periodComparison.current.durationSec)} previous={fmt.dur(periodComparison.previous.durationSec)} delta={fmt.pct(periodComparison.durationChange)} positive={periodComparison.durationChange >= 0} />
-                  <CompareTile label="Pace" current={fmt.pace(periodComparison.current.avgPace)} previous={fmt.pace(periodComparison.previous.avgPace)} delta={fmt.pct(periodComparison.paceChange)} positive={periodComparison.paceChange >= 0} />
-                </div>
-              ) : (
-                <p className="empty-copy">Ainda nao ha dados suficientes para comparar a janela ativa com o periodo anterior equivalente.</p>
-              )}
-            </Panel>
-            <Panel eyebrow="Consistencia" title="Carga semanal" subtitle="Heuristica de volume recente e manutencao de carga">
-              <ResponsiveContainer width="100%" height={240}>
-                <AreaChart data={weeklyLoad} margin={{ top: 8, right: 8, bottom: 4, left: -16 }}>
-                  <defs>
-                    <linearGradient id="loadFill" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor={activeAccent} stopOpacity={0.32} />
-                      <stop offset="100%" stopColor={activeAccent} stopOpacity={0.02} />
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="4 4" stroke="var(--grid)" />
-                  <XAxis dataKey="week" tick={{ fill: 'var(--text-muted)', fontSize: 11 }} axisLine={false} tickLine={false} />
-                  <YAxis tick={{ fill: 'var(--text-muted)', fontSize: 11 }} axisLine={false} tickLine={false} />
-                  <Tooltip contentStyle={chartTooltip} itemStyle={chartTooltipItem} labelStyle={chartTooltipLabel} cursor={chartCursor} formatter={(value: number) => [value, 'Carga']} />
-                  <Area type="monotone" dataKey="load" stroke={activeAccent} fill="url(#loadFill)" strokeWidth={2.4} />
-                </AreaChart>
-              </ResponsiveContainer>
-              {loadInsight && (
-                <div className="callout" data-status={loadInsight.status}>
-                  <strong>{loadInsight.stableWeeks} semanas sustentando a faixa de carga</strong>
-                  <p>{loadInsight.recommendation}</p>
-                  <span>Semana atual: {fmt.dist(loadInsight.currentWeek.km)} km | referencia recente: {loadInsight.avgLoad} de carga</span>
-                </div>
-              )}
-            </Panel>
-          </section>
-
-          <SectionLead
-            id="comparativo"
-            eyebrow="Leitura comparativa"
-            title="Periodo em contexto e interpretacao automatica"
-            subtitle="Aqui o recorte atual deixa de ser so numero absoluto e passa a ser lido contra o bloco anterior e contra o proprio historico carregado."
+          <DashboardAnalysisSection
+            activeWindow={activeWindow}
+            primarySport={primarySport}
+            activeAccent={activeAccent}
+            volumeSeries={volumeSeries}
+            performanceTimeline={performanceTimeline}
+            periodComparison={periodComparison}
+            weeklyLoad={weeklyLoad}
+            loadInsight={loadInsight}
           />
-          <section className="dashboard-grid">
-            <Panel eyebrow="Contexto" title="Leituras do periodo" subtitle="Composicao do bloco atual alem dos KPIs de topo">
-              {periodContext && stats ? (
-                <div className="analysis-grid">
-                  <AnalysisTile label="Densidade" value={`${periodContext.densityPct}%`} meta={`${periodContext.activeDays} dias ativos em ${periodContext.spanDays} dias`} />
-                  <AnalysisTile label="Sessao media" value={`${fmt.dist(periodContext.avgSessionKm)} km`} meta={`${periodContext.avgSessionMinutes} min por sessao`} />
-                  <AnalysisTile label="Peso do longao" value={`${periodContext.longestSharePct}%`} meta={`${fmt.dist(stats.longest.distanceKm)} km do volume total`} />
-                  <AnalysisTile label="Cadencia" value={`${periodContext.sessionsPerWeek.toFixed(1)}/sem`} meta="sessoes por semana ativa" />
-                </div>
-              ) : (
-                <p className="empty-copy">Ainda nao ha base suficiente para contextualizar a janela ativa.</p>
-              )}
-            </Panel>
 
-            <Panel eyebrow="Leitura automatica" title="Comparativos do recorte" subtitle="Resumo interpretado do bloco atual contra referencias equivalentes">
-              {analysisInsights.length ? (
-                <div className="insight-list">
-                  {analysisInsights.map((insight) => (
-                    <InsightItem key={insight.title} title={insight.title}>{insight.copy}</InsightItem>
-                  ))}
-                </div>
-              ) : (
-                <p className="empty-copy">Ainda nao ha comparativos suficientes para gerar leitura automatica deste recorte.</p>
-              )}
-              {periodBenchmark && (
-                <div className="analysis-grid analysis-grid-compact">
-                  <AnalysisTile label="Posicao em volume" value={`#${periodBenchmark.rank}/${periodBenchmark.total}`} meta={`${periodBenchmark.label} do recorte`} />
-                  <AnalysisTile label="Media comparavel" value={`${fmt.dist(periodBenchmark.averageDistance)} km`} meta={`${periodBenchmark.averageSessions.toFixed(1)} sessoes por periodo`} />
-                  <AnalysisTile label="Melhor janela" value={`${fmt.dist(periodBenchmark.best.distance)} km`} meta={periodBenchmark.best.label} />
-                  <AnalysisTile label="Janela atual" value={`${fmt.dist(periodBenchmark.current.distance)} km`} meta={periodBenchmark.current.label} />
-                </div>
-              )}
-            </Panel>
-
-            <Panel eyebrow="Radar" title="Distribuicao do bloco" subtitle="Leituras deterministicas da janela ativa, sem depender de LLM">
-              {periodRadar ? (
-                <div className="analysis-grid">
-                  <AnalysisTile label="Dia mais forte" value={`${fmt.dist(periodRadar.strongestDay.distance)} km`} meta={`${periodRadar.strongestDay.label} | ${periodRadar.strongestDaySharePct}% do volume`} />
-                  <AnalysisTile label="Maior intervalo" value={`${periodRadar.biggestGapDays}d`} meta="entre dias ativos do recorte" />
-                  <AnalysisTile label="Dia dominante" value={periodRadar.topWeekdayLabel} meta={`${periodRadar.topWeekdaySharePct}% das sessoes`} />
-                  <AnalysisTile label="Fim de semana" value={`${periodRadar.weekendSharePct}%`} meta="das sessoes em sabado e domingo" />
-                </div>
-              ) : (
-                <p className="empty-copy">Ainda nao ha base suficiente para ler a distribuicao interna do recorte.</p>
-              )}
-            </Panel>
-          </section>
-
-          <SectionLead
-            eyebrow="Leitura de apoio"
-            title={showOperatorNotes ? 'Contexto de produto, recordes e leitura qualitativa' : 'Recordes e leitura qualitativa'}
-            subtitle={showOperatorNotes ? 'Esses blocos ajudam a interpretar os numeros principais sem transformar o painel em uma planilha crua.' : 'Blocos de apoio para interpretar a fase atual sem mergulhar direto no bruto.'}
+          <DashboardInterpretationSection
+            windowMode={windowMode}
+            stats={stats}
+            periodContext={periodContext}
+            analysisInsights={analysisInsights}
+            periodBenchmark={periodBenchmark}
+            periodRadar={periodRadar}
+            showOperatorNotes={showOperatorNotes}
+            records={records}
+            effortHighlights={effortHighlights}
           />
-          <section className={`insight-grid ${showOperatorNotes ? 'insight-grid-expanded' : 'athlete-insight-grid'}`}>
-            <Panel eyebrow="Recordes" title="Melhores marcas do recorte" subtitle="Prioriza best efforts oficiais do Strava. Quando nao houver detalhamento disponivel, cai para aproximacao pela atividade inteira.">
-              {records.length ? (
-                <div className="record-grid">
-                  {records.map((record) => (
-                    <article key={`${record.targetKm}-${record.activity.stravaId}`} className="compare-tile">
-                      <p className="metric-label">{record.targetKm} km</p>
-                      <strong>{fmt.clock(record.displayDurationSec)}</strong>
-                      <span className="compare-previous">
-                        {record.source === 'strava-best-effort'
-                          ? `best effort oficial - ${fmt.pace(record.displayPaceSec)}/km`
-                          : `aproximado pela atividade - ${fmt.pace(record.displayPaceSec)}/km`}
-                      </span>
-                      <span className="compare-previous">{getDisplayName(record.activity.name)} | {fmt.fullDate(record.activity.date)}</span>
-                    </article>
-                  ))}
-                </div>
-              ) : (
-                <p className="empty-copy">Ainda nao ha atividades proximas das distancias de referencia neste recorte.</p>
-              )}
-            </Panel>
-
-            {showOperatorNotes && (
-              <Panel eyebrow="Produto" title="Leituras rapidas" subtitle="Como interpretar o recorte e a estrutura atual da home">
-                <div className="insight-list">
-                  <InsightItem title="Janelas agora mudam a leitura">Voce pode alternar entre ano, mes ativo, semana ativa e 28 dias sem perder o mesmo recorte base de esporte e ano.</InsightItem>
-                  <InsightItem title="2026 agora carrega completo">O primeiro ano selecionado deixa de ficar preso ao recorte inicial de 160 atividades e passa a buscar o ano inteiro sob demanda.</InsightItem>
-                  <InsightItem title="Carga atual e heuristica">A leitura semanal serve para consistencia e deload, nao como equivalencia cientifica de TRIMP ou TSS.</InsightItem>
-                </div>
-              </Panel>
-            )}
-
-            <Panel eyebrow="Qualitativo" title="Ultimos treinos" subtitle="Amostra recente para leitura qualitativa">
-              <div className="recent-grid">
-                {effortHighlights.map((activity) => (
-                  <article key={activity.stravaId} className="mini-card">
-                    <div className="mini-topline">
-                      <span className="sport-tag" style={{ background: sportMeta[activity.type]?.chip ?? 'var(--chip-neutral)' }}>{getSportLabel(activity.type)}</span>
-                      <span>{fmt.date(activity.date)}</span>
-                    </div>
-                    <h4>{getDisplayName(activity.name)}</h4>
-                    <div className="mini-metrics">
-                      <span>{fmt.dist(activity.distanceKm)} km</span>
-                      <span>{fmt.dur(activity.durationSec)}</span>
-                      <span>{activity.type === 'Ride' ? fmt.speed(activity.distanceKm, activity.durationSec) : `${fmt.pace(activity.paceSec)}/km`}</span>
-                    </div>
-                  </article>
-                ))}
-              </div>
-            </Panel>
-          </section>
 
           {isAdmin && (sleepData.length > 0 || weightData.length > 0) && (() => {
             const healthWindowStart = activeWindow.start
@@ -1118,6 +921,7 @@ export default function DashboardClient({ initialActivities, initialAnalytics, i
     </div>
   )
 }
+
 
 
 

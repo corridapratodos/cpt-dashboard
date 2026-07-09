@@ -1,4 +1,4 @@
-﻿import type { WriteBatch } from 'firebase-admin/firestore'
+import type { WriteBatch } from 'firebase-admin/firestore'
 import { isRunLikeType } from '@/lib/activity-types'
 import type {
   ActivityLite,

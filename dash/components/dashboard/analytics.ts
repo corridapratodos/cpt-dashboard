@@ -1,4 +1,4 @@
-﻿import type { ActivityYearAnalytics, AnalyticsActivityStub, AnalyticsDay, AnalyticsDaySport } from '@/lib/analytics-types'
+import type { ActivityYearAnalytics, AnalyticsActivityStub, AnalyticsDay, AnalyticsDaySport } from '@/lib/analytics-types'
 import type { Activity, PeriodTotals, RecordEntry } from './types'
 import {
   DAY_MS,
@@ -643,4 +643,7 @@ export function buildActiveAccent(selectedSports: string[], availableSports: str
 
 
 
+
+
+export type DashboardSlices = ReturnType<typeof computeDashboardSlices>
 

@@ -1,4 +1,4 @@
-﻿import { getServerSession } from 'next-auth'
+import { getServerSession } from 'next-auth'
 import { redirect } from 'next/navigation'
 import DashboardClient from '@/components/DashboardClient'
 import LegalGate from '@/components/LegalGate'

@@ -1,4 +1,4 @@
-﻿import { Query } from 'firebase-admin/firestore'
+import { Query } from 'firebase-admin/firestore'
 import { CURRENT_YEAR, FREE_PLAN_TYPES, type UserScope } from '@/lib/access'
 import type { StoredBestEffort } from '@/lib/activity-types'
 
