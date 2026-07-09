@@ -3,38 +3,16 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { ActivityYearAnalytics } from '@/lib/analytics-types'
 import { signOut } from 'next-auth/react'
-import {
-  Bar,
-  BarChart,
-  CartesianGrid,
-  Cell,
-  Line,
-  LineChart,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from 'recharts'
 import type { Activity, Props, SleepRecord, ThemeMode, WeightRecord } from './dashboard/types'
 import { Sidebar } from './Sidebar'
 import { buildActiveAccent, buildSportSummaryLabel, computeDashboardSlices, type WindowMode } from './dashboard/analytics'
 import {
-  DAY_MS,
   ROWS_STEP,
-  WEEK_MS,
   applyTheme,
-  chartCursor,
-  chartTooltip,
-  chartTooltipItem,
-  chartTooltipLabel,
   fmt,
-  getDisplayName,
   getMetricMode,
-  getSportLabel,
   readingLayers,
-  sportMeta,
 } from './dashboard/helpers'
-import { DetailItem, Panel, SectionLead } from './dashboard/ui'
 import { useActivityDetail } from './dashboard/useActivityDetail'
 import { usePanelPreferences } from './dashboard/usePanelPreferences'
 import { ActivityDetailModal } from './dashboard/ActivityDetailModal'
@@ -47,6 +25,9 @@ import { DashboardEmptyState } from './dashboard/DashboardEmptyState'
 import { DashboardExecutiveSection } from './dashboard/DashboardExecutiveSection'
 import { DashboardAnalysisSection } from './dashboard/DashboardAnalysisSection'
 import { DashboardInterpretationSection } from './dashboard/DashboardInterpretationSection'
+import { DashboardHealthSection } from './dashboard/DashboardHealthSection'
+import { DashboardHistorySection } from './dashboard/DashboardHistorySection'
+import { DashboardLegalSection } from './dashboard/DashboardLegalSection'
 
 export default function DashboardClient({ initialActivities, initialAnalytics, initialYear, availableYears, isAdmin, meta, userName }: Props) {
   const actualYears = useMemo(
@@ -666,244 +647,41 @@ export default function DashboardClient({ initialActivities, initialAnalytics, i
             effortHighlights={effortHighlights}
           />
 
-          {isAdmin && (sleepData.length > 0 || weightData.length > 0) && (() => {
-            const healthWindowStart = activeWindow.start
-            const healthWindowEnd = activeWindow.end
-            const healthWindowSubtitle = healthWindowStart && healthWindowEnd
-              ? `Dados importados do Garmin. Recorte ativo: ${activeWindow.label}.`
-              : `Dados importados do Garmin. Janela anual de ${yearLabel}.`
-
-            const sleepFiltered = sleepData.filter((s) => {
-              const y = s.date.slice(0, 4)
-              if (selectedYears.length > 0 && !selectedYears.includes(y)) return false
-              const date = new Date(`${s.date}T00:00:00`)
-              if (healthWindowStart && date < healthWindowStart) return false
-              if (healthWindowEnd && date > healthWindowEnd) return false
-              return true
-            })
-
-            const weightFiltered = weightData.filter((w) => {
-              const y = w.date.slice(0, 4)
-              if (selectedYears.length > 0 && !selectedYears.includes(y)) return false
-              const date = new Date(`${w.date}T00:00:00`)
-              if (healthWindowStart && date < healthWindowStart) return false
-              if (healthWindowEnd && date > healthWindowEnd) return false
-              return true
-            })
-
-            const weightSmoothed = weightFiltered.map((w, i, arr) => {
-              const win = arr.slice(Math.max(0, i - 3), i + 4)
-              const avg = win.reduce((s, x) => s + x.weightKg, 0) / win.length
-              return { ...w, weightSmooth: parseFloat(avg.toFixed(1)) }
-            })
-
-            const avgSleep = sleepFiltered.length
-              ? (sleepFiltered.reduce((s, r) => s + r.durationMin, 0) / sleepFiltered.length / 60).toFixed(1)
-              : null
-
-            const firstWeight = weightSmoothed[0]
-            const lastWeight = weightSmoothed[weightSmoothed.length - 1]
-
-            return (
-              <section id="saude" className="dashboard-health">
-                {sleepFiltered.length > 0 && (
-                  <SectionLead
-                    eyebrow="Saude & Recuperacao"
-                    title="Sono"
-                    subtitle={healthWindowSubtitle}
-                  />
-                )}
-                {sleepFiltered.length > 0 && (
-                    <Panel
-                      eyebrow="Sono"
-                      title="Duracao diaria"
-                      subtitle={avgSleep ? `Media do periodo: ${avgSleep}h` : ''}
-                    >
-                      <ResponsiveContainer width="100%" height={220}>
-                        <BarChart data={sleepFiltered} margin={{ top: 8, right: 4, bottom: 4, left: -16 }}>
-                          <CartesianGrid strokeDasharray="4 4" stroke="var(--grid)" />
-                          <XAxis dataKey="date" tick={{ fill: 'var(--text-muted)', fontSize: 11 }} axisLine={false} tickLine={false} tickFormatter={(v: string) => v.slice(5)} interval={Math.floor(sleepFiltered.length / 10)} />
-                          <YAxis tick={{ fill: 'var(--text-muted)', fontSize: 11 }} axisLine={false} tickLine={false} tickFormatter={(v: number) => `${Math.round(v / 60)}h`} domain={[0, 660]} />
-                          <Tooltip contentStyle={chartTooltip} itemStyle={chartTooltipItem} labelStyle={chartTooltipLabel} cursor={chartCursor} formatter={(v: number) => [`${Math.floor(v / 60)}h ${v % 60}min`, 'Sono']} labelFormatter={(l: string) => l} />
-                          <Bar dataKey="durationMin" radius={[4, 4, 0, 0]}>
-                            {sleepFiltered.map((s) => (
-                              <Cell key={s.date} fill={s.durationMin < 300 ? 'var(--accent-4)' : activeAccent} fillOpacity={0.9} />
-                            ))}
-                          </Bar>
-                        </BarChart>
-                      </ResponsiveContainer>
-                      <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.5rem' }}>
-                        <span style={{ display: 'inline-block', width: 10, height: 10, borderRadius: 2, background: 'var(--accent-4)', marginRight: 4, verticalAlign: 'middle' }} />
-                        Menos de 5h
-                      </p>
-                    </Panel>
-                  )}
-
-                  {weightSmoothed.length > 0 && (
-                    <SectionLead
-                      eyebrow="Saude & Recuperacao"
-                      title="Composicao corporal"
-                      subtitle={healthWindowSubtitle}
-                    />
-                  )}
-                  {weightSmoothed.length > 0 && (
-                    <Panel
-                      eyebrow="Peso"
-                      title="Tendencia corporal"
-                      subtitle={firstWeight && lastWeight ? `${firstWeight.weightKg} -> ${lastWeight.weightKg} kg no recorte` : ''}
-                    >
-                      <ResponsiveContainer width="100%" height={220}>
-                        <LineChart data={weightSmoothed} margin={{ top: 8, right: 8, bottom: 4, left: -16 }}>
-                          <CartesianGrid strokeDasharray="4 4" stroke="var(--grid)" />
-                          <XAxis dataKey="date" tick={{ fill: 'var(--text-muted)', fontSize: 11 }} axisLine={false} tickLine={false} tickFormatter={(v: string) => v.slice(5)} interval={Math.floor(weightSmoothed.length / 10)} />
-                          <YAxis tick={{ fill: 'var(--text-muted)', fontSize: 11 }} axisLine={false} tickLine={false} tickFormatter={(v: number) => `${v}kg`} domain={['auto', 'auto']} />
-                          <Tooltip contentStyle={chartTooltip} itemStyle={chartTooltipItem} labelStyle={chartTooltipLabel} cursor={chartCursor} formatter={(v: number, name: string) => [`${v} kg`, name === 'weightSmooth' ? 'Media 7d' : 'Diario']} labelFormatter={(l: string) => l} />
-                          <Line type="monotone" dataKey="weightKg" dot={false} stroke={activeAccent} strokeWidth={1} strokeOpacity={0.25} />
-                          <Line type="monotone" dataKey="weightSmooth" dot={false} stroke={activeAccent} strokeWidth={2.5} />
-                        </LineChart>
-                      </ResponsiveContainer>
-                      {lastWeight?.fatPct != null && (
-                        <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.5rem' }}>
-                          Ultima leitura: gordura {lastWeight.fatPct}% | musculo {lastWeight.muscleMassKg} kg | agua {lastWeight.waterPct}%
-                        </p>
-                      )}
-                    </Panel>
-                  )}
-              </section>
-            )
-          })()}
-
-          <SectionLead
-            id="historico"
-            eyebrow="Dado bruto"
-            title="Historico navegavel do recorte"
-            subtitle="Aqui ficam os registros individuais. Eles explicam os KPIs, mas nao devem ser a primeira camada de leitura."
+          <DashboardHealthSection
+            isAdmin={isAdmin}
+            sleepData={sleepData}
+            weightData={weightData}
+            selectedYears={selectedYears}
+            activeWindow={activeWindow}
+            yearLabel={yearLabel}
+            activeAccent={activeAccent}
           />
-          <section className="table-panel panel">
-            <div className="panel-header">
-              <div>
-                <p className="panel-eyebrow">Historico filtrado</p>
-                <h3>Atividades recentes</h3>
-              </div>
-              <span className="pill pill-ghost">{historyCount} itens na janela ativa</span>
-            </div>
 
-            {historyLoading && !visibleActivities.length && <p className="sync-message">Carregando historico...</p>}
-
-            <div className="mobile-activity-list">
-              {visibleActivities.map((activity) => {
-                const speed = activity.durationSec > 0 ? activity.distanceKm / (activity.durationSec / 3600) : 0
-                return (
-                  <article key={`mobile-${activity.stravaId}`} className="mobile-activity-card">
-                    <div className="mobile-activity-top">
-                      <span className="sport-tag" style={{ background: sportMeta[activity.type]?.chip ?? 'var(--chip-neutral)' }}>
-                        {getSportLabel(activity.type)}
-                      </span>
-                      <span>{fmt.date(activity.date)}</span>
-                    </div>
-                    <div className="mobile-activity-title">
-                      <strong>{getDisplayName(activity.name)}</strong>
-                      {activity.excludedFromMetrics && <span className="analysis-badge">Ignorada</span>}
-                    </div>
-                    <div className="mobile-activity-metrics">
-                      <DetailItem label="Distancia" value={`${fmt.dist(activity.distanceKm)} km`} />
-                      <DetailItem label="Tempo" value={fmt.dur(activity.durationSec)} />
-                      <DetailItem
-                        label={activity.type === 'Ride' ? 'Velocidade' : 'Pace'}
-                        value={activity.type === 'Ride' ? `${speed.toFixed(1)} km/h` : `${fmt.pace(activity.paceSec)}/km`}
-                      />
-                      <DetailItem label="FC media" value={activity.hrAvg ? `${Math.round(activity.hrAvg)} bpm` : '-'} />
-                    </div>
-                    <div className="mobile-activity-actions">
-                      <button type="button" className="btn btn-ghost btn-inline" onClick={() => activityDetail.select(activity)}>
-                        Ver detalhe
-                      </button>
-                    </div>
-                  </article>
-                )
-              })}
-            </div>
-
-            <div className="table-wrap">
-              <table className="activity-table">
-                <thead>
-                  <tr>
-                    {['Data', 'Tipo', 'Sessao', 'Distancia', 'Tempo', 'Ritmo/Vel.', 'FC media', 'Altimetria', 'Detalhe'].map((header) => <th key={header}>{header}</th>)}
-                  </tr>
-                </thead>
-                <tbody>
-                  {!visibleActivities.length && !historyLoading ? (
-                    <tr>
-                      <td colSpan={9} style={{ textAlign: 'center', color: 'var(--text-muted)' }}>Nenhuma atividade encontrada nesta pagina.</td>
-                    </tr>
-                  ) : visibleActivities.map((activity) => {
-                    const speed = activity.durationSec > 0 ? activity.distanceKm / (activity.durationSec / 3600) : 0
-                    return (
-                      <tr key={activity.stravaId}>
-                        <td>{fmt.date(activity.date)}</td>
-                        <td><span className="sport-tag" style={{ background: sportMeta[activity.type]?.chip ?? 'var(--chip-neutral)' }}>{getSportLabel(activity.type)}</span></td>
-                        <td className="truncate-cell">
-                          <div className="activity-name-cell">
-                            <span>{getDisplayName(activity.name)}</span>
-                            {activity.excludedFromMetrics && <span className="analysis-badge">Ignorada</span>}
-                          </div>
-                        </td>
-                        <td>{fmt.dist(activity.distanceKm)} km</td>
-                        <td>{fmt.dur(activity.durationSec)}</td>
-                        <td className="metric-emphasis">{activity.type === 'Ride' ? `${speed.toFixed(1)} km/h` : `${fmt.pace(activity.paceSec)}/km`}</td>
-                        <td>{activity.hrAvg ? `${Math.round(activity.hrAvg)} bpm` : '-'}</td>
-                        <td>{activity.elevationGain > 0 ? `${Math.round(activity.elevationGain)} m` : '-'}</td>
-                        <td>
-                          <button type="button" className="btn btn-ghost btn-inline" onClick={() => activityDetail.select(activity)}>
-                            Ver
-                          </button>
-                        </td>
-                      </tr>
-                    )
-                  })}
-                </tbody>
-              </table>
-            </div>
-
-            <div className="table-actions table-actions-spread">
-              <button type="button" className="btn btn-ghost" disabled={historyPage <= 1} onClick={() => setHistoryPage((current) => Math.max(1, current - 1))}>
-                Pagina anterior
-              </button>
-              <span className="pill pill-ghost">Pagina {historyPage} de {pageCount}</span>
-              <button type="button" className="btn btn-ghost" disabled={historyPage >= pageCount} onClick={() => setHistoryPage((current) => Math.min(pageCount, current + 1))}>
-                Proxima pagina
-              </button>
-            </div>
-          </section>
+          <DashboardHistorySection
+            historyCount={historyCount}
+            historyLoading={historyLoading}
+            visibleActivities={visibleActivities}
+            historyPage={historyPage}
+            pageCount={pageCount}
+            onPreviousPage={() => setHistoryPage((current) => Math.max(1, current - 1))}
+            onNextPage={() => setHistoryPage((current) => Math.min(pageCount, current + 1))}
+            onSelectActivity={activityDetail.select}
+          />
         </>
       )}
 
-      <section className="panel legal-panel">
-        <div className="panel-header compact">
-          <div>
-            <p className="panel-eyebrow">Privacidade e dados</p>
-            <h3>Controle da conta</h3>
-          </div>
-          <span className="panel-subtitle">Voce pode revisar a base legal e excluir seus dados a qualquer momento.</span>
-        </div>
-
-        <div className="legal-actions-grid">
-          <a href="/privacy" className="btn btn-ghost">Politica de privacidade</a>
-          <a href="/terms" className="btn btn-ghost">Termos de uso</a>
-          <button onClick={handleDeleteAccount} disabled={deleting || dashboardSync.syncing} className="btn btn-outline danger-button" type="button">
-            {deleting ? 'Excluindo dados...' : 'Excluir meus dados'}
-          </button>
-        </div>
-
-        <p className="legal-footnote">A exclusao remove seu historico salvo do Firestore. Se quiser encerrar o acesso de origem, revogue tambem o app nas configuracoes do Strava.</p>
-      </section>
+      <DashboardLegalSection
+        deleting={deleting}
+        syncing={dashboardSync.syncing}
+        onDeleteAccount={handleDeleteAccount}
+      />
       {dashboardSync.blockingAlert && (
         <SyncStatusModal
           title={dashboardSync.blockingAlert.title}
           message={dashboardSync.blockingAlert.message}
           onClose={dashboardSync.clearBlockingAlert}
         />
-      )}
+      )}
       {activityDetail.selectedActivity && (
         <ActivityDetailModal
           activity={activityDetail.selectedActivity}
@@ -915,42 +693,11 @@ export default function DashboardClient({ initialActivities, initialAnalytics, i
           onClose={() => activityDetail.select(null)}
           onToggleExclusion={activityDetail.toggleExclusion}
         />
-      )}
-        </main>
+      )}
+      </main>
       </div>
     </div>
   )
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 

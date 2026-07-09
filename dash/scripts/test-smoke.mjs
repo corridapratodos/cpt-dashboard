@@ -111,6 +111,9 @@ try {
   const dashboardExecutiveSection = read('components/dashboard/DashboardExecutiveSection.tsx')
   const dashboardAnalysisSection = read('components/dashboard/DashboardAnalysisSection.tsx')
   const dashboardInterpretationSection = read('components/dashboard/DashboardInterpretationSection.tsx')
+  const dashboardHealthSection = read('components/dashboard/DashboardHealthSection.tsx')
+  const dashboardHistorySection = read('components/dashboard/DashboardHistorySection.tsx')
+  const dashboardLegalSection = read('components/dashboard/DashboardLegalSection.tsx')
   assert.match(login, /\/privacy/)
   assert.match(login, /\/terms/)
   assert.match(accessPage, /PreAccessGate/)
@@ -118,7 +121,7 @@ try {
   assert.match(middleware, /PRE_ACCESS_COOKIE_NAME/)
   assert.match(middleware, /\/access/)
   assert.match(gate, /Aceitar e entrar no painel/)
-  assert.match(dashboard, /Excluir meus dados/)
+  assert.match(dashboard, /DashboardLegalSection/)
   assert.match(dashboard, /computeDashboardSlices/)
   assert.match(dashboard, /api\/activities\/analytics/)
   assert.match(dashboard, /useDashboardSync/)
@@ -136,12 +139,16 @@ try {
   assert.match(dashboardExecutiveSection, /Primeira leitura do recorte ativo/)
   assert.match(dashboardAnalysisSection, /Volume, desempenho, comparacao e consistencia/)
   assert.match(dashboardInterpretationSection, /Periodo em contexto e interpretacao automatica/)
+  assert.match(dashboardHealthSection, /Composicao corporal/)
+  assert.match(dashboardHistorySection, /Historico navegavel do recorte/)
+  assert.match(dashboardLegalSection, /Excluir meus dados/)
 
   console.log('Smoke checks aprovados.')
 } catch (error) {
   console.error('Smoke checks falharam.')
   throw error
 }
+
 
 
 

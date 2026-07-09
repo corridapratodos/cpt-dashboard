@@ -82,11 +82,16 @@ test('login e painel expoem links legais e consumo de analytics cache', () => {
   const login = read('app/login/page.tsx')
   const gate = read('components/LegalGate.tsx')
   const dashboard = read('components/DashboardClient.tsx')
+  const dashboardLegalSection = read('components/dashboard/DashboardLegalSection.tsx')
+  const dashboardHistorySection = read('components/dashboard/DashboardHistorySection.tsx')
   assert.match(login, /\/privacy/)
   assert.match(login, /\/terms/)
   assert.match(gate, /Aceitar e entrar no painel/)
-  assert.match(dashboard, /Excluir meus dados/)
+  assert.match(dashboard, /DashboardLegalSection/)
+  assert.match(dashboardHistorySection, /Historico navegavel do recorte/)
+  assert.match(dashboardLegalSection, /Excluir meus dados/)
   assert.match(dashboard, /computeDashboardSlices/)
   assert.match(dashboard, /api\/activities\/analytics/)
 })
+
 
