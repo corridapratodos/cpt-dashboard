@@ -28,6 +28,19 @@ type DayGroupTotals = PeriodTotals & {
   activeDays: number
 }
 
+type RoutineConsistency = {
+  activeDays: number
+  trackedWeeks: number
+  solidWeeks: number
+  activeDaysPerWeek: number
+  activeDaysPerWeekLabel: string
+  currentStreakDays: number
+  longestStreakDays: number
+  status: 'alto' | 'baixo' | 'equilibrado'
+  title: string
+  copy: string
+}
+
 function round1(value: number) {
   return Number(value.toFixed(1))
 }
@@ -157,6 +170,77 @@ function buildWindowOptions(days: ActiveDay[], mode: 'month' | 'week'): WindowOp
   })
 }
 
+
+function getRoutineConsistency(days: ActiveDay[]): RoutineConsistency | null {
+  if (!days.length) return null
+
+  const sortedAsc = [...days].sort((a, b) => a.date.localeCompare(b.date))
+  const sortedDesc = [...days].sort((a, b) => b.date.localeCompare(a.date))
+  const weekMap = new Map<string, number>()
+
+  for (const day of days) {
+    const weekKey = startOfWeek(new Date(`${day.date}T00:00:00Z`)).toISOString().slice(0, 10)
+    weekMap.set(weekKey, (weekMap.get(weekKey) ?? 0) + 1)
+  }
+
+  let currentStreakDays = 1
+  for (let index = 1; index < sortedDesc.length; index += 1) {
+    const previous = new Date(`${sortedDesc[index - 1].date}T00:00:00Z`)
+    const current = new Date(`${sortedDesc[index].date}T00:00:00Z`)
+    const gap = Math.round((previous.getTime() - current.getTime()) / DAY_MS)
+    if (gap !== 1) break
+    currentStreakDays += 1
+  }
+
+  let longestStreakDays = 1
+  let streak = 1
+  for (let index = 1; index < sortedAsc.length; index += 1) {
+    const previous = new Date(`${sortedAsc[index - 1].date}T00:00:00Z`)
+    const current = new Date(`${sortedAsc[index].date}T00:00:00Z`)
+    const gap = Math.round((current.getTime() - previous.getTime()) / DAY_MS)
+    if (gap === 1) {
+      streak += 1
+      longestStreakDays = Math.max(longestStreakDays, streak)
+    } else {
+      streak = 1
+    }
+  }
+
+  const trackedWeeks = weekMap.size
+  const solidWeeks = [...weekMap.values()].filter((count) => count >= 3).length
+  const activeDays = days.length
+  const activeDaysPerWeek = trackedWeeks > 0 ? activeDays / trackedWeeks : activeDays
+  const activeDaysPerWeekLabel = `${activeDaysPerWeek.toFixed(1)}d`
+  const solidRatio = trackedWeeks > 0 ? solidWeeks / trackedWeeks : 0
+
+  let status: RoutineConsistency['status'] = 'equilibrado'
+  let title = 'Rotina sustentada'
+  let copy = `Voce manteve media de ${activeDaysPerWeek.toFixed(1)} dias ativos por semana e emplacou ${solidWeeks} das ${trackedWeeks} semanas com pelo menos 3 dias de treino.`
+
+  if (activeDaysPerWeek >= 4 && solidRatio >= 0.7 && currentStreakDays >= 3) {
+    status = 'alto'
+    title = 'Rotina bem encaixada'
+    copy = `A frequencia do recorte esta forte: ${activeDaysPerWeek.toFixed(1)} dias ativos por semana, ${solidWeeks} semanas firmes e ${currentStreakDays} dias seguidos no momento.`
+  } else if (activeDaysPerWeek < 2.5 || solidRatio < 0.45) {
+    status = 'baixo'
+    title = 'Rotina ainda irregular'
+    copy = `O recorte mostra menos continuidade do que volume puro. A media ficou em ${activeDaysPerWeek.toFixed(1)} dias ativos por semana e so ${solidWeeks} das ${trackedWeeks} semanas bateram 3 dias de treino.`
+  }
+
+  return {
+    activeDays,
+    trackedWeeks,
+    solidWeeks,
+    activeDaysPerWeek: round1(activeDaysPerWeek),
+    activeDaysPerWeekLabel,
+    currentStreakDays,
+    longestStreakDays,
+    status,
+    title,
+    copy,
+  }
+}
+
 function getRecords(days: ActiveDay[]): RecordEntry[] {
   const candidates = new Map<number, RecordEntry>()
 
@@ -250,6 +334,7 @@ export function computeDashboardSlices(params: {
       periodComparison: null,
       weeklyLoad: [] as Array<{ week: string; km: number; sessions: number; load: number }>,
       loadInsight: null,
+      routineConsistency: null as RoutineConsistency | null,
       periodContext: null,
       periodRadar: null,
       periodBenchmark: null,
@@ -497,6 +582,8 @@ export function computeDashboardSlices(params: {
     }
   })()
 
+  const routineConsistency = getRoutineConsistency(analyzedDays)
+
   const periodContext = (() => {
     if (!stats || !analyzedDays.length) return null
     const activeWeeks = new Set(analyzedDays.map((day) => startOfWeek(new Date(`${day.date}T00:00:00Z`)).toISOString().slice(0, 10))).size
@@ -622,6 +709,7 @@ export function computeDashboardSlices(params: {
     periodComparison,
     weeklyLoad,
     loadInsight,
+    routineConsistency,
     periodContext,
     periodRadar,
     periodBenchmark,

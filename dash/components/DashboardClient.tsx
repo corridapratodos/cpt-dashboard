@@ -116,6 +116,7 @@ export default function DashboardClient({ initialActivities, initialAnalytics, i
     periodComparison,
     weeklyLoad,
     loadInsight,
+    routineConsistency,
     periodContext,
     periodRadar,
     periodBenchmark,
@@ -305,6 +306,7 @@ export default function DashboardClient({ initialActivities, initialAnalytics, i
             <>
               <DashboardExecutiveSection
                 stats={stats}
+                routineConsistency={routineConsistency}
                 activeWindowTitle={activeWindow.title}
                 focusLabel={focusLabel}
                 activeAccent={activeAccent}

@@ -1,17 +1,18 @@
 import type { DashboardSlices } from './analytics'
+import { AnalysisTile, MetricCard, SectionLead } from './ui'
 import { fmt, getSportLabel } from './helpers'
-import { MetricCard, SectionLead } from './ui'
 
 type DashboardStats = NonNullable<DashboardSlices['stats']>
 
 type Props = {
   stats: DashboardStats | null
+  routineConsistency: DashboardSlices['routineConsistency']
   activeWindowTitle: string
   focusLabel: string
   activeAccent: string
 }
 
-export function DashboardExecutiveSection({ stats, activeWindowTitle, focusLabel, activeAccent }: Props) {
+export function DashboardExecutiveSection({ stats, routineConsistency, activeWindowTitle, focusLabel, activeAccent }: Props) {
   if (!stats) return null
 
   return (
@@ -40,6 +41,27 @@ export function DashboardExecutiveSection({ stats, activeWindowTitle, focusLabel
           accent={activeAccent}
         />
       </section>
+      {routineConsistency && (
+        <section className="panel executive-routine-panel">
+          <div className="panel-header compact">
+            <div>
+              <p className="panel-eyebrow">Rotina</p>
+              <h3>Consistencia da rotina</h3>
+            </div>
+            <span className="panel-subtitle">Leitura de frequencia e continuidade do recorte, sem depender de zona ou modelo externo.</span>
+          </div>
+          <div className="analysis-grid analysis-grid-compact">
+            <AnalysisTile label="Dias ativos / semana" value={routineConsistency.activeDaysPerWeekLabel} meta={`${routineConsistency.activeDays} dias ativos em ${routineConsistency.trackedWeeks} semanas uteis`} />
+            <AnalysisTile label="Sequencia atual" value={`${routineConsistency.currentStreakDays}d`} meta={routineConsistency.currentStreakDays >= 4 ? 'ritmo recente sustentado' : 'sequencia ainda curta'} />
+            <AnalysisTile label="Maior sequencia" value={`${routineConsistency.longestStreakDays}d`} meta="melhor embalo dentro do recorte" />
+            <AnalysisTile label="Semanas firmes" value={`${routineConsistency.solidWeeks}/${routineConsistency.trackedWeeks}`} meta="semanas com 3+ dias ativos" />
+          </div>
+          <div className="callout" data-status={routineConsistency.status}>
+            <strong>{routineConsistency.title}</strong>
+            <p>{routineConsistency.copy}</p>
+          </div>
+        </section>
+      )}
     </>
   )
 }

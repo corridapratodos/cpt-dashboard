@@ -150,6 +150,7 @@ try {
   assert.match(adminControlPanel, /Backfill best efforts/)
   assert.match(syncStatusModal, /Sincronizacao/)
   assert.match(dashboardExecutiveSection, /Primeira leitura do recorte ativo/)
+  assert.match(dashboardExecutiveSection, /Consistencia da rotina/)
   assert.match(dashboardAnalysisSection, /Volume, desempenho, comparacao e consistencia/)
   assert.match(dashboardInterpretationSection, /Periodo em contexto e interpretacao automatica/)
   assert.match(dashboardHealthSection, /Composicao corporal/)
@@ -157,6 +158,7 @@ try {
   assert.match(dashboardLegalSection, /Excluir meus dados/)
   assert.match(useYearAnalytics, /api\/activities\/analytics/)
   assert.match(dashboardInsights, /buildAnalysisInsights/)
+  assert.match(dashboardInsights, /Densidade de treino do recorte/)
 
   console.log('Smoke checks aprovados.')
 } catch (error) {
