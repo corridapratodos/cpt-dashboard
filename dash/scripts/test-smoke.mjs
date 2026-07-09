@@ -106,6 +106,8 @@ try {
   const usePanelPreferences = read('components/dashboard/usePanelPreferences.ts')
   const useDashboardSync = read('components/dashboard/useDashboardSync.ts')
   const useDashboardHistory = read('components/dashboard/useDashboardHistory.ts')
+  const useDashboardViewState = read('components/dashboard/useDashboardViewState.ts')
+  const useHealthData = read('components/dashboard/useHealthData.ts')
   const adminControlPanel = read('components/dashboard/AdminControlPanel.tsx')
   const syncStatusModal = read('components/dashboard/SyncStatusModal.tsx')
   const dashboardExecutiveSection = read('components/dashboard/DashboardExecutiveSection.tsx')
@@ -114,6 +116,8 @@ try {
   const dashboardHealthSection = read('components/dashboard/DashboardHealthSection.tsx')
   const dashboardHistorySection = read('components/dashboard/DashboardHistorySection.tsx')
   const dashboardLegalSection = read('components/dashboard/DashboardLegalSection.tsx')
+  const useYearAnalytics = read('components/dashboard/useYearAnalytics.ts')
+  const dashboardInsights = read('components/dashboard/insights.ts')
   assert.match(login, /\/privacy/)
   assert.match(login, /\/terms/)
   assert.match(accessPage, /PreAccessGate/)
@@ -123,14 +127,15 @@ try {
   assert.match(gate, /Aceitar e entrar no painel/)
   assert.match(dashboard, /DashboardLegalSection/)
   assert.match(dashboard, /computeDashboardSlices/)
-  assert.match(dashboard, /api\/activities\/analytics/)
+  assert.match(useYearAnalytics, /api\/activities\/analytics/)
   assert.match(dashboard, /useDashboardSync/)
   assert.match(dashboard, /useDashboardHistory/)
   assert.match(dashboard, /ActivityDetailModal/)
+  assert.match(useDashboardViewState, /cpt-panel-prefs:/)
+  assert.match(useHealthData, /api\/health/)
   assert.match(activityDetailModal, /Carregando parciais/)
   assert.match(activityDetailModal, /Disponivel apenas para contas pro e master/)
   assert.match(useActivityDetail, /api\/activities\/\$\{activityId\}/)
-  assert.match(dashboard, /cpt-panel-prefs:/)
   assert.match(usePanelPreferences, /localStorage\.getItem\(key\)/)
   assert.match(useDashboardSync, /api\/strava\/sync/)
   assert.match(useDashboardHistory, /api\/activities\/history/)
@@ -142,12 +147,17 @@ try {
   assert.match(dashboardHealthSection, /Composicao corporal/)
   assert.match(dashboardHistorySection, /Historico navegavel do recorte/)
   assert.match(dashboardLegalSection, /Excluir meus dados/)
+  assert.match(useYearAnalytics, /api\/activities\/analytics/)
+  assert.match(dashboardInsights, /buildAnalysisInsights/)
 
   console.log('Smoke checks aprovados.')
 } catch (error) {
   console.error('Smoke checks falharam.')
   throw error
 }
+
+
+
 
 
 
