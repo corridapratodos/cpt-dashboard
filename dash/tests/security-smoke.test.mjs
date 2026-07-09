@@ -84,6 +84,9 @@ test('login e painel expoem links legais e consumo de analytics cache', () => {
   const dashboard = read('components/DashboardClient.tsx')
   const dashboardLegalSection = read('components/dashboard/DashboardLegalSection.tsx')
   const dashboardHistorySection = read('components/dashboard/DashboardHistorySection.tsx')
+  const activityDetailDialog = read('components/dashboard/ActivityDetailDialog.tsx')
+  const activityInterpretation = read('lib/activity-interpretation.ts')
+  const useDashboardPeriodNavigation = read('components/dashboard/useDashboardPeriodNavigation.ts')
   const useYearAnalytics = read('components/dashboard/useYearAnalytics.ts')
   const dashboardInsights = read('components/dashboard/insights.ts')
   assert.match(login, /\/privacy/)
@@ -92,13 +95,11 @@ test('login e painel expoem links legais e consumo de analytics cache', () => {
   assert.match(dashboard, /DashboardLegalSection/)
   assert.match(dashboardHistorySection, /Historico navegavel do recorte/)
   assert.match(dashboardLegalSection, /Excluir meus dados/)
+  assert.match(activityDetailDialog, /useActivityDetail/)
+  assert.match(activityInterpretation, /Treino bem redondo/)
+  assert.match(useDashboardPeriodNavigation, /activePeriodOptions/)
   assert.match(useYearAnalytics, /api\/activities\/analytics/)
   assert.match(dashboardInsights, /buildAnalysisInsights/)
   assert.match(dashboard, /computeDashboardSlices/)
   assert.match(useYearAnalytics, /api\/activities\/analytics/)
 })
-
-
-
-
-

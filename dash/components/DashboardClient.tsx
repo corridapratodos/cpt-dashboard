@@ -11,7 +11,7 @@ import { useDashboardViewState } from './dashboard/useDashboardViewState'
 import { useYearAnalytics } from './dashboard/useYearAnalytics'
 import { useHealthData } from './dashboard/useHealthData'
 import { useDashboardHistory } from './dashboard/useDashboardHistory'
-import { useActivityDetail } from './dashboard/useActivityDetail'
+import { useDashboardPeriodNavigation } from './dashboard/useDashboardPeriodNavigation'
 import { buildAnalysisInsights, buildLoadingLabel, buildYearLabel } from './dashboard/insights'
 import { DashboardHeader } from './dashboard/DashboardHeader'
 import { DashboardEmptyState } from './dashboard/DashboardEmptyState'
@@ -23,12 +23,13 @@ import { DashboardHealthSection } from './dashboard/DashboardHealthSection'
 import { DashboardHistorySection } from './dashboard/DashboardHistorySection'
 import { DashboardLegalSection } from './dashboard/DashboardLegalSection'
 import { SyncStatusModal } from './dashboard/SyncStatusModal'
-import { ActivityDetailModal } from './dashboard/ActivityDetailModal'
+import { ActivityDetailDialog } from './dashboard/ActivityDetailDialog'
 
 export default function DashboardClient({ initialActivities, initialAnalytics, initialYear, availableYears, isAdmin, meta, userName }: Props) {
   const [cacheRevision, setCacheRevision] = useState(0)
   const [deleting, setDeleting] = useState(false)
   const [page, setPage] = useState(1)
+  const [selectedActivity, setSelectedActivity] = useState<Activity | null>(null)
 
   const viewerRole = String(meta?.viewerRole ?? 'unknown')
   const viewerPlan = String(meta?.viewerPlan ?? 'unknown')
@@ -156,7 +157,15 @@ export default function DashboardClient({ initialActivities, initialAnalytics, i
     bumpCacheRevision()
   }, [bumpCacheRevision, markYearsDirty, replaceActivity])
 
-  const activityDetail = useActivityDetail(canViewActivitySplits, handleActivityUpdated, dashboardSync.setSyncMsg)
+  const periodNavigation = useDashboardPeriodNavigation({
+    windowMode,
+    monthOptions,
+    weekOptions,
+    selectedMonthKey,
+    selectedWeekKey,
+    setSelectedMonthKey,
+    setSelectedWeekKey,
+  })
 
   useEffect(() => {
     if (!availableSports.length) return
@@ -169,35 +178,6 @@ export default function DashboardClient({ initialActivities, initialAnalytics, i
       return [...availableSports]
     })
   }, [availableSports, setSelectedSports])
-
-  const hasPeriodNavigation = windowMode === 'month' || windowMode === 'week'
-  const activePeriodOptions = windowMode === 'month' ? monthOptions : windowMode === 'week' ? weekOptions : []
-  const activePeriodKey = windowMode === 'month' ? selectedMonthKey : selectedWeekKey
-  const activePeriodIndex = activePeriodOptions.findIndex((option) => option.key === activePeriodKey)
-  const canGoToNewerPeriod = activePeriodIndex > 0
-  const canGoToOlderPeriod = activePeriodIndex >= 0 && activePeriodIndex < activePeriodOptions.length - 1
-
-  useEffect(() => {
-    if (!monthOptions.length) {
-      if (selectedMonthKey) setSelectedMonthKey('')
-      return
-    }
-
-    if (!monthOptions.some((option) => option.key === selectedMonthKey)) {
-      setSelectedMonthKey(monthOptions[0].key)
-    }
-  }, [monthOptions, selectedMonthKey, setSelectedMonthKey])
-
-  useEffect(() => {
-    if (!weekOptions.length) {
-      if (selectedWeekKey) setSelectedWeekKey('')
-      return
-    }
-
-    if (!weekOptions.some((option) => option.key === selectedWeekKey)) {
-      setSelectedWeekKey(weekOptions[0].key)
-    }
-  }, [selectedWeekKey, setSelectedWeekKey, weekOptions])
 
   const analysisInsights = useMemo(
     () => buildAnalysisInsights({ windowMode, periodComparison, periodBenchmark, periodContext, loadInsight }),
@@ -217,21 +197,6 @@ export default function DashboardClient({ initialActivities, initialAnalytics, i
   const focusLabel = buildSportSummaryLabel(selectedSports, availableSports)
   const loadingLabel = buildLoadingLabel(loadingYears)
   const statusMessage = loadError || dashboardSync.syncMsg
-
-  function shiftActivePeriod(direction: 'newer' | 'older') {
-    if (!hasPeriodNavigation || activePeriodIndex === -1) return
-
-    const nextIndex = direction === 'newer' ? activePeriodIndex - 1 : activePeriodIndex + 1
-    const nextOption = activePeriodOptions[nextIndex]
-    if (!nextOption) return
-
-    if (windowMode === 'month') {
-      setSelectedMonthKey(nextOption.key)
-      return
-    }
-
-    setSelectedWeekKey(nextOption.key)
-  }
 
   const handleDeleteAccount = async () => {
     const confirmed = window.confirm('Isso vai excluir todos os seus dados sincronizados do CPT Dashboard. Deseja continuar?')
@@ -288,12 +253,12 @@ export default function DashboardClient({ initialActivities, initialAnalytics, i
           actualYears={actualYears}
           selectedYears={selectedYears}
           windowMode={windowMode}
-          hasPeriodNavigation={hasPeriodNavigation}
-          activePeriodOptions={activePeriodOptions}
-          activePeriodKey={activePeriodKey}
-          activePeriodIndex={activePeriodIndex}
-          canGoToNewerPeriod={canGoToNewerPeriod}
-          canGoToOlderPeriod={canGoToOlderPeriod}
+          hasPeriodNavigation={periodNavigation.hasPeriodNavigation}
+          activePeriodOptions={periodNavigation.activePeriodOptions}
+          activePeriodKey={periodNavigation.activePeriodKey}
+          activePeriodIndex={periodNavigation.activePeriodIndex}
+          canGoToNewerPeriod={periodNavigation.canGoToNewerPeriod}
+          canGoToOlderPeriod={periodNavigation.canGoToOlderPeriod}
           onTogglePreview={() => setPreviewMode(previewMode === 'admin' ? 'athlete' : 'admin')}
           onToggleTheme={handleThemeToggle}
           onSync={() => dashboardSync.handleSync('incremental')}
@@ -301,8 +266,8 @@ export default function DashboardClient({ initialActivities, initialAnalytics, i
           onToggleSport={(type: string) => toggleSport(type, availableSports)}
           onToggleYear={toggleYear}
           onWindowModeChange={setWindowMode}
-          onShiftPeriod={shiftActivePeriod}
-          onPeriodKeyChange={(key: string) => (windowMode === 'month' ? setSelectedMonthKey(key) : setSelectedWeekKey(key))}
+          onShiftPeriod={periodNavigation.shiftActivePeriod}
+          onPeriodKeyChange={periodNavigation.handlePeriodKeyChange}
         />
 
         <main className="shell">
@@ -386,7 +351,7 @@ export default function DashboardClient({ initialActivities, initialAnalytics, i
                 pageCount={pageCount}
                 onPreviousPage={() => setHistoryPage((current) => Math.max(1, current - 1))}
                 onNextPage={() => setHistoryPage((current) => Math.min(pageCount, current + 1))}
-                onSelectActivity={activityDetail.select}
+                onSelectActivity={setSelectedActivity}
               />
             </>
           )}
@@ -405,16 +370,13 @@ export default function DashboardClient({ initialActivities, initialAnalytics, i
             />
           )}
 
-          {activityDetail.selectedActivity && (
-            <ActivityDetailModal
-              activity={activityDetail.selectedActivity}
-              splits={activityDetail.splits}
-              splitsLoading={activityDetail.loading}
-              splitsError={activityDetail.error}
-              canViewSplits={canViewActivitySplits}
-              reviewing={activityDetail.reviewing}
-              onClose={() => activityDetail.select(null)}
-              onToggleExclusion={activityDetail.toggleExclusion}
+          {selectedActivity && (
+            <ActivityDetailDialog
+              activity={selectedActivity}
+              canViewActivitySplits={canViewActivitySplits}
+              setSyncMsg={dashboardSync.setSyncMsg}
+              onActivityUpdated={handleActivityUpdated}
+              onClose={() => setSelectedActivity(null)}
             />
           )}
         </main>

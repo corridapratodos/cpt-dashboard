@@ -1,35 +1,49 @@
 import { useCallback, useEffect, useState } from 'react'
-import type { Activity, ActivityDetailPayload, ActivitySplit } from './types'
+import type { Activity, ActivityDetailPayload, ActivityInterpretation, ActivitySplit } from './types'
 
 type ActivityDetailState = {
   selectedActivity: Activity | null
   splits: ActivitySplit[]
+  interpretation: ActivityInterpretation | null
   loading: boolean
   error: string
   reviewing: boolean
 }
 
 type ActivityDetailActions = {
-  select: (activity: Activity | null) => void
   toggleExclusion: (excludedFromMetrics: boolean) => void
 }
 
 type OnActivityUpdated = (updated: Activity) => void
 
-export function useActivityDetail(
-  canViewSplits: boolean,
-  onActivityUpdated: OnActivityUpdated,
-  setSyncMsg: (msg: string) => void,
-): ActivityDetailState & ActivityDetailActions {
-  const [selectedActivity, setSelectedActivity] = useState<Activity | null>(null)
+type UseActivityDetailParams = {
+  activity: Activity | null
+  canViewSplits: boolean
+  onActivityUpdated: OnActivityUpdated
+  setSyncMsg: (msg: string) => void
+}
+
+export function useActivityDetail({
+  activity,
+  canViewSplits,
+  onActivityUpdated,
+  setSyncMsg,
+}: UseActivityDetailParams): ActivityDetailState & ActivityDetailActions {
+  const [selectedActivity, setSelectedActivity] = useState<Activity | null>(activity)
   const [splits, setSplits] = useState<ActivitySplit[]>([])
+  const [interpretation, setInterpretation] = useState<ActivityInterpretation | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [reviewing, setReviewing] = useState(false)
 
   useEffect(() => {
+    setSelectedActivity(activity)
+  }, [activity])
+
+  useEffect(() => {
     if (!selectedActivity) {
       setSplits([])
+      setInterpretation(null)
       setError('')
       setLoading(false)
       return
@@ -37,6 +51,7 @@ export function useActivityDetail(
 
     if (!canViewSplits) {
       setSplits([])
+      setInterpretation(null)
       setError('')
       setLoading(false)
       return
@@ -47,6 +62,7 @@ export function useActivityDetail(
     setLoading(true)
     setError('')
     setSplits([])
+    setInterpretation(null)
 
     async function loadActivityDetail() {
       try {
@@ -59,9 +75,11 @@ export function useActivityDetail(
         if (!active) return
         if (data.splitsAccess === false) {
           setSplits([])
+          setInterpretation(null)
           return
         }
         setSplits(Array.isArray(data.splits) ? data.splits : [])
+        setInterpretation(data.interpretation ?? null)
       } catch (err) {
         if (!active) return
         setError(err instanceof Error ? err.message : 'Nao foi possivel carregar o detalhe da atividade.')
@@ -76,10 +94,6 @@ export function useActivityDetail(
       active = false
     }
   }, [canViewSplits, selectedActivity])
-
-  const select = useCallback((activity: Activity | null) => {
-    setSelectedActivity(activity)
-  }, [])
 
   const toggleExclusion = useCallback(
     async (excludedFromMetrics: boolean) => {
@@ -112,10 +126,10 @@ export function useActivityDetail(
   return {
     selectedActivity,
     splits,
+    interpretation,
     loading,
     error,
     reviewing,
-    select,
     toggleExclusion,
   }
 }

@@ -18,7 +18,6 @@ export interface Activity {
   bestEfforts: BestEffort[]
 }
 
-
 export interface ActivitySplit {
   index: number
   distanceKm: number
@@ -29,9 +28,16 @@ export interface ActivitySplit {
   hrAvg: number | null
 }
 
+export interface ActivityInterpretation {
+  title: string
+  summary: string
+  callouts: string[]
+}
+
 export interface ActivityDetailPayload {
   activity: Activity
   splits: ActivitySplit[]
+  interpretation: ActivityInterpretation | null
   splitsAccess: boolean
   splitsSource?: 'cache' | 'strava' | 'unavailable'
 }

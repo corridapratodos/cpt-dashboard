@@ -2,10 +2,10 @@ import { getServerSession } from 'next-auth'
 import { fetchActivity, extractActivitySplits } from '@/lib/strava'
 import { canAccessActivitySplits, getUserScope } from '@/lib/access'
 import { getActivityYear, listYearCacheIndexes, rebuildYearActivityCaches, summarizeYearCacheIndexes } from '@/lib/activity-cache'
+import { buildActivityInterpretation } from '@/lib/activity-interpretation'
 import { authOptions } from '@/lib/auth'
 import { isQualifiedRun, toDashboardActivity } from '@/lib/dashboard'
 import { activitiesRef, metaRef, userRef } from '@/lib/firebase'
-
 
 export async function GET(_req: Request, context: { params: Promise<{ stravaId: string }> }) {
   const session = await getServerSession(authOptions)
@@ -38,16 +38,19 @@ export async function GET(_req: Request, context: { params: Promise<{ stravaId: 
       ok: true,
       activity,
       splits: [],
+      interpretation: null,
       splitsAccess: false,
       splitsSource: 'unavailable',
     })
   }
 
   if (hasCachedSplits) {
+    const splits = Array.isArray(cachedData.splits) ? cachedData.splits : []
     return Response.json({
       ok: true,
       activity,
-      splits: Array.isArray(cachedData.splits) ? cachedData.splits : [],
+      splits,
+      interpretation: buildActivityInterpretation(activity, splits),
       splitsAccess: true,
       splitsSource: 'cache',
     })
@@ -73,6 +76,7 @@ export async function GET(_req: Request, context: { params: Promise<{ stravaId: 
       ok: true,
       activity,
       splits,
+      interpretation: buildActivityInterpretation(activity, splits),
       splitsAccess: true,
       splitsSource: 'strava',
     })

@@ -60,7 +60,9 @@ try {
   assert.match(access, /canAccessActivitySplits/)
 
   const strava = read('lib/strava.ts')
+  const activityInterpretation = read('lib/activity-interpretation.ts')
   assert.match(strava, /extractActivitySplits/)
+  assert.match(activityInterpretation, /buildActivityInterpretation/)
 
   const auth = read('lib/auth.ts')
   const security = read('lib/security.ts')
@@ -86,6 +88,7 @@ try {
   assert.match(activitiesDetailRoute, /splitsFetchedAt/)
   assert.match(activitiesDetailRoute, /splitsSource/)
   assert.match(activitiesDetailRoute, /extractActivitySplits/)
+  assert.match(activitiesDetailRoute, /buildActivityInterpretation/)
   assert.match(activitiesDetailRoute, /session\.accessToken/)
   assert.match(activitiesAnalyticsRoute, /applyScopeToYearAnalytics/)
   assert.match(activitiesAnalyticsRoute, /ANALYTICS_CACHE_VERSION/)
@@ -102,7 +105,9 @@ try {
   const gate = read('components/LegalGate.tsx')
   const dashboard = read('components/DashboardClient.tsx')
   const activityDetailModal = read('components/dashboard/ActivityDetailModal.tsx')
+  const activityDetailDialog = read('components/dashboard/ActivityDetailDialog.tsx')
   const useActivityDetail = read('components/dashboard/useActivityDetail.ts')
+  const useDashboardPeriodNavigation = read('components/dashboard/useDashboardPeriodNavigation.ts')
   const usePanelPreferences = read('components/dashboard/usePanelPreferences.ts')
   const useDashboardSync = read('components/dashboard/useDashboardSync.ts')
   const useDashboardHistory = read('components/dashboard/useDashboardHistory.ts')
@@ -130,12 +135,15 @@ try {
   assert.match(useYearAnalytics, /api\/activities\/analytics/)
   assert.match(dashboard, /useDashboardSync/)
   assert.match(dashboard, /useDashboardHistory/)
-  assert.match(dashboard, /ActivityDetailModal/)
+  assert.match(dashboard, /ActivityDetailDialog/)
   assert.match(useDashboardViewState, /cpt-panel-prefs:/)
   assert.match(useHealthData, /api\/health/)
+  assert.match(activityDetailModal, /Leitura do treino/)
   assert.match(activityDetailModal, /Carregando parciais/)
   assert.match(activityDetailModal, /Disponivel apenas para contas pro e master/)
+  assert.match(activityDetailDialog, /useActivityDetail/)
   assert.match(useActivityDetail, /api\/activities\/\$\{activityId\}/)
+  assert.match(useDashboardPeriodNavigation, /shiftActivePeriod/)
   assert.match(usePanelPreferences, /localStorage\.getItem\(key\)/)
   assert.match(useDashboardSync, /api\/strava\/sync/)
   assert.match(useDashboardHistory, /api\/activities\/history/)
@@ -155,12 +163,3 @@ try {
   console.error('Smoke checks falharam.')
   throw error
 }
-
-
-
-
-
-
-
-
-

@@ -1,10 +1,11 @@
-import type { Activity, ActivitySplit } from './types'
+import type { Activity, ActivityInterpretation, ActivitySplit } from './types'
 import { DetailItem } from './ui'
 import { fmt, getDisplayName, getSportLabel } from './helpers'
 
 type ActivityDetailModalProps = {
   activity: Activity
   splits: ActivitySplit[]
+  interpretation: ActivityInterpretation | null
   splitsLoading: boolean
   splitsError: string
   canViewSplits: boolean
@@ -16,6 +17,7 @@ type ActivityDetailModalProps = {
 export function ActivityDetailModal({
   activity,
   splits,
+  interpretation,
   splitsLoading,
   splitsError,
   canViewSplits,
@@ -49,6 +51,21 @@ export function ActivityDetailModal({
           <DetailItem label="Strava ID" value={String(activity.stravaId)} />
           <DetailItem label="Analise" value={activity.excludedFromMetrics ? 'Ignorada nas analises' : 'Ativa nas analises'} />
         </div>
+        {interpretation && (
+          <div className="activity-interpretation-panel">
+            <div className="panel-header compact">
+              <div>
+                <p className="panel-eyebrow">Leitura do treino</p>
+                <h3>{interpretation.title}</h3>
+              </div>
+              <span className="panel-subtitle">Resumo automatico por regras do proprio bloco, sem chute de contexto externo.</span>
+            </div>
+            <p className="activity-interpretation-summary">{interpretation.summary}</p>
+            <div className="activity-interpretation-list">
+              {interpretation.callouts.map((item) => <p key={item} className="activity-interpretation-item">{item}</p>)}
+            </div>
+          </div>
+        )}
         <div className="activity-splits-panel">
           <div className="panel-header compact">
             <div>

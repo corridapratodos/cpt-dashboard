@@ -1695,6 +1695,30 @@ button {
 }
 
 
+.activity-interpretation-panel {
+  margin-top: 18px;
+  border-top: 1px solid var(--border);
+  padding-top: 18px;
+}
+
+.activity-interpretation-summary {
+  color: var(--text-muted);
+  line-height: 1.65;
+}
+
+.activity-interpretation-list {
+  display: grid;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.activity-interpretation-item {
+  border: 1px solid var(--border);
+  background: var(--surface-soft);
+  padding: 12px 14px;
+  color: var(--text-muted);
+}
+
 .activity-splits-panel {
   margin-top: 18px;
   border-top: 1px solid var(--border);
