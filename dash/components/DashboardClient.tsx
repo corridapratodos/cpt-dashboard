@@ -1,6 +1,5 @@
-'use client'
+﻿'use client'
 
-import type { ReactNode } from 'react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { ActivityYearAnalytics } from '@/lib/analytics-types'
 import { signOut } from 'next-auth/react'
@@ -45,6 +44,8 @@ import { useDashboardSync } from './dashboard/useDashboardSync'
 import { useDashboardHistory } from './dashboard/useDashboardHistory'
 import { AdminControlPanel } from './dashboard/AdminControlPanel'
 import { SyncStatusModal } from './dashboard/SyncStatusModal'
+import { DashboardHeader } from './dashboard/DashboardHeader'
+import { DashboardEmptyState } from './dashboard/DashboardEmptyState'
 
 export default function DashboardClient({ initialActivities, initialAnalytics, initialYear, availableYears, isAdmin, meta, userName }: Props) {
   const actualYears = useMemo(
@@ -85,7 +86,7 @@ export default function DashboardClient({ initialActivities, initialAnalytics, i
   const [selectedWeekKey, setSelectedWeekKey] = useState<string>('')
   const [previewMode, setPreviewMode] = useState<'admin' | 'athlete'>('admin')
   const [page, setPage] = useState(1)
-  const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false)
+
   const viewerRole = String(meta?.viewerRole ?? 'unknown')
   const viewerPlan = String(meta?.viewerPlan ?? 'unknown')
   const viewerAdmin = Boolean(meta?.viewerAdmin ?? isAdmin)
@@ -483,7 +484,7 @@ export default function DashboardClient({ initialActivities, initialAnalytics, i
   const showOperatorNotes = viewerAdmin && previewMode === 'admin'
   const mode = getMetricMode(primarySport)
   const focusLabel = buildSportSummaryLabel(selectedSports, availableSports)
-  const mobileFilterSummary = `${focusLabel} | ${yearLabel} | ${windowLabel}`
+
   const methodologyCopy = mode === 'mixed'
     ? 'Neste recorte misto, os KPIs de topo priorizam composicao, volume e dominancia do esporte.'
     : mode === 'speed'
@@ -545,25 +546,12 @@ export default function DashboardClient({ initialActivities, initialAnalytics, i
 
   if (!totalActivities && !mergedDays.length) {
     return (
-      <main className="shell">
-        <section className="hero hero-empty">
-          <div>
-            <p className="eyebrow">CPT Performance Lab</p>
-            <h1 className="display">Conecte seu historico para acender o painel.</h1>
-            <p className="hero-copy">O dashboard ja esta pronto para leitura multiesporte com foco em corrida. Falta puxar seus treinos do Strava.</p>
-          </div>
-          <div className="hero-actions hero-actions-stacked">
-            <button onClick={() => dashboardSync.handleSync('incremental')} disabled={dashboardSync.syncing} className="btn btn-primary" type="button">
-              {dashboardSync.syncing ? 'Sincronizando...' : 'Sincronizar Strava'}
-            </button>
-            {viewerAdmin && (
-              <button onClick={() => dashboardSync.handleSync('full')} disabled={dashboardSync.syncing} className="btn btn-outline" type="button">
-                Reconstruir historico
-              </button>
-            )}
-          </div>
-        </section>
-      </main>
+      <DashboardEmptyState
+        syncing={dashboardSync.syncing}
+        viewerAdmin={viewerAdmin}
+        onIncrementalSync={() => dashboardSync.handleSync('incremental')}
+        onFullSync={() => dashboardSync.handleSync('full')}
+      />
     )
   }
 
@@ -575,148 +563,43 @@ export default function DashboardClient({ initialActivities, initialAnalytics, i
       />
 
       <div className="app-main">
-        {/* Sticky header */}
-        <header className="app-header">
-          <div className="app-header-top">
-            <div className="app-header-identity">
-              {meta && <p className="app-header-role">{viewerRole} | {viewerPlan}</p>}
-              <p className="app-header-name">{userName}</p>
-            </div>
-            <div className="app-header-actions">
-              {meta?.lastSync && (
-                <span className="app-header-sync-info">
-                  Last sync | {fmt.dayMonthYear(meta.lastSync)} | {meta?.lastSyncMode ?? 'incremental'}
-                </span>
-              )}
-              {ignoredCount > 0 && <span className="pill pill-ghost">{ignoredCount} ignoradas</span>}
-              {viewerAdmin && (
-                <button
-                  type="button"
-                  className="sport-chip preview-chip"
-                  data-active={previewMode === 'admin'}
-                  style={{ ['--chip-accent' as string]: 'var(--accent-4)' }}
-                  onClick={() => setPreviewMode(previewMode === 'admin' ? 'athlete' : 'admin')}
-                >
-                  {previewMode === 'admin' ? 'Admin' : 'Atleta'}
-                </button>
-              )}
-              <button onClick={handleThemeToggle} className="btn btn-ghost" type="button">
-                {theme === 'dark' ? 'Modo claro' : 'Modo escuro'}
-              </button>
-              <button onClick={() => dashboardSync.handleSync('incremental')} disabled={dashboardSync.syncing || deleting || loadingYears.length > 0} className="btn btn-primary" type="button">
-                {dashboardSync.syncing ? 'Sincronizando...' : 'Atualizar'}
-              </button>
-              <button onClick={() => signOut({ callbackUrl: '/login' })} className="btn btn-ghost" type="button">
-                Sair
-              </button>
-            </div>
-          </div>
-
-          <div className="app-header-mobile-controls">
-            <span className="app-header-mobile-summary">{mobileFilterSummary}</span>
-            <button
-              type="button"
-              className="btn btn-ghost app-header-mobile-toggle"
-              onClick={() => setMobileFiltersOpen((current) => !current)}
-            >
-              {mobileFiltersOpen ? 'Fechar filtros' : 'Filtros'}
-            </button>
-          </div>
-
-          {/* Filter strip inside header */}
-          <div className={`filter-strip ${mobileFiltersOpen ? 'filter-strip-open' : ''}`}>
-            <span className="filter-label">Esporte</span>
-            <button
-              type="button"
-              className="sport-chip"
-              data-active={allSportsSelected}
-              onClick={() => toggleSport('All')}
-              style={{ ['--chip-accent' as string]: 'var(--accent)' }}
-            >
-              Tudo
-            </button>
-            {availableSports.map((type) => (
-              <button
-                key={type}
-                type="button"
-                className="sport-chip"
-                data-active={selectedSports.includes(type)}
-                onClick={() => toggleSport(type)}
-                style={{ ['--chip-accent' as string]: sportMeta[type]?.accent ?? 'var(--accent)' }}
-              >
-                {getSportLabel(type)}
-              </button>
-            ))}
-            <span className="filter-divider" />
-            <span className="filter-label">Ano</span>
-            {actualYears.map((year) => (
-              <button
-                key={year}
-                type="button"
-                className="sport-chip year-chip"
-                data-active={selectedYears.includes(year)}
-                onClick={() => toggleYear(year)}
-                style={{ ['--chip-accent' as string]: 'var(--accent-2)' }}
-              >
-                {year}
-              </button>
-            ))}
-            <span className="filter-divider" />
-            <span className="filter-label">Janela</span>
-            {([
-              { key: 'year', label: 'Ano' },
-              { key: 'month', label: 'Mes' },
-              { key: 'week', label: 'Semana' },
-              { key: 'rolling28', label: '28d' },
-            ] as const).map((option) => (
-              <button
-                key={option.key}
-                type="button"
-                className="sport-chip window-chip"
-                data-active={windowMode === option.key}
-                onClick={() => setWindowMode(option.key)}
-                style={{ ['--chip-accent' as string]: 'var(--accent-3)' }}
-              >
-                {option.label}
-              </button>
-            ))}
-            {hasPeriodNavigation && activePeriodOptions.length > 0 && (
-              <>
-                <span className="filter-divider" />
-                <div className="period-picker">
-                  <button
-                    type="button"
-                    className="btn btn-ghost period-shift"
-                    onClick={() => shiftActivePeriod('newer')}
-                    disabled={!canGoToNewerPeriod}
-                  >
-                    Mais recente
-                  </button>
-                  <select
-                    className="period-select period-select-inline"
-                    value={activePeriodKey}
-                    onChange={(e) => (windowMode === 'month' ? setSelectedMonthKey(e.target.value) : setSelectedWeekKey(e.target.value))}
-                  >
-                    {activePeriodOptions.map((option) => <option key={option.key} value={option.key}>{option.label}</option>)}
-                  </select>
-                  <button
-                    type="button"
-                    className="btn btn-ghost period-shift"
-                    onClick={() => shiftActivePeriod('older')}
-                    disabled={!canGoToOlderPeriod}
-                  >
-                    Mais antigo
-                  </button>
-                  <span className="pill pill-ghost period-pill">
-                    {activePeriodIndex >= 0
-                      ? `${activePeriodIndex + 1}/${activePeriodOptions.length} ${windowMode === 'month' ? 'meses' : 'semanas'}`
-                      : ''}
-                  </span>
-                </div>
-              </>
-            )}
-          </div>
-        </header>
+        <DashboardHeader
+          userName={userName}
+          meta={meta}
+          viewerRole={viewerRole}
+          viewerPlan={viewerPlan}
+          viewerAdmin={viewerAdmin}
+          previewMode={previewMode}
+          theme={theme}
+          ignoredCount={ignoredCount}
+          deleting={deleting}
+          syncing={dashboardSync.syncing}
+          loadingYears={loadingYears.length}
+          focusLabel={focusLabel}
+          yearLabel={yearLabel}
+          windowLabel={windowLabel}
+          availableSports={availableSports}
+          selectedSports={selectedSports}
+          allSportsSelected={allSportsSelected}
+          actualYears={actualYears}
+          selectedYears={selectedYears}
+          windowMode={windowMode}
+          hasPeriodNavigation={hasPeriodNavigation}
+          activePeriodOptions={activePeriodOptions}
+          activePeriodKey={activePeriodKey}
+          activePeriodIndex={activePeriodIndex}
+          canGoToNewerPeriod={canGoToNewerPeriod}
+          canGoToOlderPeriod={canGoToOlderPeriod}
+          onTogglePreview={() => setPreviewMode(previewMode === 'admin' ? 'athlete' : 'admin')}
+          onToggleTheme={handleThemeToggle}
+          onSync={() => dashboardSync.handleSync('incremental')}
+          onSignOut={() => signOut({ callbackUrl: '/login' })}
+          onToggleSport={toggleSport}
+          onToggleYear={toggleYear}
+          onWindowModeChange={setWindowMode}
+          onShiftPeriod={shiftActivePeriod}
+          onPeriodKeyChange={(key: string) => (windowMode === 'month' ? setSelectedMonthKey(key) : setSelectedWeekKey(key))}
+        />
 
         <main className="shell">
 
@@ -1235,6 +1118,13 @@ export default function DashboardClient({ initialActivities, initialAnalytics, i
     </div>
   )
 }
+
+
+
+
+
+
+
 
 
 
