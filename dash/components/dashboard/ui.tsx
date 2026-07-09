@@ -68,6 +68,33 @@ export function InsightItem({ title, children }: { title: string; children: Reac
   )
 }
 
+export function AnalysisSpotlight({
+  eyebrow,
+  title,
+  copy,
+  badge,
+  children,
+}: {
+  eyebrow: string
+  title: string
+  copy?: string
+  badge?: string
+  children?: ReactNode
+}) {
+  return (
+    <section className="analysis-spotlight">
+      <div className="analysis-spotlight-icon" aria-hidden="true">*</div>
+      <div className="analysis-spotlight-body">
+        <p className="analysis-spotlight-eyebrow">{eyebrow}</p>
+        <h4>{title}</h4>
+        {copy && <p className="analysis-spotlight-copy">{copy}</p>}
+        {children && <div className="analysis-spotlight-content">{children}</div>}
+      </div>
+      {badge && <span className="analysis-spotlight-badge">{badge}</span>}
+    </section>
+  )
+}
+
 export function DetailItem({ label, value }: { label: string; value: string }) {
   return (
     <article className="detail-item">
@@ -76,3 +103,5 @@ export function DetailItem({ label, value }: { label: string; value: string }) {
     </article>
   )
 }
+
+

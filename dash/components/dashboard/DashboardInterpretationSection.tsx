@@ -1,7 +1,7 @@
 import type { Activity, RecordEntry } from './types'
 import type { DashboardSlices, WindowMode } from './analytics'
 import { fmt, getDisplayName, getSportLabel, sportMeta } from './helpers'
-import { AnalysisTile, InsightItem, Panel, SectionLead } from './ui'
+import { AnalysisSpotlight, AnalysisTile, InsightItem, Panel, SectionLead } from './ui'
 
 type Props = {
   windowMode: WindowMode
@@ -50,11 +50,23 @@ export function DashboardInterpretationSection({
 
         <Panel eyebrow="Leitura automatica" title="Comparativos do recorte" subtitle="Resumo interpretado do bloco atual contra referencias equivalentes">
           {analysisInsights.length ? (
-            <div className="insight-list">
-              {analysisInsights.map((insight) => (
-                <InsightItem key={insight.title} title={insight.title}>{insight.copy}</InsightItem>
-              ))}
-            </div>
+            <AnalysisSpotlight
+              eyebrow="Leitura automatica"
+              title={analysisInsights[0]?.title ?? 'Leitura pronta do recorte'}
+              copy={analysisInsights[0]?.copy}
+              badge="DESTAQUE"
+            >
+              {analysisInsights.slice(1).length > 0 && (
+                <div className="analysis-spotlight-list">
+                  {analysisInsights.slice(1).map((insight) => (
+                    <article key={insight.title} className="analysis-spotlight-note">
+                      <strong>{insight.title}</strong>
+                      <p>{insight.copy}</p>
+                    </article>
+                  ))}
+                </div>
+              )}
+            </AnalysisSpotlight>
           ) : (
             <p className="empty-copy">Ainda nao ha comparativos suficientes para gerar leitura automatica deste recorte.</p>
           )}
@@ -141,3 +153,4 @@ export function DashboardInterpretationSection({
     </>
   )
 }
+

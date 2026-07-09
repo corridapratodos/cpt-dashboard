@@ -1,5 +1,5 @@
 import type { DashboardSlices } from './analytics'
-import { AnalysisTile, MetricCard, SectionLead } from './ui'
+import { AnalysisSpotlight, AnalysisTile, MetricCard, SectionLead } from './ui'
 import { fmt, getSportLabel } from './helpers'
 
 type DashboardStats = NonNullable<DashboardSlices['stats']>
@@ -56,12 +56,15 @@ export function DashboardExecutiveSection({ stats, routineConsistency, activeWin
             <AnalysisTile label="Maior sequencia" value={`${routineConsistency.longestStreakDays}d`} meta="melhor embalo dentro do recorte" />
             <AnalysisTile label="Semanas firmes" value={`${routineConsistency.solidWeeks}/${routineConsistency.trackedWeeks}`} meta="semanas com 3+ dias ativos" />
           </div>
-          <div className="callout" data-status={routineConsistency.status}>
-            <strong>{routineConsistency.title}</strong>
-            <p>{routineConsistency.copy}</p>
-          </div>
+          <AnalysisSpotlight
+            eyebrow="Leitura automatica"
+            title={routineConsistency.title}
+            copy={routineConsistency.copy}
+            badge={routineConsistency.status === 'alto' ? 'ROTINA FIRME' : routineConsistency.status === 'baixo' ? 'PEDINDO RETOMADA' : 'RITMO ESTAVEL'}
+          />
         </section>
       )}
     </>
   )
 }
+
