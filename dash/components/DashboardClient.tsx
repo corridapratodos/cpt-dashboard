@@ -35,6 +35,7 @@ export default function DashboardClient({ initialActivities, initialAnalytics, i
   const viewerPlan = String(meta?.viewerPlan ?? 'unknown')
   const viewerAdmin = Boolean(meta?.viewerAdmin ?? isAdmin)
   const canViewActivitySplits = viewerRole === 'master' || viewerPlan === 'pro'
+  const canUseDashboardAi = viewerRole === 'master'
 
   const {
     actualYears,
@@ -422,6 +423,7 @@ export default function DashboardClient({ initialActivities, initialAnalytics, i
                 records={records}
                 effortHighlights={effortHighlights}
                 aiPayload={aiPayload}
+                canUseDashboardAi={canUseDashboardAi}
               />
 
               <DashboardHealthSection

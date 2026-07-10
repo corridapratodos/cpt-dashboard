@@ -1,11 +1,19 @@
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
+import { hasMasterAccess } from '@/lib/access'
 import { generateDashboardAiReading, isDashboardAiEnabled } from '@/lib/dashboard-ai'
+import { userRef } from '@/lib/firebase'
 
 export async function POST(req: Request) {
   const session = await getServerSession(authOptions)
   if (!session?.stravaId) {
     return Response.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
+  const userSnap = await userRef(session.stravaId).get()
+  const userData = userSnap.data()
+  if (!hasMasterAccess(session.stravaId, userData)) {
+    return Response.json({ error: 'Leitura com IA restrita ao master.' }, { status: 403 })
   }
 
   if (!isDashboardAiEnabled()) {

@@ -16,6 +16,7 @@ type Props = {
   records: RecordEntry[]
   effortHighlights: Activity[]
   aiPayload: DashboardAiPayload
+  canUseDashboardAi: boolean
 }
 
 export function DashboardInterpretationSection({
@@ -29,6 +30,7 @@ export function DashboardInterpretationSection({
   records,
   effortHighlights,
   aiPayload,
+  canUseDashboardAi,
 }: Props) {
   return (
     <>
@@ -97,9 +99,11 @@ export function DashboardInterpretationSection({
           )}
         </Panel>
 
-        <Panel eyebrow="IA beta" title="Leitura integrada" subtitle="Recorte atual enviado como JSON estruturado para leitura externa no proprio painel">
-          <DashboardAiReadingCard payload={aiPayload} />
-        </Panel>
+        {canUseDashboardAi && (
+          <Panel eyebrow="IA beta" title="Leitura integrada" subtitle="Recorte atual enviado como JSON estruturado para leitura externa no proprio painel">
+            <DashboardAiReadingCard payload={aiPayload} />
+          </Panel>
+        )}
       </section>
 
       <SectionLead
