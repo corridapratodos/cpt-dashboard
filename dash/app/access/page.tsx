@@ -19,9 +19,9 @@ export default async function AccessPage() {
     <main className="login-shell">
       <section className="login-brand">
         <p className="eyebrow">Corrida Pra Todos</p>
-        <h1 className="display">Acesso controlado antes do login Strava.</h1>
+        <h1 className="display">Convite obrigatorio antes da conexao com o Strava.</h1>
         <p className="hero-copy">
-          Esta etapa protege o dashboard enquanto o produto ainda esta em rollout controlado. So depois do convite validado o fluxo OAuth fica disponivel.
+          Esta etapa segura o rollout do dashboard. So quem validar um codigo de convite unico libera a tela de conexao com o Strava.
         </p>
       </section>
 

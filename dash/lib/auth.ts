@@ -1,8 +1,11 @@
 import type { AuthOptions } from 'next-auth'
+import { cookies } from 'next/headers'
 import StravaProvider from 'next-auth/providers/strava'
 import { getUserPlan, hasMasterAccess } from '@/lib/access'
 import { getDb, userRef } from '@/lib/firebase'
 import { buildStoredOAuthTokenPayload } from '@/lib/oauth-tokens'
+import { PRE_ACCESS_COOKIE_NAME, isPreAccessEnabled, parsePreAccessCookieValue } from '@/lib/pre-access'
+import { bindPreAccessClaimToStravaUser } from '@/lib/pre-access-invites'
 import { isAdminBootstrapEnabled, isStravaLoginAllowed } from '@/lib/security'
 
 export const authOptions: AuthOptions = {
@@ -33,6 +36,20 @@ export const authOptions: AuthOptions = {
       const stravaId = Number((profile as any)?.id)
       if (!Number.isFinite(stravaId) || !isStravaLoginAllowed(stravaId)) {
         return '/login?error=AccessDenied'
+      }
+
+      if (isPreAccessEnabled()) {
+        const cookieStore = await cookies()
+        const parsedInvite = await parsePreAccessCookieValue(cookieStore.get(PRE_ACCESS_COOKIE_NAME)?.value)
+
+        if (!parsedInvite?.claimId) {
+          return '/access?error=invite_required'
+        }
+
+        const bound = await bindPreAccessClaimToStravaUser(parsedInvite.claimId, stravaId)
+        if (!bound.ok) {
+          return `/access?error=${bound.reason === 'missing' ? 'invite_claim_missing' : 'invite_claim_bound'}`
+        }
       }
 
       return true

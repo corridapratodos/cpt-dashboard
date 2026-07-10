@@ -3,9 +3,9 @@ import {
   PRE_ACCESS_COOKIE_MAX_AGE,
   PRE_ACCESS_COOKIE_NAME,
   createPreAccessCookieValue,
-  isAllowedPreAccessCode,
   isPreAccessEnabled,
 } from '@/lib/pre-access'
+import { claimPreAccessCode } from '@/lib/pre-access-invites'
 import { consumeRateLimit } from '@/lib/rate-limit'
 
 function normalizeNext(value: unknown) {
@@ -38,9 +38,21 @@ export async function POST(req: NextRequest) {
 
   const body = await req.json().catch(() => null)
   const code = typeof body?.code === 'string' ? body.code : ''
+  const claimed = await claimPreAccessCode({
+    code,
+    ip,
+    userAgent: req.headers.get('user-agent'),
+  })
 
-  if (!isAllowedPreAccessCode(code)) {
-    return NextResponse.json({ error: 'Codigo invalido.' }, { status: 401 })
+  if (!claimed.ok) {
+    return NextResponse.json(
+      {
+        error: claimed.reason === 'already-used'
+          ? 'Esse codigo de convite ja foi usado pelo primeiro acesso.'
+          : 'Codigo invalido.',
+      },
+      { status: 401 }
+    )
   }
 
   const response = NextResponse.json({
@@ -50,7 +62,7 @@ export async function POST(req: NextRequest) {
 
   response.cookies.set({
     name: PRE_ACCESS_COOKIE_NAME,
-    value: await createPreAccessCookieValue(),
+    value: await createPreAccessCookieValue(claimed.claimId),
     httpOnly: true,
     sameSite: 'lax',
     secure: process.env.NODE_ENV === 'production',
