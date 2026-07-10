@@ -1925,3 +1925,14 @@ button {
 :root[data-theme='light'] .analysis-spotlight-note p {
   color: #5b6678;
 }
+
+.dashboard-ai-card {
+  display: grid;
+  gap: 14px;
+}
+
+.analysis-ai-footnote {
+  margin-top: 12px;
+  color: var(--text-soft);
+  font-size: 12px;
+}

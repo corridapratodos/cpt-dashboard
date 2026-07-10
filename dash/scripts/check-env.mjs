@@ -47,6 +47,8 @@ function isValidEncryptionKey(raw) {
 loadEnvFile('.env.local')
 loadEnvFile('.env')
 
+const optional = ['GEMINI_API_KEY']
+
 const required = [
   'STRAVA_CLIENT_ID',
   'STRAVA_CLIENT_SECRET',
@@ -95,6 +97,11 @@ if (process.env.NEXTAUTH_SECRET.length < 24) {
 if (!isValidEncryptionKey(process.env.OAUTH_TOKEN_ENCRYPTION_KEY)) {
   console.error('OAUTH_TOKEN_ENCRYPTION_KEY precisa ser base64 de 32 bytes, hex de 64 chars ou string de 32 chars.')
   process.exit(1)
+}
+
+const optionalEnabled = optional.filter((key) => process.env[key]?.trim())
+if (optionalEnabled.length) {
+  console.log(`Variaveis opcionais ativas: ${optionalEnabled.join(', ')}`)
 }
 
 console.log('Ambiente validado com sucesso.')

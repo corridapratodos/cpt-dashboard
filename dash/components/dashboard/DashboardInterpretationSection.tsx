@@ -1,7 +1,9 @@
 import type { Activity, RecordEntry } from './types'
+import type { DashboardAiPayload } from '@/lib/dashboard-ai'
 import type { DashboardSlices, WindowMode } from './analytics'
 import { fmt, getDisplayName, getSportLabel, sportMeta } from './helpers'
 import { AnalysisSpotlight, AnalysisTile, InsightItem, Panel, SectionLead } from './ui'
+import { DashboardAiReadingCard } from './DashboardAiReadingCard'
 
 type Props = {
   windowMode: WindowMode
@@ -13,6 +15,7 @@ type Props = {
   showOperatorNotes: boolean
   records: RecordEntry[]
   effortHighlights: Activity[]
+  aiPayload: DashboardAiPayload
 }
 
 export function DashboardInterpretationSection({
@@ -25,6 +28,7 @@ export function DashboardInterpretationSection({
   showOperatorNotes,
   records,
   effortHighlights,
+  aiPayload,
 }: Props) {
   return (
     <>
@@ -92,6 +96,10 @@ export function DashboardInterpretationSection({
             <p className="empty-copy">Ainda nao ha base suficiente para ler a distribuicao interna do recorte.</p>
           )}
         </Panel>
+
+        <Panel eyebrow="IA beta" title="Leitura integrada" subtitle="Recorte atual enviado como JSON estruturado para leitura externa no proprio painel">
+          <DashboardAiReadingCard payload={aiPayload} />
+        </Panel>
       </section>
 
       <SectionLead
@@ -153,4 +161,3 @@ export function DashboardInterpretationSection({
     </>
   )
 }
-

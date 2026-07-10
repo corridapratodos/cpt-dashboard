@@ -198,6 +198,94 @@ export default function DashboardClient({ initialActivities, initialAnalytics, i
   const focusLabel = buildSportSummaryLabel(selectedSports, availableSports)
   const loadingLabel = buildLoadingLabel(loadingYears)
   const statusMessage = loadError || dashboardSync.syncMsg
+  const aiPayload = useMemo(() => ({
+    athleteName: userName,
+    generatedAt: new Date().toISOString(),
+    sportFocus: focusLabel,
+    yearLabel,
+    windowLabel,
+    activeWindowTitle: activeWindow.title,
+    stats: stats
+      ? {
+          sessions: stats.count,
+          distanceKm: Number(stats.totalDist.toFixed(1)),
+          durationSec: stats.totalDur,
+          avgPaceSec: stats.avgPace ?? null,
+          longestSessionKm: Number(stats.longest.distanceKm.toFixed(1)),
+          fastestPaceSec: stats.fastest?.paceSec ?? null,
+        }
+      : null,
+    routineConsistency: routineConsistency
+      ? {
+          activeDays: routineConsistency.activeDays,
+          trackedWeeks: routineConsistency.trackedWeeks,
+          solidWeeks: routineConsistency.solidWeeks,
+          activeDaysPerWeek: routineConsistency.activeDaysPerWeek,
+          currentStreakDays: routineConsistency.currentStreakDays,
+          longestStreakDays: routineConsistency.longestStreakDays,
+          status: routineConsistency.status,
+          title: routineConsistency.title,
+          copy: routineConsistency.copy,
+        }
+      : null,
+    periodComparison: periodComparison
+      ? {
+          current: {
+            distanceKm: Number(periodComparison.current.distance.toFixed(1)),
+            sessions: periodComparison.current.sessions,
+            durationSec: periodComparison.current.durationSec,
+            avgPaceSec: periodComparison.current.avgPace,
+          },
+          previous: {
+            distanceKm: Number(periodComparison.previous.distance.toFixed(1)),
+            sessions: periodComparison.previous.sessions,
+            durationSec: periodComparison.previous.durationSec,
+            avgPaceSec: periodComparison.previous.avgPace,
+          },
+          delta: {
+            distancePct: Number(periodComparison.distanceChange.toFixed(1)),
+            sessionsPct: Number(periodComparison.sessionChange.toFixed(1)),
+            durationPct: Number(periodComparison.durationChange.toFixed(1)),
+            pacePct: periodComparison.paceChange == null ? null : Number(periodComparison.paceChange.toFixed(1)),
+          },
+        }
+      : null,
+    periodContext: periodContext
+      ? {
+          activeDays: periodContext.activeDays,
+          spanDays: periodContext.spanDays,
+          densityPct: periodContext.densityPct,
+          avgSessionKm: periodContext.avgSessionKm,
+          avgSessionMinutes: periodContext.avgSessionMinutes,
+          longestSharePct: periodContext.longestSharePct,
+          sessionsPerWeek: periodContext.sessionsPerWeek,
+        }
+      : null,
+    periodRadar: periodRadar
+      ? {
+          biggestGapDays: periodRadar.biggestGapDays,
+          strongestDay: {
+            label: periodRadar.strongestDay.label,
+            distanceKm: Number(periodRadar.strongestDay.distance.toFixed(1)),
+            durationSec: periodRadar.strongestDay.durationSec,
+          },
+          strongestDaySharePct: periodRadar.strongestDaySharePct,
+          topWeekdayLabel: periodRadar.topWeekdayLabel,
+          topWeekdaySharePct: periodRadar.topWeekdaySharePct,
+          weekendSharePct: periodRadar.weekendSharePct,
+        }
+      : null,
+    analysisInsights,
+    recentActivities: effortHighlights.map((activity) => ({
+      date: activity.date,
+      name: activity.name,
+      type: activity.type,
+      distanceKm: Number(activity.distanceKm.toFixed(1)),
+      durationSec: activity.durationSec,
+      paceSec: activity.paceSec,
+      hrAvg: activity.hrAvg,
+    })),
+  }), [activeWindow.title, analysisInsights, effortHighlights, focusLabel, periodComparison, periodContext, periodRadar, routineConsistency, stats, userName, windowLabel, yearLabel])
 
   const handleDeleteAccount = async () => {
     const confirmed = window.confirm('Isso vai excluir todos os seus dados sincronizados do CPT Dashboard. Deseja continuar?')
@@ -333,6 +421,7 @@ export default function DashboardClient({ initialActivities, initialAnalytics, i
                 showOperatorNotes={showOperatorNotes}
                 records={records}
                 effortHighlights={effortHighlights}
+                aiPayload={aiPayload}
               />
 
               <DashboardHealthSection
@@ -386,3 +475,6 @@ export default function DashboardClient({ initialActivities, initialAnalytics, i
     </div>
   )
 }
+
+
+
