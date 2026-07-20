@@ -66,6 +66,12 @@ export type DashboardAiPayload = {
     weekendSharePct: number
   } | null
   analysisInsights: Array<{ title: string; copy: string }>
+  vdotEstimate: {
+    value: number
+    source: string
+    sourceMeta: string
+    zones: Array<{ label: string; paceRange: string; meta: string }>
+  } | null
   recentActivities: Array<{
     date: string
     name: string

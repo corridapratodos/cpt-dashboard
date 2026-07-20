@@ -1,5 +1,5 @@
 import type { ActivityYearAnalytics, AnalyticsActivityStub, AnalyticsDay, AnalyticsDaySport } from '@/lib/analytics-types'
-import type { Activity, PeriodTotals, RecordEntry } from './types'
+import type { Activity, PeriodTotals, RecordEntry, VdotEstimate } from './types'
 import {
   DAY_MS,
   WEEK_MS,
@@ -9,6 +9,7 @@ import {
   getSportAccent,
   getSportLabel,
   pctChange,
+  runLikeTypes,
   startOfWeek,
 } from './helpers'
 
@@ -241,6 +242,93 @@ function getRoutineConsistency(days: ActiveDay[]): RoutineConsistency | null {
   }
 }
 
+const VDOT_RECENT_DAYS = 90
+const VDOT_ZONE_DEFS = [
+  { label: 'Leve', min: 0.59, max: 0.74, meta: 'base aerobica e recuperacao' },
+  { label: 'Maratona', min: 0.75, max: 0.84, meta: 'ritmo sustentado controlado' },
+  { label: 'Limiar', min: 0.83, max: 0.88, meta: 'tempo run e blocos longos' },
+  { label: 'Intervalado', min: 0.95, max: 1, meta: 'VO2, tiros de 3 a 5 min' },
+  { label: 'Repeticao', min: 1.05, max: 1.1, meta: 'economia e velocidade curta' },
+]
+
+function estimateVdot(distanceKm: number, durationSec: number) {
+  if (distanceKm < 3 || durationSec <= 0) return null
+
+  const timeMin = durationSec / 60
+  const velocityMPerMin = (distanceKm * 1000) / timeMin
+  const oxygenCost = -4.6 + 0.182258 * velocityMPerMin + 0.000104 * velocityMPerMin ** 2
+  const maxFraction = 0.8 + 0.1894393 * Math.exp(-0.012778 * timeMin) + 0.2989558 * Math.exp(-0.1932605 * timeMin)
+  const vdot = oxygenCost / maxFraction
+
+  return Number.isFinite(vdot) && vdot >= 20 && vdot <= 85 ? vdot : null
+}
+
+function velocityForOxygenCost(oxygenCost: number) {
+  const a = 0.000104
+  const b = 0.182258
+  const c = -4.6 - oxygenCost
+  const discriminant = b ** 2 - 4 * a * c
+  if (discriminant <= 0) return null
+  return (-b + Math.sqrt(discriminant)) / (2 * a)
+}
+
+function paceForVelocity(velocityMPerMin: number) {
+  return Math.round(1000 / velocityMPerMin * 60)
+}
+
+function getVdotEstimate(days: ActiveDay[]): VdotEstimate | null {
+  const runDays = days.filter((day) => day.sports.some((sport) => runLikeTypes.has(sport.type)))
+  if (!runDays.length) return null
+
+  const latestDate = new Date(`${runDays[0].date}T00:00:00Z`)
+  const recentCutoff = new Date(latestDate.getTime() - VDOT_RECENT_DAYS * DAY_MS).toISOString().slice(0, 10)
+  const candidates = runDays.flatMap((day) =>
+    day.sports
+      .filter((sport) => runLikeTypes.has(sport.type))
+      .flatMap((sport) => sport.recordCandidates.map((candidate) => ({ ...candidate, dayDate: day.date })))
+  )
+
+  const scored = candidates
+    .map((candidate) => ({ ...candidate, vdot: estimateVdot(candidate.targetKm, candidate.displayDurationSec) }))
+    .filter((candidate): candidate is typeof candidate & { vdot: number } => candidate.vdot != null)
+
+  if (!scored.length) return null
+
+  const chooseBest = (items: typeof scored) => [...items].sort((a, b) => b.vdot - a.vdot || b.targetKm - a.targetKm)[0]
+  const recent = scored.filter((candidate) => candidate.dayDate >= recentCutoff)
+  const best =
+    chooseBest(recent.filter((candidate) => candidate.source === 'strava-best-effort')) ??
+    chooseBest(recent) ??
+    chooseBest(scored.filter((candidate) => candidate.source === 'strava-best-effort')) ??
+    chooseBest(scored)
+
+  if (!best) return null
+
+  const vdot = round1(best.vdot)
+  const vdotVelocity = velocityForOxygenCost(vdot)
+  if (!vdotVelocity) return null
+
+  const zones = VDOT_ZONE_DEFS.map((zone) => {
+    const fastPace = paceForVelocity(vdotVelocity * zone.max)
+    const slowPace = paceForVelocity(vdotVelocity * zone.min)
+    return {
+      label: zone.label,
+      paceRange: `${fmt.pace(fastPace)}-${fmt.pace(slowPace)}/km`,
+      meta: zone.meta,
+    }
+  })
+
+  const isRecent = best.dayDate >= recentCutoff
+  const sourceKind = best.source === 'strava-best-effort' ? 'best effort oficial' : 'atividade estimada'
+
+  return {
+    value: vdot,
+    sourceLabel: `${best.targetKm} km em ${fmt.clock(best.displayDurationSec)}`,
+    sourceMeta: `${sourceKind} ${isRecent ? 'recente' : 'historico'} - ${fmt.fullDate(`${best.dayDate}T00:00:00Z`)}`,
+    formulaLabel: 'VDOT = VO2 estimado / fracao sustentavel pelo tempo',
+    zones,
+  }
+}
 function getRecords(days: ActiveDay[]): RecordEntry[] {
   const candidates = new Map<number, RecordEntry>()
 
@@ -339,6 +427,7 @@ export function computeDashboardSlices(params: {
       periodRadar: null,
       periodBenchmark: null,
       records: [] as RecordEntry[],
+      vdotEstimate: null as VdotEstimate | null,
     }
   }
 
@@ -583,6 +672,7 @@ export function computeDashboardSlices(params: {
   })()
 
   const routineConsistency = getRoutineConsistency(analyzedDays)
+  const vdotEstimate = getVdotEstimate(filteredDays.filter((day) => day.sessions > day.excludedSessions))
 
   const periodContext = (() => {
     if (!stats || !analyzedDays.length) return null
@@ -714,6 +804,7 @@ export function computeDashboardSlices(params: {
     periodRadar,
     periodBenchmark,
     records: getRecords(analyzedDays),
+    vdotEstimate,
   }
 }
 

@@ -1608,6 +1608,63 @@ button {
   gap: 12px;
 }
 
+.vdot-card {
+  display: grid;
+  gap: 14px;
+}
+
+.vdot-summary {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.vdot-summary strong {
+  display: block;
+  margin-top: 4px;
+  font-size: 2rem;
+  line-height: 1;
+}
+
+.vdot-zone-grid {
+  display: grid;
+  gap: 8px;
+}
+
+.vdot-zone-row {
+  display: grid;
+  grid-template-columns: minmax(82px, 0.7fr) minmax(112px, 1fr);
+  gap: 4px 12px;
+  align-items: baseline;
+  border: 1px solid var(--border);
+  background: var(--surface-soft);
+  padding: 10px 12px;
+}
+
+.vdot-zone-row span {
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.vdot-zone-row strong {
+  font-size: 0.98rem;
+  text-align: right;
+}
+
+.vdot-zone-row small {
+  grid-column: 1 / -1;
+  color: var(--text-soft);
+  font-size: 11px;
+}
+
+.vdot-formula {
+  color: var(--text-soft);
+  font-size: 11px;
+  line-height: 1.45;
+}
+
 .table-actions-spread {
   justify-content: space-between;
   align-items: center;

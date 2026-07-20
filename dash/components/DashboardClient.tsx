@@ -122,6 +122,7 @@ export default function DashboardClient({ initialActivities, initialAnalytics, i
     periodRadar,
     periodBenchmark,
     records,
+    vdotEstimate,
   } = computed
 
   const { sleepData, weightData } = useHealthData({
@@ -277,6 +278,14 @@ export default function DashboardClient({ initialActivities, initialAnalytics, i
         }
       : null,
     analysisInsights,
+    vdotEstimate: vdotEstimate
+      ? {
+          value: vdotEstimate.value,
+          source: vdotEstimate.sourceLabel,
+          sourceMeta: vdotEstimate.sourceMeta,
+          zones: vdotEstimate.zones,
+        }
+      : null,
     recentActivities: effortHighlights.map((activity) => ({
       date: activity.date,
       name: activity.name,
@@ -286,7 +295,7 @@ export default function DashboardClient({ initialActivities, initialAnalytics, i
       paceSec: activity.paceSec,
       hrAvg: activity.hrAvg,
     })),
-  }), [activeWindow.title, analysisInsights, effortHighlights, focusLabel, periodComparison, periodContext, periodRadar, routineConsistency, stats, userName, windowLabel, yearLabel])
+  }), [activeWindow.title, analysisInsights, effortHighlights, focusLabel, periodComparison, periodContext, periodRadar, routineConsistency, stats, userName, vdotEstimate, windowLabel, yearLabel])
 
   const handleDeleteAccount = async () => {
     const confirmed = window.confirm('Isso vai excluir todos os seus dados sincronizados do CPT Dashboard. Deseja continuar?')
@@ -421,6 +430,7 @@ export default function DashboardClient({ initialActivities, initialAnalytics, i
                 periodRadar={periodRadar}
                 showOperatorNotes={showOperatorNotes}
                 records={records}
+                vdotEstimate={vdotEstimate}
                 effortHighlights={effortHighlights}
                 aiPayload={aiPayload}
                 canUseDashboardAi={canUseDashboardAi}

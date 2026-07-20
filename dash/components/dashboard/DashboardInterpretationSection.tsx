@@ -1,4 +1,4 @@
-import type { Activity, RecordEntry } from './types'
+import type { Activity, RecordEntry, VdotEstimate } from './types'
 import type { DashboardAiPayload } from '@/lib/dashboard-ai'
 import type { DashboardSlices, WindowMode } from './analytics'
 import { fmt, getDisplayName, getSportLabel, sportMeta } from './helpers'
@@ -14,6 +14,7 @@ type Props = {
   periodRadar: DashboardSlices['periodRadar']
   showOperatorNotes: boolean
   records: RecordEntry[]
+  vdotEstimate: VdotEstimate | null
   effortHighlights: Activity[]
   aiPayload: DashboardAiPayload
   canUseDashboardAi: boolean
@@ -28,6 +29,7 @@ export function DashboardInterpretationSection({
   periodRadar,
   showOperatorNotes,
   records,
+  vdotEstimate,
   effortHighlights,
   aiPayload,
   canUseDashboardAi,
@@ -133,6 +135,32 @@ export function DashboardInterpretationSection({
           )}
         </Panel>
 
+        <Panel eyebrow="VDOT" title="Zonas estimadas de corrida" subtitle="Estimativa por marca de corrida; use como referencia inicial, nao prescricao fechada.">
+          {vdotEstimate ? (
+            <div className="vdot-card">
+              <div className="vdot-summary">
+                <div>
+                  <p className="metric-label">VDOT estimado</p>
+                  <strong>{vdotEstimate.value.toFixed(1)}</strong>
+                </div>
+                <span className="pill pill-ghost">{vdotEstimate.sourceLabel}</span>
+              </div>
+              <p className="compare-previous">{vdotEstimate.sourceMeta}</p>
+              <div className="vdot-zone-grid">
+                {vdotEstimate.zones.map((zone) => (
+                  <article key={zone.label} className="vdot-zone-row">
+                    <span>{zone.label}</span>
+                    <strong>{zone.paceRange}</strong>
+                    <small>{zone.meta}</small>
+                  </article>
+                ))}
+              </div>
+              <p className="vdot-formula">{vdotEstimate.formulaLabel}</p>
+            </div>
+          ) : (
+            <p className="empty-copy">Ainda nao ha uma marca de corrida confiavel para estimar VDOT e zonas de pace.</p>
+          )}
+        </Panel>
         {showOperatorNotes && (
           <Panel eyebrow="Produto" title="Leituras rapidas" subtitle="Como interpretar o recorte e a estrutura atual da home">
             <div className="insight-list">

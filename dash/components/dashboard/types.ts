@@ -100,3 +100,17 @@ export type RecordEntry = {
   displayPaceSec: number | null
   source: 'strava-best-effort' | 'estimated'
 }
+
+export type VdotZone = {
+  label: string
+  paceRange: string
+  meta: string
+}
+
+export type VdotEstimate = {
+  value: number
+  sourceLabel: string
+  sourceMeta: string
+  formulaLabel: string
+  zones: VdotZone[]
+}
