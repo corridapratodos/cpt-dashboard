@@ -91,6 +91,33 @@ export type DashboardAiReading = {
   model: string
 }
 
+const DASHBOARD_AI_MODEL = 'gemini-3.5-flash'
+const DASHBOARD_AI_MAX_ATTEMPTS = 3
+const DASHBOARD_AI_RETRY_DELAYS_MS = [400, 1_000]
+
+type GenerationOptions = {
+  fetchFn?: typeof fetch
+  wait?: (delayMs: number) => Promise<void>
+}
+
+export class DashboardAiTemporaryError extends Error {
+  readonly status: number | null
+
+  constructor(message: string, status: number | null = null) {
+    super(message)
+    this.name = 'DashboardAiTemporaryError'
+    this.status = status
+  }
+}
+
+function isTemporaryProviderStatus(status: number) {
+  return status === 429 || status === 500 || status === 502 || status === 503 || status === 504
+}
+
+function defaultWait(delayMs: number) {
+  return new Promise<void>((resolve) => setTimeout(resolve, delayMs))
+}
+
 function getApiKey() {
   return process.env.GEMINI_API_KEY?.trim() ?? ''
 }
@@ -99,13 +126,16 @@ export function isDashboardAiEnabled() {
   return Boolean(getApiKey())
 }
 
-export async function generateDashboardAiReading(payload: DashboardAiPayload): Promise<DashboardAiReading> {
+export async function generateDashboardAiReading(
+  payload: DashboardAiPayload,
+  options: GenerationOptions = {},
+): Promise<DashboardAiReading> {
   const apiKey = getApiKey()
   if (!apiKey) {
     throw new Error('Leitura com IA indisponivel: GEMINI_API_KEY ausente no servidor.')
   }
 
-  const model = 'gemini-3.5-flash'
+  const model = DASHBOARD_AI_MODEL
   const prompt = [
     'Voce e um analista de treino de corrida e endurance.',
     'Leia o JSON do dashboard e devolva uma resposta curta em portugues do Brasil.',
@@ -121,22 +151,42 @@ export async function generateDashboardAiReading(payload: DashboardAiPayload): P
     JSON.stringify(payload),
   ].join('\n')
 
-  const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      contents: [{ role: 'user', parts: [{ text: prompt }] }],
-      generationConfig: {
-        temperature: 0.45,
-        topP: 0.9,
-        responseMimeType: 'application/json',
-      },
-    }),
-  })
+  const fetchFn = options.fetchFn ?? fetch
+  const wait = options.wait ?? defaultWait
+  let data: any = null
 
-  const data = await response.json().catch(() => null)
-  if (!response.ok) {
-    throw new Error(data?.error?.message ?? 'Falha ao consultar a IA.')
+  for (let attempt = 0; attempt < DASHBOARD_AI_MAX_ATTEMPTS; attempt += 1) {
+    try {
+      const response = await fetchFn(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ role: 'user', parts: [{ text: prompt }] }],
+          generationConfig: {
+            temperature: 0.45,
+            topP: 0.9,
+            responseMimeType: 'application/json',
+          },
+        }),
+      })
+
+      data = await response.json().catch(() => null)
+      if (response.ok) break
+
+      const message = data?.error?.message ?? 'Falha ao consultar a IA.'
+      if (!isTemporaryProviderStatus(response.status)) throw new Error(message)
+      if (attempt === DASHBOARD_AI_MAX_ATTEMPTS - 1) {
+        throw new DashboardAiTemporaryError(message, response.status)
+      }
+    } catch (error) {
+      if (error instanceof DashboardAiTemporaryError) throw error
+      if (error instanceof Error && !/fetch|network|timeout/i.test(error.message)) throw error
+      if (attempt === DASHBOARD_AI_MAX_ATTEMPTS - 1) {
+        throw new DashboardAiTemporaryError(error instanceof Error ? error.message : 'Falha temporaria de rede.')
+      }
+    }
+
+    await wait(DASHBOARD_AI_RETRY_DELAYS_MS[attempt] ?? 1_000)
   }
 
   const text = data?.candidates?.[0]?.content?.parts?.map((part: { text?: string }) => part?.text ?? '').join('')?.trim()

@@ -1,7 +1,7 @@
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { hasMasterAccess } from '@/lib/access'
-import { generateDashboardAiReading, isDashboardAiEnabled } from '@/lib/dashboard-ai'
+import { DashboardAiTemporaryError, generateDashboardAiReading, isDashboardAiEnabled } from '@/lib/dashboard-ai'
 import { DASHBOARD_AI_MAX_BODY_BYTES, validateDashboardAiPayload } from '@/lib/dashboard-ai-validation'
 import { userRef } from '@/lib/firebase'
 import { consumeRateLimit } from '@/lib/rate-limit'
@@ -52,6 +52,12 @@ export async function POST(req: Request) {
       stravaId: session.stravaId,
       reason: error instanceof Error ? error.message : 'unknown',
     })
+    if (error instanceof DashboardAiTemporaryError) {
+      return Response.json(
+        { error: 'A IA esta temporariamente sobrecarregada. Tente novamente em alguns instantes.' },
+        { status: 503, headers: { 'Retry-After': '15' } },
+      )
+    }
     return Response.json({ error: 'Falha ao gerar leitura com IA.' }, { status: 502 })
   }
 }
