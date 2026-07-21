@@ -91,8 +91,10 @@ export type DashboardAiReading = {
   model: string
 }
 
-const DASHBOARD_AI_MODEL = 'gemini-3.5-flash'
-const DASHBOARD_AI_MAX_ATTEMPTS = 3
+const DASHBOARD_AI_MODELS = [
+  { id: 'gemini-3.5-flash', maxAttempts: 3 },
+  { id: 'gemini-3.1-flash-lite', maxAttempts: 1 },
+] as const
 const DASHBOARD_AI_RETRY_DELAYS_MS = [400, 1_000]
 
 type GenerationOptions = {
@@ -118,6 +120,58 @@ function defaultWait(delayMs: number) {
   return new Promise<void>((resolve) => setTimeout(resolve, delayMs))
 }
 
+async function requestGeminiModel({
+  apiKey,
+  model,
+  maxAttempts,
+  prompt,
+  fetchFn,
+  wait,
+}: {
+  apiKey: string
+  model: string
+  maxAttempts: number
+  prompt: string
+  fetchFn: typeof fetch
+  wait: (delayMs: number) => Promise<void>
+}) {
+  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+    try {
+      const response = await fetchFn(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ role: 'user', parts: [{ text: prompt }] }],
+          generationConfig: {
+            temperature: 0.45,
+            topP: 0.9,
+            responseMimeType: 'application/json',
+          },
+        }),
+      })
+
+      const data = await response.json().catch(() => null)
+      if (response.ok) return data
+
+      const message = data?.error?.message ?? 'Falha ao consultar a IA.'
+      if (!isTemporaryProviderStatus(response.status)) throw new Error(message)
+      if (attempt === maxAttempts - 1) {
+        throw new DashboardAiTemporaryError(message, response.status)
+      }
+    } catch (error) {
+      if (error instanceof DashboardAiTemporaryError) throw error
+      if (error instanceof Error && !/fetch|network|timeout/i.test(error.message)) throw error
+      if (attempt === maxAttempts - 1) {
+        throw new DashboardAiTemporaryError(error instanceof Error ? error.message : 'Falha temporaria de rede.')
+      }
+    }
+
+    await wait(DASHBOARD_AI_RETRY_DELAYS_MS[attempt] ?? 1_000)
+  }
+
+  throw new DashboardAiTemporaryError('A IA nao respondeu apos as tentativas configuradas.')
+}
+
 function getApiKey() {
   return process.env.GEMINI_API_KEY?.trim() ?? ''
 }
@@ -135,7 +189,6 @@ export async function generateDashboardAiReading(
     throw new Error('Leitura com IA indisponivel: GEMINI_API_KEY ausente no servidor.')
   }
 
-  const model = DASHBOARD_AI_MODEL
   const prompt = [
     'Voce e um analista de treino de corrida e endurance.',
     'Leia o JSON do dashboard e devolva uma resposta curta em portugues do Brasil.',
@@ -153,40 +206,27 @@ export async function generateDashboardAiReading(
 
   const fetchFn = options.fetchFn ?? fetch
   const wait = options.wait ?? defaultWait
+  let model: string = DASHBOARD_AI_MODELS[0].id
   let data: any = null
 
-  for (let attempt = 0; attempt < DASHBOARD_AI_MAX_ATTEMPTS; attempt += 1) {
+  for (let modelIndex = 0; modelIndex < DASHBOARD_AI_MODELS.length; modelIndex += 1) {
+    const candidate = DASHBOARD_AI_MODELS[modelIndex]
+    model = candidate.id
+
     try {
-      const response = await fetchFn(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{ role: 'user', parts: [{ text: prompt }] }],
-          generationConfig: {
-            temperature: 0.45,
-            topP: 0.9,
-            responseMimeType: 'application/json',
-          },
-        }),
+      data = await requestGeminiModel({
+        apiKey,
+        model,
+        maxAttempts: candidate.maxAttempts,
+        prompt,
+        fetchFn,
+        wait,
       })
-
-      data = await response.json().catch(() => null)
-      if (response.ok) break
-
-      const message = data?.error?.message ?? 'Falha ao consultar a IA.'
-      if (!isTemporaryProviderStatus(response.status)) throw new Error(message)
-      if (attempt === DASHBOARD_AI_MAX_ATTEMPTS - 1) {
-        throw new DashboardAiTemporaryError(message, response.status)
-      }
+      break
     } catch (error) {
-      if (error instanceof DashboardAiTemporaryError) throw error
-      if (error instanceof Error && !/fetch|network|timeout/i.test(error.message)) throw error
-      if (attempt === DASHBOARD_AI_MAX_ATTEMPTS - 1) {
-        throw new DashboardAiTemporaryError(error instanceof Error ? error.message : 'Falha temporaria de rede.')
-      }
+      const hasFallback = modelIndex < DASHBOARD_AI_MODELS.length - 1
+      if (!(error instanceof DashboardAiTemporaryError) || !hasFallback) throw error
     }
-
-    await wait(DASHBOARD_AI_RETRY_DELAYS_MS[attempt] ?? 1_000)
   }
 
   const text = data?.candidates?.[0]?.content?.parts?.map((part: { text?: string }) => part?.text ?? '').join('')?.trim()
