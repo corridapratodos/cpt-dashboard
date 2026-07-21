@@ -6,6 +6,7 @@ import { getActivityYear, listYearCacheIndexes, rebuildYearActivityCaches, summa
 import { activitiesRef, metaRef, userRef } from '@/lib/firebase'
 import { mergeAvailableYears } from '@/lib/dashboard'
 import { BEST_EFFORT_FETCH_LIMIT, extractBestEfforts, fetchActivities, fetchActivity, fetchBestEffortsForActivities, isRealRun, mapActivity } from '@/lib/strava'
+import { getServerStravaAccessToken } from '@/lib/server-strava-token'
 
 const SYNC_LOCK_WINDOW_MS = 10 * 60 * 1000
 const INCREMENTAL_OVERLAP_SEC = 12 * 60 * 60
@@ -96,7 +97,7 @@ function isEligibleForBestEffortBackfill(data: Record<string, unknown>) {
 export async function POST(req: Request) {
   const session = await getServerSession(authOptions)
 
-  if (!session?.accessToken || !session?.stravaId) {
+  if (!session?.stravaId) {
     return Response.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
@@ -114,6 +115,8 @@ export async function POST(req: Request) {
   if (requestedMode === 'full' && !isAdmin) {
     return Response.json({ error: 'Full sync restrito ao administrador.' }, { status: 403 })
   }
+
+  const accessToken = await getServerStravaAccessToken(session.stravaId)
 
   const metaData = (metaSnap.exists ? metaSnap.data() : null) as StoredMeta
   const now = Date.now()
@@ -199,9 +202,9 @@ export async function POST(req: Request) {
 
     const shouldRunIncremental = effectiveRequestedMode !== 'full' && historicalBackfillCompleted && incrementalAfter != null
     const effectiveMode = shouldRunIncremental ? 'incremental' : 'full'
-    const incoming = await fetchActivities(session.accessToken, shouldRunIncremental ? incrementalCursor : undefined)
-    const scopedIncoming = incoming.filter((activity) => isActivityAllowedForScope({ type: activity.type, date: activity.start_date }, scope))
-    const bestEffortBackfill = await fetchBestEffortsForActivities(session.accessToken, scopedIncoming, effectiveMode)
+    const incoming = await fetchActivities(accessToken, shouldRunIncremental ? incrementalCursor : undefined)
+    const scopedIncoming = incoming.filter((activity) => isActivityAllowedForScope({ type: activity.type, date: activity.start_date, localDate: typeof activity.start_date_local === 'string' ? activity.start_date_local.slice(0, 10) : null }, scope))
+    const bestEffortBackfill = await fetchBestEffortsForActivities(accessToken, scopedIncoming, effectiveMode)
     const mappedActivities = scopedIncoming.map((activity) =>
       mapActivity(activity, { bestEfforts: bestEffortBackfill.byActivityId.get(Number(activity.id)) })
     )
@@ -234,7 +237,7 @@ export async function POST(req: Request) {
 
     const cacheYears = new Set<string>()
     mappedActivities.forEach((activity) => {
-      const year = getActivityYear(activity.date)
+      const year = getActivityYear(activity.localDate ?? activity.date)
       if (year) cacheYears.add(year)
     })
 
@@ -250,11 +253,11 @@ export async function POST(req: Request) {
       for (const doc of toBackfill) {
         try {
           const stravaId = Number(doc.data().stravaId)
-          const detail = await fetchActivity(session.accessToken, stravaId)
+          const detail = await fetchActivity(accessToken, stravaId)
           const bestEfforts = extractBestEfforts(detail)
           if (bestEfforts.length) {
             await colRef.doc(String(stravaId)).set({ bestEfforts }, { merge: true })
-            const year = getActivityYear(doc.data().date)
+            const year = getActivityYear(doc.data().localDate ?? doc.data().date)
             if (year) cacheYears.add(year)
             backfilledCount += 1
           }

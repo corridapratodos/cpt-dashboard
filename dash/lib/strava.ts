@@ -200,6 +200,11 @@ export function mapActivity(a: any, options?: { bestEfforts?: StoredBestEffort[]
     stravaId: a.id,
     name: String(normalizeTextValue(a.name) ?? 'Atividade'),
     date: new Date(a.start_date),
+    localDate: typeof a.start_date_local === 'string' && /^\d{4}-\d{2}-\d{2}/.test(a.start_date_local)
+      ? a.start_date_local.slice(0, 10)
+      : new Date(a.start_date).toISOString().slice(0, 10),
+    startDateLocal: typeof a.start_date_local === 'string' ? a.start_date_local : null,
+    timezone: typeof a.timezone === 'string' ? a.timezone : null,
     distanceKm: parseFloat(distKm.toFixed(2)),
     durationSec: a.moving_time,
     paceSec,

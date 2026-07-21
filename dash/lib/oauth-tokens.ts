@@ -54,7 +54,12 @@ function parseKeyMaterial(raw: string) {
 
 function getEncryptionKey() {
   const raw = process.env.OAUTH_TOKEN_ENCRYPTION_KEY?.trim()
-  if (!raw) return null
+  if (!raw) {
+    if (process.env.NODE_ENV === 'production') {
+      throw new Error('OAUTH_TOKEN_ENCRYPTION_KEY e obrigatoria em producao.')
+    }
+    return null
+  }
 
   const key = parseKeyMaterial(raw)
   if (!key || key.length !== 32) {

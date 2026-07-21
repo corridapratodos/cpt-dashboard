@@ -5,6 +5,7 @@ import { isRunLikeType } from '@/lib/activity-types'
 import { authOptions } from '@/lib/auth'
 import { activitiesRef, metaRef, userRef } from '@/lib/firebase'
 import { extractBestEfforts, fetchActivity } from '@/lib/strava'
+import { getServerStravaAccessToken } from '@/lib/server-strava-token'
 
 const BATCH_LIMIT = 60
 const CONCURRENCY = 3
@@ -24,7 +25,7 @@ function isEligibleForBestEfforts(data: Record<string, unknown>) {
 export async function POST() {
   const session = await getServerSession(authOptions)
 
-  if (!session?.accessToken || !session?.stravaId) {
+  if (!session?.stravaId) {
     return Response.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
@@ -35,6 +36,7 @@ export async function POST() {
     return Response.json({ error: 'Admin access required' }, { status: 403 })
   }
 
+  const accessToken = await getServerStravaAccessToken(session.stravaId)
   const colRef = activitiesRef(session.stravaId)
   const snapshot = await colRef
     .orderBy('date', 'desc')
@@ -58,12 +60,12 @@ export async function POST() {
       for (const doc of batch) {
         try {
           const stravaId = Number(doc.data().stravaId)
-          const detail = await fetchActivity(session.accessToken, stravaId)
+          const detail = await fetchActivity(accessToken, stravaId)
           const bestEfforts = extractBestEfforts(detail)
 
           if (bestEfforts.length) {
             await doc.ref.set({ bestEfforts }, { merge: true })
-            const year = getActivityYear(doc.data().date)
+            const year = getActivityYear(doc.data().localDate ?? doc.data().date)
             if (year) touchedYears.add(year)
             enrichedCount += 1
           }

@@ -11,11 +11,11 @@ Definir quais indicadores o CPT Dashboard deve mostrar, o que cada um significa 
 - `Sessoes`: quantidade de atividades no recorte ativo.
 - `Distancia`: soma de `distanceKm` no recorte ativo.
 - `Tempo ativo`: soma de `durationSec` no recorte ativo.
-- `Pace medio`: media simples de `paceSec` das atividades com pace valido.
+- `Pace medio`: soma do tempo confiavel dividida pela soma da distancia confiavel no recorte.
 - `Velocidade media`: usada quando o filtro principal e ciclismo.
 - `Peso corrida`: quando o filtro e `Tudo`, mostra o percentual de atividades do tipo `Run` dentro da selecao.
 - `Maior sessao`: atividade com maior distancia no recorte.
-- `Melhor pace`: menor `paceSec` no recorte com pace valido.
+- `Melhor pace medio`: menor pace medio entre atividades confiaveis do recorte.
 - `Esporte dominante`: esporte com maior numero de sessoes no recorte `Tudo`.
 
 ### Blocos analiticos atuais
@@ -23,7 +23,7 @@ Definir quais indicadores o CPT Dashboard deve mostrar, o que cada um significa 
 - `Volume mensal`: km por mes.
 - `Evolucao recente`: ultimas 24 atividades com pace ou velocidade.
 - `Comparativo 28 dias`: distancia, sessoes, tempo e pace da janela atual versus 28 dias anteriores.
-- `Carga semanal`: 8 semanas recentes com uma carga heuristica (`km * fator de pace`).
+- `Minutos ativos semanais`: tempo incluido por semana; e volume externo, nao carga fisiologica.
 - `Leituras rapidas`: textos fixos de produto.
 - `Ultimos treinos`: cards qualitativos com amostra recente.
 - `Atividades recentes`: tabela detalhada paginada no cliente.
@@ -44,7 +44,7 @@ O comparativo de 28 dias hoje compara a janela ativa contra a anterior. Isso e b
 
 ### Carga semanal ainda e heuristica
 
-A carga atual e util para MVP, mas nao e TRIMP nem TSS. Deve ser apresentada como leitura de consistencia/volume, nao como ciencia exata.
+Minutos ativos sao uteis para contexto de volume, mas nao representam TRIMP, TSS, intensidade ou recomendacao automatica de deload.
 
 ## 3. Estrutura recomendada de KPIs
 
@@ -95,7 +95,7 @@ Foco em orientar o atleta.
 - `Semanas sustentando a carga`
 - `Subida brusca de volume`
 - `Queda brusca de frequencia`
-- `Sugestao de deload`
+- `Observacao de volume versus referencia`
 - `Retomada apos baixa carga`
 
 ## 4. Regras de produto que precisam ficar explicitas
@@ -107,7 +107,7 @@ A regra atual existe no backend e deve ser tratada como regra nossa, nao do Stra
 - `type = Run`
 - `distancia >= 2 km`
 - `duracao >= 20 min`
-- `pace entre 4:30 e 10:00 /km`
+- `pace dentro da faixa sanitaria por modalidade (corrida de rua, trail, caminhada e hike possuem limites distintos)`
 
 Uso recomendado:
 
@@ -117,7 +117,7 @@ Uso recomendado:
 
 ### Escopo por plano
 
-- `free`: `Run` e `Walk` em `2026`
+- `free`: `Run` e `Walk` nos 2 anos correntes permitidos pelo backend
 - `pro`: historico ampliado de endurance
 - `master/admin`: acesso total
 
@@ -150,7 +150,7 @@ Toda leitura precisa deixar claro se esta usando:
 - recordes por distancia
 - melhores marcas do ano
 - recortes `corridas validas` vs `todas as corridas`
-- leitura de consistencia semanal e deload
+- leitura de consistencia semanal e volume recente
 
 ## 6. Proposta de KPI por perfil
 
@@ -184,3 +184,11 @@ Antes de adicionar novas features, alinhar o painel em cima de 5 perguntas:
 5. O que e dado bruto versus dado filtrado por regra nossa?
 
 Se essas respostas estiverem claras, a evolucao de filtros, comparativos, recordes e IA fica muito mais coerente.
+
+
+## Decisoes P0 - 2026-07-20
+
+- Recordes por distancia usam apenas `best_efforts` do Strava e `elapsed_time`; atividades inteiras nao sao extrapoladas.
+- Atividades ignoradas contribuem zero para KPIs, extremos, recordes, consistencia e minutos ativos.
+- Agrupamento diario e anual usa `start_date_local`, com UTC apenas como fallback legado.
+- Sem periodo anterior valido, o comparativo fica indisponivel em vez de exibir variacao artificial.

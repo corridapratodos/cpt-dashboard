@@ -1,11 +1,12 @@
 import { getServerSession } from 'next-auth'
 import { fetchActivity, extractActivitySplits } from '@/lib/strava'
-import { canAccessActivitySplits, getUserScope } from '@/lib/access'
+import { canAccessActivitySplits, getUserScope, isActivityAllowedForScope } from '@/lib/access'
 import { getActivityYear, listYearCacheIndexes, rebuildYearActivityCaches, summarizeYearCacheIndexes } from '@/lib/activity-cache'
 import { buildActivityInterpretation } from '@/lib/activity-interpretation'
 import { authOptions } from '@/lib/auth'
 import { isQualifiedRun, toDashboardActivity } from '@/lib/dashboard'
 import { activitiesRef, metaRef, userRef } from '@/lib/firebase'
+import { getServerStravaAccessToken } from '@/lib/server-strava-token'
 
 export async function GET(_req: Request, context: { params: Promise<{ stravaId: string }> }) {
   const session = await getServerSession(authOptions)
@@ -28,8 +29,12 @@ export async function GET(_req: Request, context: { params: Promise<{ stravaId: 
 
   const userSnap = await userRef(session.stravaId).get()
   const userData = userSnap.exists ? userSnap.data() : null
+  const scope = getUserScope(session.stravaId, userData)
   const splitsAccess = canAccessActivitySplits(session.stravaId, userData)
   const activity = toDashboardActivity(activitySnap.data())
+  if (!isActivityAllowedForScope(activity, scope)) {
+    return Response.json({ error: 'Activity outside current access scope' }, { status: 403 })
+  }
   const cachedData = activitySnap.data() ?? {}
   const hasCachedSplits = Boolean(cachedData.splitsFetchedAt) || Array.isArray(cachedData.splits)
 
@@ -56,12 +61,9 @@ export async function GET(_req: Request, context: { params: Promise<{ stravaId: 
     })
   }
 
-  if (!session.accessToken) {
-    return Response.json({ error: 'Unauthorized' }, { status: 401 })
-  }
-
   try {
-    const detail = await fetchActivity(session.accessToken, activityId)
+    const accessToken = await getServerStravaAccessToken(session.stravaId)
+    const detail = await fetchActivity(accessToken, activityId)
     const splits = extractActivitySplits(detail)
 
     await ref.set(
@@ -97,7 +99,7 @@ export async function PATCH(req: Request, context: { params: Promise<{ stravaId:
 
   const userSnap = await userRef(session.stravaId).get()
   const userData = userSnap.exists ? userSnap.data() : null
-  getUserScope(session.stravaId, userData)
+  const scope = getUserScope(session.stravaId, userData)
 
   const params = await context.params
   const activityId = Number(params.stravaId)
@@ -110,6 +112,13 @@ export async function PATCH(req: Request, context: { params: Promise<{ stravaId:
   const note = typeof body?.note === 'string' ? body.note.trim().slice(0, 120) : ''
 
   const ref = activitiesRef(session.stravaId).doc(String(activityId))
+  const scopeActivitySnap = await ref.get()
+  if (!scopeActivitySnap.exists) {
+    return Response.json({ error: 'Activity not found' }, { status: 404 })
+  }
+  if (!isActivityAllowedForScope(toDashboardActivity(scopeActivitySnap.data()), scope)) {
+    return Response.json({ error: 'Activity outside current access scope' }, { status: 403 })
+  }
   const metaDocRef = metaRef(session.stravaId)
 
   const updatedActivity = await ref.firestore.runTransaction(async (transaction) => {
@@ -172,7 +181,7 @@ export async function PATCH(req: Request, context: { params: Promise<{ stravaId:
     return Response.json({ error: 'Activity not found' }, { status: 404 })
   }
 
-  const activityYear = getActivityYear(updatedActivity.date as string | Date | { toDate?: () => Date } | null | undefined)
+  const activityYear = getActivityYear((updatedActivity.localDate ?? updatedActivity.date) as string | Date | { toDate?: () => Date } | null | undefined)
   if (activityYear) {
     await rebuildYearActivityCaches(session.stravaId, [activityYear])
     const cacheSummary = summarizeYearCacheIndexes(await listYearCacheIndexes(session.stravaId))

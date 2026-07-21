@@ -32,7 +32,7 @@ export function buildAnalysisInsights({
     } else if (periodComparison.distanceChange <= -12) {
       insights.push({
         title: 'Volume abaixo do bloco anterior',
-        copy: `A distancia caiu ${Math.abs(periodComparison.distanceChange).toFixed(0)}% contra o bloco anterior. Isso pode indicar deload, pausa ou quebra de consistencia.`,
+        copy: `A distancia caiu ${Math.abs(periodComparison.distanceChange).toFixed(0)}% contra o bloco anterior. Isso pode refletir recuperacao planejada, pausa ou quebra de consistencia; o volume isolado nao distingue essas causas.`,
       })
     } else {
       insights.push({
@@ -82,8 +82,8 @@ export function buildAnalysisInsights({
 
   if (loadInsight) {
     insights.push({
-      title: 'Consistencia recente da carga',
-      copy: `${loadInsight.recommendation} Hoje o bloco carrega ${loadInsight.stableWeeks} semanas consecutivas dentro da mesma faixa de manutencao.`,
+      title: 'Consistencia do volume recente',
+      copy: `${loadInsight.recommendation} O bloco tem ${loadInsight.stableWeeks} semanas consecutivas dentro da faixa recente de volume.`,
     })
   }
 

@@ -1,5 +1,6 @@
 import type { ActivityYearAnalytics, AnalyticsActivityStub, AnalyticsDay, AnalyticsDaySport } from '@/lib/analytics-types'
 import type { Activity, PeriodTotals, RecordEntry, VdotEstimate } from './types'
+import { calculateAggregatePace, getCalendarConsistency } from '@/lib/training-metrics'
 import {
   DAY_MS,
   WEEK_MS,
@@ -18,11 +19,14 @@ export type WindowOption = { key: string; label: string; start: Date; end: Date 
 
 type ActiveDay = AnalyticsDay & {
   sessions: number
+  includedSessions: number
   excludedSessions: number
   distanceKm: number
   durationSec: number
   reliablePaceCount: number
   reliablePaceSumSec: number
+  reliableDistanceKm: number
+  reliableDurationSec: number
 }
 
 type DayGroupTotals = PeriodTotals & {
@@ -51,6 +55,9 @@ function toActivity(stub: AnalyticsActivityStub): Activity {
     stravaId: stub.stravaId,
     name: stub.name,
     date: stub.date,
+    localDate: stub.localDate,
+    startDateLocal: null,
+    timezone: null,
     distanceKm: stub.distanceKm,
     durationSec: stub.durationSec,
     paceSec: stub.paceSec,
@@ -69,21 +76,27 @@ function decorateDay(day: AnalyticsDay): ActiveDay {
   return day.sports.reduce(
     (acc, sport) => {
       acc.sessions += sport.sessions
+      acc.includedSessions += sport.includedSessions
       acc.excludedSessions += sport.excludedSessions
       acc.distanceKm = round1(acc.distanceKm + sport.includedDistanceKm)
       acc.durationSec += sport.includedDurationSec
       acc.reliablePaceCount += sport.reliablePaceCount
       acc.reliablePaceSumSec += sport.reliablePaceSumSec
+      acc.reliableDistanceKm += sport.reliableDistanceKm
+      acc.reliableDurationSec += sport.reliableDurationSec
       return acc
     },
     {
       ...day,
       sessions: 0,
+      includedSessions: 0,
       excludedSessions: 0,
       distanceKm: 0,
       durationSec: 0,
       reliablePaceCount: 0,
       reliablePaceSumSec: 0,
+      reliableDistanceKm: 0,
+      reliableDurationSec: 0,
     }
   )
 }
@@ -93,17 +106,17 @@ function groupTotals(days: ActiveDay[]): DayGroupTotals {
     (acc, day) => {
       acc.distance += day.distanceKm
       acc.durationSec += day.durationSec
-      acc.sessions += day.sessions
-      acc.paceCount += day.reliablePaceCount
-      acc.paceSum += day.reliablePaceSumSec
+      acc.sessions += day.includedSessions
+      acc.reliableDistance += day.reliableDistanceKm
+      acc.reliableDuration += day.reliableDurationSec
       return acc
     },
     {
       distance: 0,
       durationSec: 0,
       sessions: 0,
-      paceCount: 0,
-      paceSum: 0,
+      reliableDistance: 0,
+      reliableDuration: 0,
     }
   )
 
@@ -111,7 +124,7 @@ function groupTotals(days: ActiveDay[]): DayGroupTotals {
     distance: round1(totals.distance),
     durationSec: totals.durationSec,
     sessions: totals.sessions,
-    avgPace: totals.paceCount ? Math.round(totals.paceSum / totals.paceCount) : null,
+    avgPace: calculateAggregatePace(totals.reliableDuration, totals.reliableDistance),
     activeDays: days.length,
   }
 }
@@ -172,45 +185,11 @@ function buildWindowOptions(days: ActiveDay[], mode: 'month' | 'week'): WindowOp
 }
 
 
-function getRoutineConsistency(days: ActiveDay[]): RoutineConsistency | null {
+function getRoutineConsistency(days: ActiveDay[], windowStart: Date, windowEnd: Date): RoutineConsistency | null {
   if (!days.length) return null
-
-  const sortedAsc = [...days].sort((a, b) => a.date.localeCompare(b.date))
-  const sortedDesc = [...days].sort((a, b) => b.date.localeCompare(a.date))
-  const weekMap = new Map<string, number>()
-
-  for (const day of days) {
-    const weekKey = startOfWeek(new Date(`${day.date}T00:00:00Z`)).toISOString().slice(0, 10)
-    weekMap.set(weekKey, (weekMap.get(weekKey) ?? 0) + 1)
-  }
-
-  let currentStreakDays = 1
-  for (let index = 1; index < sortedDesc.length; index += 1) {
-    const previous = new Date(`${sortedDesc[index - 1].date}T00:00:00Z`)
-    const current = new Date(`${sortedDesc[index].date}T00:00:00Z`)
-    const gap = Math.round((previous.getTime() - current.getTime()) / DAY_MS)
-    if (gap !== 1) break
-    currentStreakDays += 1
-  }
-
-  let longestStreakDays = 1
-  let streak = 1
-  for (let index = 1; index < sortedAsc.length; index += 1) {
-    const previous = new Date(`${sortedAsc[index - 1].date}T00:00:00Z`)
-    const current = new Date(`${sortedAsc[index].date}T00:00:00Z`)
-    const gap = Math.round((current.getTime() - previous.getTime()) / DAY_MS)
-    if (gap === 1) {
-      streak += 1
-      longestStreakDays = Math.max(longestStreakDays, streak)
-    } else {
-      streak = 1
-    }
-  }
-
-  const trackedWeeks = weekMap.size
-  const solidWeeks = [...weekMap.values()].filter((count) => count >= 3).length
-  const activeDays = days.length
-  const activeDaysPerWeek = trackedWeeks > 0 ? activeDays / trackedWeeks : activeDays
+  const result = getCalendarConsistency(days.map((day) => day.date), windowStart, windowEnd)
+  const { activeDays, trackedWeeks, solidWeeks, currentStreakDays, longestStreakDays } = result
+  const activeDaysPerWeek = result.activeDaysPerWeek
   const activeDaysPerWeekLabel = `${activeDaysPerWeek.toFixed(1)}d`
   const solidRatio = trackedWeeks > 0 ? solidWeeks / trackedWeeks : 0
 
@@ -225,7 +204,7 @@ function getRoutineConsistency(days: ActiveDay[]): RoutineConsistency | null {
   } else if (activeDaysPerWeek < 2.5 || solidRatio < 0.45) {
     status = 'baixo'
     title = 'Rotina ainda irregular'
-    copy = `O recorte mostra menos continuidade do que volume puro. A media ficou em ${activeDaysPerWeek.toFixed(1)} dias ativos por semana e so ${solidWeeks} das ${trackedWeeks} semanas bateram 3 dias de treino.`
+    copy = `O recorte inclui semanas sem treino: media de ${activeDaysPerWeek.toFixed(1)} dias ativos por semana e ${solidWeeks} das ${trackedWeeks} semanas com pelo menos 3 dias.`
   }
 
   return {
@@ -241,7 +220,6 @@ function getRoutineConsistency(days: ActiveDay[]): RoutineConsistency | null {
     copy,
   }
 }
-
 const VDOT_RECENT_DAYS = 90
 const VDOT_ZONE_DEFS = [
   { label: 'Leve', min: 0.59, max: 0.74, meta: 'base aerobica e recuperacao' },
@@ -319,7 +297,7 @@ function getVdotEstimate(days: ActiveDay[]): VdotEstimate | null {
   })
 
   const isRecent = best.dayDate >= recentCutoff
-  const sourceKind = best.source === 'strava-best-effort' ? 'best effort oficial' : 'atividade estimada'
+  const sourceKind = 'best effort oficial'
 
   return {
     value: vdot,
@@ -484,11 +462,11 @@ export function computeDashboardSlices(params: {
     }
   }
 
-  const analyzedDays = activeWindow.days.filter((day) => day.sessions > day.excludedSessions)
+  const analyzedDays = activeWindow.days.filter((day) => day.includedSessions > 0)
   const ignoredCount = activeWindow.days.reduce((sum, day) => sum + day.excludedSessions, 0)
   const daySports = activeWindow.days.flatMap((day) => day.sports)
   const analyzedSports = activeWindow.days.flatMap((day) =>
-    day.sports.filter((sport) => sport.sessions > sport.excludedSessions)
+    day.sports.filter((sport) => sport.includedSessions > 0)
   )
   const statsTotals = groupTotals(analyzedDays)
 
@@ -496,7 +474,7 @@ export function computeDashboardSlices(params: {
   let fastestPace: AnalyticsActivityStub | null = null
   let fastestSpeed: AnalyticsActivityStub | null = null
   const totalsByType = analyzedSports.reduce<Record<string, number>>((acc, sport) => {
-    acc[sport.type] = (acc[sport.type] ?? 0) + (sport.sessions - sport.excludedSessions)
+    acc[sport.type] = (acc[sport.type] ?? 0) + sport.includedSessions
     longest = sport.maxDistanceActivity && (!longest || sport.maxDistanceActivity.distanceKm > longest.distanceKm)
       ? sport.maxDistanceActivity
       : longest
@@ -544,7 +522,7 @@ export function computeDashboardSlices(params: {
       const label = windowMode === 'year' ? fmt.month(`${day.date}T00:00:00Z`) : fmt.date(`${day.date}T00:00:00Z`)
       const current = map.get(key) ?? { label, km: 0, sessions: 0 }
       current.km += day.distanceKm
-      current.sessions += day.sessions - day.excludedSessions
+      current.sessions += day.includedSessions
       map.set(key, current)
     }
 
@@ -562,14 +540,12 @@ export function computeDashboardSlices(params: {
             ? day.durationSec > 0
               ? day.distanceKm / (day.durationSec / 3600)
               : null
-            : day.reliablePaceCount
-              ? day.reliablePaceSumSec / day.reliablePaceCount
-              : null
+            : calculateAggregatePace(day.reliableDurationSec, day.reliableDistanceKm)
         const speed = day.durationSec > 0 ? day.distanceKm / (day.durationSec / 3600) : 0
         return {
           date: fmt.date(`${day.date}T00:00:00Z`),
           label: fmt.fullDate(`${day.date}T00:00:00Z`),
-          paceLabel: day.reliablePaceCount ? fmt.pace(Math.round(day.reliablePaceSumSec / day.reliablePaceCount)) : '-',
+          paceLabel: calculateAggregatePace(day.reliableDurationSec, day.reliableDistanceKm) != null ? fmt.pace(calculateAggregatePace(day.reliableDurationSec, day.reliableDistanceKm)!) : '-',
           speedLabel: `${speed.toFixed(1)} km/h`,
           metricValue,
         }
@@ -594,11 +570,13 @@ export function computeDashboardSlices(params: {
     }
 
     const current = groupTotals(
-      filteredDays.filter((day) => day.date >= currentStart.toISOString().slice(0, 10) && day.date <= currentEnd.toISOString().slice(0, 10) && day.sessions > day.excludedSessions)
+      filteredDays.filter((day) => day.date >= currentStart.toISOString().slice(0, 10) && day.date <= currentEnd.toISOString().slice(0, 10) && day.includedSessions > 0)
     )
     const previous = groupTotals(
-      filteredDays.filter((day) => day.date >= previousStart.toISOString().slice(0, 10) && day.date <= previousEnd.toISOString().slice(0, 10) && day.sessions > day.excludedSessions)
+      filteredDays.filter((day) => day.date >= previousStart.toISOString().slice(0, 10) && day.date <= previousEnd.toISOString().slice(0, 10) && day.includedSessions > 0)
     )
+
+    if (previous.sessions === 0) return null
 
     return {
       current,
@@ -611,10 +589,19 @@ export function computeDashboardSlices(params: {
   })()
 
   const weeklyLoad = (() => {
-    const baseDays = filteredDays.filter((day) => day.sessions > day.excludedSessions)
-    if (!baseDays.length) return [] as Array<{ week: string; km: number; sessions: number; load: number }>
+    const baseDays = filteredDays.filter((day) => day.includedSessions > 0)
+    if (!baseDays.length) return [] as Array<{ week: string; km: number; sessions: number; load: number; isPartial: boolean }>
 
-    const latest = new Date(`${baseDays[0].date}T00:00:00Z`)
+    const latestActivity = new Date(`${baseDays[0].date}T00:00:00Z`)
+    const today = new Date()
+    today.setUTCHours(23, 59, 59, 999)
+    const loadYears = selectedYears.map(Number).filter(Number.isFinite).sort((a, b) => a - b)
+    const loadYear = loadYears[loadYears.length - 1] ?? latestActivity.getUTCFullYear()
+    const selectedYearEnd = loadYear === today.getUTCFullYear()
+      ? today
+      : new Date(Date.UTC(loadYear, 11, 31, 23, 59, 59, 999))
+    const evaluationEnd = activeWindow.end && activeWindow.end < today ? activeWindow.end : selectedYearEnd
+    const latest = evaluationEnd < latestActivity ? latestActivity : evaluationEnd
     const currentWeekStart = startOfWeek(latest)
 
     return Array.from({ length: 8 }, (_, index) => {
@@ -625,12 +612,13 @@ export function computeDashboardSlices(params: {
         return date >= weekStart && date < weekEnd
       })
       const totals = groupTotals(items)
-      const paceFactor = totals.avgPace ? 360 / totals.avgPace : 1
+      const isPartial = evaluationEnd >= weekStart && evaluationEnd < new Date(weekEnd.getTime() - 1)
       return {
         week: `${String(weekStart.getUTCDate()).padStart(2, '0')}/${String(weekStart.getUTCMonth() + 1).padStart(2, '0')}`,
         km: totals.distance,
         sessions: totals.sessions,
-        load: round1(totals.distance * paceFactor),
+        load: round1(totals.durationSec / 60),
+        isPartial,
       }
     })
   })()
@@ -640,24 +628,26 @@ export function computeDashboardSlices(params: {
     const currentWeek = weeklyLoad[weeklyLoad.length - 1]
     const baseline = weeklyLoad.slice(-5, -1)
     const avgLoad = baseline.reduce((sum, item) => sum + item.load, 0) / baseline.length
-    const avgKm = baseline.reduce((sum, item) => sum + item.km, 0) / baseline.length
     const ratio = avgLoad > 0 ? currentWeek.load / avgLoad : 1
 
     let stableWeeks = 0
-    for (let index = weeklyLoad.length - 1; index >= 0; index -= 1) {
+    const stableStartIndex = weeklyLoad.length - (currentWeek.isPartial ? 2 : 1)
+    for (let index = stableStartIndex; index >= 0; index -= 1) {
       const item = weeklyLoad[index]
-      if (avgKm === 0) break
-      const withinBand = item.km >= avgKm * 0.85 && item.km <= avgKm * 1.15
+      if (avgLoad === 0) break
+      const withinBand = item.load >= avgLoad * 0.85 && item.load <= avgLoad * 1.15
       if (!withinBand) break
       stableWeeks += 1
     }
 
-    let status = 'equilibrado'
-    let recommendation = 'Carga sob controle. Da para manter a progressao atual.'
-    if (ratio >= 1.18) {
+    let status = currentWeek.isPartial ? 'parcial' : 'equilibrado'
+    let recommendation = currentWeek.isPartial
+      ? 'Semana parcial no recorte; compare o volume apenas como acompanhamento, nao contra semanas completas.'
+      : 'Minutos ativos proximos da referencia das quatro semanas anteriores.'
+    if (!currentWeek.isPartial && ratio >= 1.18) {
       status = 'alto'
-      recommendation = 'Semana acima da media recente. Vale considerar deload ou reduzir intensidade na proxima janela.'
-    } else if (ratio <= 0.72) {
+      recommendation = 'Minutos ativos acima da referencia recente; interprete junto com intensidade e recuperacao.'
+    } else if (!currentWeek.isPartial && ratio <= 0.72) {
       status = 'baixo'
       recommendation = 'Semana bem abaixo da media recente. Pode ser recuperacao ou quebra de consistencia.'
     }
@@ -671,8 +661,14 @@ export function computeDashboardSlices(params: {
     }
   })()
 
-  const routineConsistency = getRoutineConsistency(analyzedDays)
-  const vdotEstimate = getVdotEstimate(filteredDays.filter((day) => day.sessions > day.excludedSessions))
+  const selectedNumericYears = selectedYears.map(Number).filter(Number.isFinite).sort((a, b) => a - b)
+  const consistencyStart = activeWindow.start ?? new Date(Date.UTC(selectedNumericYears[0] ?? latestDate.getUTCFullYear(), 0, 1))
+  const maxSelectedYear = selectedNumericYears[selectedNumericYears.length - 1] ?? latestDate.getUTCFullYear()
+  const today = new Date()
+  const yearEnd = new Date(Date.UTC(maxSelectedYear, 11, 31, 23, 59, 59, 999))
+  const consistencyEnd = activeWindow.end ?? (maxSelectedYear === today.getUTCFullYear() && today < yearEnd ? today : yearEnd)
+  const routineConsistency = getRoutineConsistency(analyzedDays, consistencyStart, consistencyEnd)
+  const vdotEstimate = getVdotEstimate(filteredDays.filter((day) => day.includedSessions > 0))
 
   const periodContext = (() => {
     if (!stats || !analyzedDays.length) return null
@@ -708,8 +704,8 @@ export function computeDashboardSlices(params: {
     for (const day of analyzedDays) {
       const date = new Date(`${day.date}T00:00:00Z`)
       const weekday = date.toLocaleDateString('pt-BR', { weekday: 'short', timeZone: 'UTC' }).replace('.', '')
-      weekdayMap.set(weekday, (weekdayMap.get(weekday) ?? 0) + day.sessions)
-      if (date.getUTCDay() === 0 || date.getUTCDay() === 6) weekendSessions += day.sessions
+      weekdayMap.set(weekday, (weekdayMap.get(weekday) ?? 0) + day.includedSessions)
+      if (date.getUTCDay() === 0 || date.getUTCDay() === 6) weekendSessions += day.includedSessions
     }
 
     const strongestDay = [...analyzedDays].sort((a, b) => b.distanceKm - a.distanceKm || b.durationSec - a.durationSec)[0]
@@ -724,7 +720,7 @@ export function computeDashboardSlices(params: {
     }
 
     const topWeekday = Array.from(weekdayMap.entries()).sort((a, b) => b[1] - a[1])[0]
-    const totalSessions = analyzedDays.reduce((sum, day) => sum + day.sessions, 0)
+    const totalSessions = analyzedDays.reduce((sum, day) => sum + day.includedSessions, 0)
     return {
       biggestGapDays,
       strongestDay: {
@@ -743,7 +739,7 @@ export function computeDashboardSlices(params: {
   const periodBenchmark = (() => {
     if (windowMode !== 'month' && windowMode !== 'week') return null
 
-    const rows = groupDaysByPeriod(filteredDays.filter((day) => day.sessions > day.excludedSessions), windowMode).map((group) => {
+    const rows = groupDaysByPeriod(filteredDays.filter((day) => day.includedSessions > 0), windowMode).map((group) => {
       const totals = groupTotals(group.days)
       return {
         key: group.key,

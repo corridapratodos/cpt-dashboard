@@ -26,6 +26,8 @@ test('tokens OAuth usam camada de persistencia dedicada e webhook prioriza heade
   assert.match(webhookRoute, /readStoredOAuthTokens/)
   assert.match(webhookRoute, /mergeAvailableYears/)
   assert.match(oauthTokens, /OAUTH_TOKEN_ENCRYPTION_KEY/)
+  assert.doesNotMatch(auth, /session\.accessToken/)
+  assert.match(oauthTokens, /obrigatoria em producao/)
 })
 
 test('full sync esta restrito a admin no backend', () => {
@@ -51,6 +53,7 @@ test('plano free e aplicado no backend de atividades, analytics e sync', () => {
   assert.match(activitiesRoute, /loadYearActivitiesFromCache/)
   assert.match(activitiesAnalyticsRoute, /applyScopeToYearAnalytics/)
   assert.match(syncRoute, /isActivityAllowedForScope/)
+  assert.match(access, /localDate/)
 })
 
 test('cache anual em chunks e analytics existem para cortar leituras por tela', () => {
@@ -64,6 +67,7 @@ test('cache anual em chunks e analytics existem para cortar leituras por tela', 
   assert.match(cache, /writeYearAnalyticsBatch/)
   assert.match(analytics, /buildYearAnalytics/)
   assert.match(analytics, /ANALYTICS_CACHE_VERSION/)
+  assert.match(analytics, /hasCriticalMetricQualityIssue/)
 })
 
 test('backfill de best efforts evita varredura completa da base', () => {

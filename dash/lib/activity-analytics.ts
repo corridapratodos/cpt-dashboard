@@ -12,8 +12,11 @@ import { ANALYTICS_CACHE_VERSION, ANALYTICS_RECORD_TARGETS } from '@/lib/analyti
 import type { UserScope } from '@/lib/access'
 import { isActivityAllowedForScope } from '@/lib/access'
 import { yearAnalyticsRef } from '@/lib/firebase'
-
-const PERFORMANCE_TYPES = new Set(['Run', 'TrailRun', 'VirtualRun', 'Walk', 'Hike'])
+import {
+  getOfficialBestEffortDuration,
+  hasCriticalMetricQualityIssue,
+  isReliablePerformanceActivity,
+} from '@/lib/training-metrics'
 
 function round1(value: number) {
   return Number(value.toFixed(1))
@@ -30,25 +33,11 @@ function toIsoDate(value: unknown) {
 }
 
 function getDistanceTolerance(targetKm: number) {
-  if (targetKm <= 5) return 0.35
-  if (targetKm <= 10) return 0.75
-  if (targetKm <= 21.1) return 1.25
-  return 1.75
+  return Math.max(0.02, targetKm * 0.005)
 }
 
 function isReliablePaceActivity(activity: ActivityLite) {
-  if (activity.excludedFromMetrics) return false
-  if (activity.paceSec == null || activity.distanceKm < 2 || activity.durationSec < 20 * 60) return false
-
-  if (isRunLikeType(activity.type)) {
-    return activity.paceSec >= 270 && activity.paceSec <= 600
-  }
-
-  if (activity.type === 'Walk' || activity.type === 'Hike') {
-    return activity.paceSec >= 480 && activity.paceSec <= 1500
-  }
-
-  return activity.paceSec >= 120 && activity.paceSec <= 3600
+  return isReliablePerformanceActivity(activity)
 }
 
 function toActivityStub(activity: ActivityLite): AnalyticsActivityStub {
@@ -56,6 +45,7 @@ function toActivityStub(activity: ActivityLite): AnalyticsActivityStub {
     stravaId: activity.stravaId,
     name: activity.name,
     date: activity.date,
+    localDate: activity.localDate,
     distanceKm: round1(activity.distanceKm),
     durationSec: Math.round(activity.durationSec),
     paceSec: activity.paceSec == null ? null : Math.round(activity.paceSec),
@@ -83,15 +73,15 @@ function chooseFasterSpeedActivity(current: AnalyticsActivityStub | null, candid
 }
 
 function buildRecordCandidates(activity: ActivityLite): AnalyticsRecordCandidate[] {
-  if (!PERFORMANCE_TYPES.has(activity.type) || !isReliablePaceActivity(activity)) return []
-
-  const officialByTarget = new Map<number, AnalyticsRecordCandidate>()
+  if (!isRunLikeType(activity.type) || activity.excludedFromMetrics || hasCriticalMetricQualityIssue(activity)) return []
+  const candidates: AnalyticsRecordCandidate[] = []
 
   for (const targetKm of ANALYTICS_RECORD_TARGETS) {
     const officialMatches = activity.bestEfforts
       .filter((effort) => Math.abs(effort.distanceKm - targetKm) <= getDistanceTolerance(targetKm))
-      .map((effort) => {
-        const displayDurationSec = effort.movingSec ?? effort.elapsedSec
+      .map<AnalyticsRecordCandidate | null>((effort) => {
+        const displayDurationSec = getOfficialBestEffortDuration(effort)
+        if (displayDurationSec == null) return null
         return {
           targetKm,
           source: 'strava-best-effort' as const,
@@ -100,29 +90,12 @@ function buildRecordCandidates(activity: ActivityLite): AnalyticsRecordCandidate
           activity: toActivityStub(activity),
         }
       })
+      .filter((candidate): candidate is AnalyticsRecordCandidate => candidate != null)
 
     if (!officialMatches.length) continue
-
-    const best = officialMatches.reduce((winner, current) =>
+    candidates.push(officialMatches.reduce((winner, current) =>
       current.displayDurationSec < winner.displayDurationSec ? current : winner
-    )
-    officialByTarget.set(targetKm, best)
-  }
-
-  const candidates = Array.from(officialByTarget.values())
-
-  for (const targetKm of ANALYTICS_RECORD_TARGETS) {
-    if (officialByTarget.has(targetKm)) continue
-    const tolerance = getDistanceTolerance(targetKm)
-    if (Math.abs(activity.distanceKm - targetKm) > tolerance) continue
-
-    candidates.push({
-      targetKm,
-      source: 'estimated',
-      displayDurationSec: Math.round((activity.paceSec ?? 0) * targetKm),
-      displayPaceSec: activity.paceSec == null ? null : Math.round(activity.paceSec),
-      activity: toActivityStub(activity),
-    })
+    ))
   }
 
   return candidates
@@ -152,6 +125,7 @@ function sanitizeActivityStub(value: unknown): AnalyticsActivityStub | null {
     stravaId: Number(source.stravaId ?? 0),
     name: String(source.name ?? 'Atividade'),
     date: String(source.date ?? ''),
+    localDate: String(source.localDate ?? String(source.date ?? '').slice(0, 10)),
     distanceKm: Number(source.distanceKm ?? 0),
     durationSec: Number(source.durationSec ?? 0),
     paceSec: source.paceSec == null ? null : Number(source.paceSec),
@@ -187,12 +161,15 @@ function sanitizeDaySport(value: unknown): AnalyticsDaySport | null {
     type: String(source.type ?? 'Workout'),
     sessions: Number(source.sessions ?? 0),
     excludedSessions: Number(source.excludedSessions ?? 0),
+    includedSessions: Number(source.includedSessions ?? Number(source.sessions ?? 0) - Number(source.excludedSessions ?? 0)),
     distanceKm: Number(source.distanceKm ?? 0),
     durationSec: Number(source.durationSec ?? 0),
     includedDistanceKm: Number(source.includedDistanceKm ?? source.distanceKm ?? 0),
     includedDurationSec: Number(source.includedDurationSec ?? source.durationSec ?? 0),
     reliablePaceCount: Number(source.reliablePaceCount ?? 0),
     reliablePaceSumSec: Number(source.reliablePaceSumSec ?? 0),
+    reliableDistanceKm: Number(source.reliableDistanceKm ?? 0),
+    reliableDurationSec: Number(source.reliableDurationSec ?? 0),
     maxDistanceActivity: sanitizeActivityStub(source.maxDistanceActivity),
     fastestPaceActivity: sanitizeActivityStub(source.fastestPaceActivity),
     fastestSpeedActivity: sanitizeActivityStub(source.fastestSpeedActivity),
@@ -221,19 +198,22 @@ export function buildYearAnalytics(year: string, activities: ActivityLite[]): Ac
   }, {})
 
   for (const activity of activities) {
-    const dayKey = activity.date.slice(0, 10)
+    const dayKey = activity.localDate
     const sportKey = activity.type
     const daySports = dayMap.get(dayKey) ?? new Map<string, AnalyticsDaySport>()
     const current = daySports.get(sportKey) ?? {
       type: sportKey,
       sessions: 0,
       excludedSessions: 0,
+      includedSessions: 0,
       distanceKm: 0,
       durationSec: 0,
       includedDistanceKm: 0,
       includedDurationSec: 0,
       reliablePaceCount: 0,
       reliablePaceSumSec: 0,
+      reliableDistanceKm: 0,
+      reliableDurationSec: 0,
       maxDistanceActivity: null,
       fastestPaceActivity: null,
       fastestSpeedActivity: null,
@@ -248,19 +228,21 @@ export function buildYearAnalytics(year: string, activities: ActivityLite[]): Ac
     if (activity.excludedFromMetrics) {
       current.excludedSessions += 1
     } else {
+      current.includedSessions += 1
       current.includedDistanceKm = round1(current.includedDistanceKm + activity.distanceKm)
       current.includedDurationSec += Math.round(activity.durationSec)
-    }
+      current.maxDistanceActivity = chooseLongerActivity(current.maxDistanceActivity, stub)
+      current.fastestSpeedActivity = chooseFasterSpeedActivity(current.fastestSpeedActivity, stub)
+      current.recordCandidates = mergeRecordCandidates(current.recordCandidates, buildRecordCandidates(activity))
 
-    if (isReliablePaceActivity(activity) && activity.paceSec != null) {
-      current.reliablePaceCount += 1
-      current.reliablePaceSumSec += Math.round(activity.paceSec)
-      current.fastestPaceActivity = chooseFasterPaceActivity(current.fastestPaceActivity, stub)
+      if (isReliablePaceActivity(activity) && activity.paceSec != null) {
+        current.reliablePaceCount += 1
+        current.reliablePaceSumSec += Math.round(activity.paceSec)
+        current.reliableDistanceKm = round1(current.reliableDistanceKm + activity.distanceKm)
+        current.reliableDurationSec += Math.round(activity.durationSec)
+        current.fastestPaceActivity = chooseFasterPaceActivity(current.fastestPaceActivity, stub)
+      }
     }
-
-    current.maxDistanceActivity = chooseLongerActivity(current.maxDistanceActivity, stub)
-    current.fastestSpeedActivity = chooseFasterSpeedActivity(current.fastestSpeedActivity, stub)
-    current.recordCandidates = mergeRecordCandidates(current.recordCandidates, buildRecordCandidates(activity))
 
     daySports.set(sportKey, current)
     dayMap.set(dayKey, daySports)

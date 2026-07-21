@@ -11,7 +11,9 @@
         "check:utf8": "node scripts/check-utf8.mjs",
         "check:secrets": "node scripts/check-secrets.mjs",
         "test:smoke": "node scripts/test-smoke.mjs",
-        "check": "npm run check:utf8 && npm run check:secrets && npm run test:smoke && npm run typecheck",
+        "test": "node --experimental-strip-types --test --experimental-test-isolation=none tests/*.test.*",
+        "test:domain": "node --experimental-strip-types --test --experimental-test-isolation=none tests/*.test.ts",
+        "check": "npm run check:utf8 && npm run check:secrets && npm run test:smoke && npm test && npm run typecheck",
         "check:prod": "npm run check:env && npm run check && npm run build"
     },
     "dependencies": {

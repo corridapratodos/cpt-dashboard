@@ -45,7 +45,7 @@ export function DashboardAiReadingCard({ payload }: Props) {
         <div>
           <p className="panel-eyebrow">IA beta</p>
           <h3>Leitura assistida do recorte</h3>
-          <p className="panel-sub">Usa o resumo estruturado do dashboard para gerar uma leitura curta no proprio painel.</p>
+          <p className="panel-sub">Envia ao Google Gemini apenas o resumo deste recorte: {payload.sportFocus} | {payload.yearLabel} | {payload.windowLabel}.</p>
         </div>
         <button type="button" className="btn btn-outline" disabled={loading || disabled} onClick={handleGenerate}>
           {loading ? 'Gerando...' : reading ? 'Gerar de novo' : 'Gerar leitura'}

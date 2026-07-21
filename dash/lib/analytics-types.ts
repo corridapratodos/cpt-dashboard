@@ -1,12 +1,15 @@
 import type { StoredBestEffort } from '@/lib/activity-types'
 
-export const ANALYTICS_CACHE_VERSION = 2
+export const ANALYTICS_CACHE_VERSION = 3
 export const ANALYTICS_RECORD_TARGETS = [3, 5, 10, 15, 21.1, 30] as const
 
 export type ActivityLite = {
   stravaId: number
   name: string
   date: string
+  localDate: string
+  startDateLocal: string | null
+  timezone: string | null
   distanceKm: number
   durationSec: number
   paceSec: number | null
@@ -22,7 +25,7 @@ export type ActivityLite = {
 
 export type AnalyticsActivityStub = Pick<
   ActivityLite,
-  'stravaId' | 'name' | 'date' | 'distanceKm' | 'durationSec' | 'paceSec' | 'type'
+  'stravaId' | 'name' | 'date' | 'localDate' | 'distanceKm' | 'durationSec' | 'paceSec' | 'type'
 >
 
 export type AnalyticsRecordCandidate = {
@@ -36,11 +39,14 @@ export type AnalyticsRecordCandidate = {
 export type AnalyticsDaySport = {
   type: string
   sessions: number
+  includedSessions: number
   excludedSessions: number
   distanceKm: number
   durationSec: number
   includedDistanceKm: number
   includedDurationSec: number
+  reliableDistanceKm: number
+  reliableDurationSec: number
   reliablePaceCount: number
   reliablePaceSumSec: number
   maxDistanceActivity: AnalyticsActivityStub | null

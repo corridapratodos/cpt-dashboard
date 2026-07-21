@@ -111,7 +111,6 @@ export const authOptions: AuthOptions = {
       return refreshAccessToken(token)
     },
     async session({ session, token }) {
-      session.accessToken = token.accessToken as string
       session.stravaId = token.stravaId as number
       session.error = token.error as string | undefined
       return session
@@ -167,7 +166,6 @@ async function refreshAccessToken(token: any) {
 
 declare module 'next-auth' {
   interface Session {
-    accessToken: string
     stravaId: number
     error?: string
   }

@@ -3,7 +3,7 @@ import { getUserScope, isActivityAllowedForScope } from '@/lib/access'
 import { getActivityYear, listYearCacheIndexes, rebuildYearActivityCaches, summarizeYearCacheIndexes } from '@/lib/activity-cache'
 import { mergeAvailableYears } from '@/lib/dashboard'
 import { activitiesRef, getDb, metaRef } from '@/lib/firebase'
-import { buildStoredOAuthTokenPayload, readStoredOAuthTokens } from '@/lib/oauth-tokens'
+import { buildStoredOAuthTokenPayload, isOAuthTokenEncryptionEnabled, readStoredOAuthTokens } from '@/lib/oauth-tokens'
 import { getWebhookPostToken } from '@/lib/security'
 import { extractBestEfforts, fetchActivity, mapActivity } from '@/lib/strava'
 
@@ -96,6 +96,12 @@ export async function POST(req: NextRequest) {
     if (!storedTokens?.accessToken) {
       return Response.json({ ok: true, skipped: true, reason: 'missing_access_token' })
     }
+    if (isOAuthTokenEncryptionEnabled() && !userData?.oauthTokens) {
+      await tokenDoc.ref.set(
+        { updatedAt: new Date(), ...buildStoredOAuthTokenPayload(storedTokens) },
+        { merge: true },
+      )
+    }
 
     let accessToken = storedTokens.accessToken
     const refreshToken = storedTokens.refreshToken
@@ -113,7 +119,7 @@ export async function POST(req: NextRequest) {
 
     const scope = getUserScope(ownerId, userData)
     const activity = await fetchActivity(accessToken, activityId)
-    if (!isActivityAllowedForScope({ type: activity.type, date: activity.start_date }, scope)) {
+    if (!isActivityAllowedForScope({ type: activity.type, date: activity.start_date, localDate: typeof activity.start_date_local === 'string' ? activity.start_date_local.slice(0, 10) : null }, scope)) {
       return Response.json({ ok: true, skipped: true, reason: 'outside_plan_scope' })
     }
 
@@ -122,7 +128,7 @@ export async function POST(req: NextRequest) {
     const mapped = mapActivity(activity, { bestEfforts: extractBestEfforts(activity) })
     await ref.set(mapped, { merge: true })
 
-    const activityYear = getActivityYear(mapped.date)
+    const activityYear = getActivityYear(mapped.localDate ?? mapped.date)
     if (activityYear) {
       await rebuildYearActivityCaches(ownerId, [activityYear])
     }

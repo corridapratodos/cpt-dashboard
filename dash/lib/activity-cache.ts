@@ -1,13 +1,17 @@
 import { buildYearAnalytics, deleteYearAnalyticsBatch, writeYearAnalyticsBatch } from '@/lib/activity-analytics'
 import { buildSyncSummary, isQualifiedRun, toDashboardActivity } from '@/lib/dashboard'
 import { activitiesRef, yearCacheChunkRef, yearCacheChunksRef, yearCacheIndexRef, yearCachesRef } from '@/lib/firebase'
+import { getCanonicalLocalDate } from '@/lib/training-metrics'
 
 const YEAR_CACHE_CHUNK_SIZE = 120
-const YEAR_CACHE_VERSION = 1
+const YEAR_CACHE_VERSION = 2
 const ACTIVITY_CACHE_FIELDS = [
   'stravaId',
   'name',
   'date',
+  'localDate',
+  'startDateLocal',
+  'timezone',
   'distanceKm',
   'durationSec',
   'paceSec',
@@ -58,8 +62,8 @@ function getYearBounds(year: string) {
   }
 
   return {
-    start: new Date(Date.UTC(numericYear, 0, 1, 0, 0, 0, 0)),
-    end: new Date(Date.UTC(numericYear + 1, 0, 1, 0, 0, 0, 0)),
+    start: new Date(Date.UTC(numericYear, 0, 1) - 24 * 60 * 60 * 1000),
+    end: new Date(Date.UTC(numericYear + 1, 0, 1) + 24 * 60 * 60 * 1000),
   }
 }
 
@@ -131,6 +135,10 @@ function asYearCacheChunkMeta(id: string, data: Record<string, unknown>): YearCa
 export function getActivityYear(dateLike: string | Date | { toDate?: () => Date } | null | undefined) {
   if (!dateLike) return null
 
+
+  if (typeof dateLike === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(dateLike)) {
+    return dateLike.slice(0, 4)
+  }
   const date =
     dateLike instanceof Date
       ? dateLike
@@ -241,7 +249,9 @@ export async function rebuildYearActivityCache(stravaId: number, year: string) {
     .select(...ACTIVITY_CACHE_FIELDS)
     .get()
 
-  const activities = rawSnap.docs.map((doc) => toDashboardActivity(doc.data()))
+  const activities = rawSnap.docs
+    .map((doc) => toDashboardActivity(doc.data()))
+    .filter((activity) => getCanonicalLocalDate(activity).startsWith(`${year}-`))
   const chunks = chunkActivities(activities)
   const summary = buildSyncSummary(activities)
   const sports = Array.from(new Set(activities.map((activity) => activity.type))).sort()
@@ -282,13 +292,14 @@ export async function rebuildYearActivityCache(stravaId: number, year: string) {
   )
 
   chunks.forEach((chunk, index) => {
+    const sortedLocalDates = chunk.map((activity) => activity.localDate).sort()
     batch.set(
       yearCacheChunkRef(stravaId, year, String(index).padStart(4, '0')),
       {
         index,
         activityCount: chunk.length,
-        newestDate: chunk[0]?.date ?? null,
-        oldestDate: chunk[chunk.length - 1]?.date ?? null,
+        newestDate: sortedLocalDates[sortedLocalDates.length - 1] ?? null,
+        oldestDate: sortedLocalDates[0] ?? null,
         totalsByType: summarizeActivitiesByType(chunk),
         activities: chunk,
         updatedAt: now,

@@ -1,11 +1,15 @@
 import { Query } from 'firebase-admin/firestore'
 import { CURRENT_YEAR, FREE_PLAN_TYPES, type UserScope } from '@/lib/access'
 import type { StoredBestEffort } from '@/lib/activity-types'
+import { getCanonicalLocalDate } from '@/lib/training-metrics'
 
 type StoredActivity = {
   stravaId: number
   name: string
   date: string
+  localDate: string
+  startDateLocal: string | null
+  timezone: string | null
   distanceKm: number
   durationSec: number
   paceSec: number | null
@@ -46,6 +50,9 @@ export function toDashboardActivity(data: any): StoredActivity {
     name: String(data.name ?? 'Atividade'),
     date: date?.toISOString() ?? new Date(0).toISOString(),
     distanceKm: Number(data.distanceKm ?? 0),
+    localDate: getCanonicalLocalDate(data),
+    startDateLocal: typeof data.startDateLocal === 'string' ? data.startDateLocal : null,
+    timezone: typeof data.timezone === 'string' ? data.timezone : null,
     durationSec: Number(data.durationSec ?? 0),
     paceSec: data.paceSec == null ? null : Number(data.paceSec),
     hrAvg: data.hrAvg == null ? null : Number(data.hrAvg),
@@ -80,11 +87,11 @@ export function isQualifiedRun(activity: StoredActivity) {
   )
 }
 
-export function extractAvailableYears(activities: Array<{ date: string }>) {
+export function extractAvailableYears(activities: Array<{ date: string; localDate?: string }>) {
   return Array.from(
     new Set(
       activities
-        .map((activity) => new Date(activity.date).getFullYear())
+        .map((activity) => Number((activity.localDate || activity.date).slice(0, 4)))
         .filter((year) => Number.isFinite(year) && year > 2000)
         .map(String)
     )

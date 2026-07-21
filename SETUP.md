@@ -19,7 +19,7 @@ Content-Type: application/x-www-form-urlencoded
 
 client_id=SEU_ID
 client_secret=SEU_SECRET
-callback_url=https://dash.corridapratodos.com.br/api/strava/webhook
+callback_url=https://dash.corridapratodos.com.br/api/strava/webhook?token=SEU_STRAVA_WEBHOOK_POST_TOKEN
 verify_token=cpt_webhook_secret
 ```
 
@@ -64,7 +64,9 @@ Depois, em **Settings -> Environment Variables**, adicione:
 |---|---|
 | `STRAVA_CLIENT_ID` | ID do app Strava |
 | `STRAVA_CLIENT_SECRET` | Secret do app Strava |
-| `STRAVA_WEBHOOK_VERIFY_TOKEN` | `cpt_webhook_secret` |
+| `STRAVA_WEBHOOK_VERIFY_TOKEN` | Token usado pelo Strava na verificacao GET |
+| `STRAVA_WEBHOOK_POST_TOKEN` | Token aleatorio presente no callback POST |
+| `OAUTH_TOKEN_ENCRYPTION_KEY` | Chave obrigatoria de 32 bytes, hex de 64 chars ou base64 de 32 bytes |
 | `NEXTAUTH_URL` | `https://dash.corridapratodos.com.br` |
 | `NEXTAUTH_SECRET` | Gerar com `openssl rand -base64 32` |
 | `FIREBASE_SERVICE_ACCOUNT` | JSON inteiro da chave privada, em uma linha, sem quebras |
@@ -88,8 +90,10 @@ Depois, em **Vercel -> Domains**, adicione `dash.corridapratodos.com.br`.
 
 1. Usuario acessa `dash.corridapratodos.com.br`
 2. Redireciona para `/login` com o botao "Entrar com Strava"
-3. Strava autoriza, NextAuth cria a sessao e salva os tokens no Firestore
+3. Strava autoriza, NextAuth cria a sessao e salva os tokens criptografados no Firestore
 4. Dashboard vazio aparece com botao "Sincronizar"
 5. `POST /api/strava/sync` busca o historico completo e salva no Firestore
 6. Pagina recarrega com os dados
-7. Novas corridas passam a chegar via webhook automaticamente
+7. Novas atividades passam a chegar pelo webhook autenticado automaticamente
+
+> Depois de alterar `STRAVA_WEBHOOK_POST_TOKEN`, atualize a assinatura do Strava: a URL registrada precisa conter o mesmo token. O CI executa testes e typecheck sem `next build`.

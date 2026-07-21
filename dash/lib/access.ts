@@ -1,6 +1,6 @@
 const DAY_MS = 24 * 60 * 60 * 1000
 
-export const LEGAL_VERSION = '2026-06-27'
+export const LEGAL_VERSION = '2026-07-20'
 export const FULL_SYNC_COOLDOWN_MS = 7 * DAY_MS
 export const CURRENT_YEAR = new Date().getFullYear()
 export const FREE_PLAN_YEARS = 2
@@ -109,11 +109,16 @@ export function getUserScope(stravaId: number, userData?: UserShape): UserScope 
   }
 }
 
-export function isActivityAllowedForScope(activity: { type?: string | null; date?: string | Date | { toDate?: () => Date } | null }, scope: UserScope) {
+export function isActivityAllowedForScope(activity: { type?: string | null; date?: string | Date | { toDate?: () => Date } | null; localDate?: string | null }, scope: UserScope) {
   if (scope.fullAccess) return true
 
   const type = String(activity.type ?? '')
   if (!scope.allowedTypes.includes(type)) return false
+
+  const localYear = typeof activity.localDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(activity.localDate)
+    ? activity.localDate.slice(0, 4)
+    : null
+  if (scope.allowedYears !== 'all' && localYear) return scope.allowedYears.includes(localYear)
 
   const value = activity.date
   const date = value instanceof Date

@@ -5,6 +5,9 @@ export interface Activity {
   stravaId: number
   name: string
   date: string
+  localDate: string
+  startDateLocal: string | null
+  timezone: string | null
   distanceKm: number
   durationSec: number
   paceSec: number | null

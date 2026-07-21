@@ -20,7 +20,7 @@ export default function TermsPage() {
       <section className="hero legal-hero compact-hero">
         <p className="eyebrow">Corrida Pra Todos</p>
         <h1 className="display">Termos de uso</h1>
-        <p className="hero-copy">Versao 2026-06-27. Este documento define as regras basicas de uso do CPT Dashboard.</p>
+        <p className="hero-copy">Versao 2026-07-20. Este documento define as regras basicas de uso do CPT Dashboard.</p>
       </section>
 
       <LegalSection title="Objeto do servico">
@@ -32,7 +32,7 @@ export default function TermsPage() {
       </LegalSection>
 
       <LegalSection title="Limites do produto">
-        <p>As metricas dependem da qualidade dos dados importados do Strava e das regras de processamento do sistema. O painel pode passar por evolucoes de criterio, filtros e exibicoes ao longo do tempo.</p>
+        <p>As metricas dependem da qualidade dos dados importados e das regras de processamento. Pace, VDOT, zonas, consistencia, minutos ativos e leituras com IA sao estimativas de apoio, nao diagnostico, prescricao medica ou substituto de acompanhamento profissional. O painel pode evoluir criterios, filtros e exibicoes.</p>
       </LegalSection>
 
       <LegalSection title="Encerramento e exclusao">

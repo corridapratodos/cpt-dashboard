@@ -20,19 +20,27 @@ export default function PrivacyPage() {
       <section className="hero legal-hero compact-hero">
         <p className="eyebrow">Corrida Pra Todos</p>
         <h1 className="display">Politica de privacidade</h1>
-        <p className="hero-copy">Versao 2026-06-27. Este documento resume como o CPT Dashboard coleta, usa e exclui dados sincronizados do Strava.</p>
+        <p className="hero-copy">Versao 2026-07-20. Este documento resume como o CPT Dashboard coleta, usa, compartilha e exclui dados esportivos e de saude.</p>
       </section>
 
       <LegalSection title="Dados coletados">
-        <p>Coletamos os dados necessarios para montar o painel: identificacao da conta no Strava, nome, foto, data das atividades, esporte, distancia, tempo, ritmo, frequencia cardiaca media e maxima, ganho de elevacao e metadados de sincronizacao.</p>
+        <p>Coletamos identificacao da conta no Strava, nome, foto, atividades, esporte, distancia, tempo, ritmo, frequencia cardiaca, elevacao, parciais, best efforts e metadados de sincronizacao. Quando a funcao e usada por conta autorizada, tambem podem ser importados arquivos Garmin com sono, peso e composicao corporal.</p>
       </LegalSection>
 
       <LegalSection title="Finalidade do uso">
-        <p>Os dados sao utilizados para gerar metricas, filtros, comparativos por periodo, leitura de carga de treino e atualizacao automatica do historico do atleta dentro do CPT Dashboard.</p>
+        <p>Os dados sao utilizados para gerar metricas, filtros, comparativos, recordes, consistencia, minutos ativos, zonas estimadas e historico. Dados de saude sao usados apenas nos paineis correspondentes e nao alteram automaticamente uma prescricao de treino.</p>
       </LegalSection>
 
       <LegalSection title="Armazenamento e seguranca">
-        <p>Os dados ficam armazenados no Firestore e sao acessados server-side. O produto nao publica nada no Strava em nome do atleta e nao exibe a base de um usuario para outro usuario comum.</p>
+        <p>Os dados ficam armazenados no Firestore e sao acessados server-side. Tokens OAuth do Strava sao criptografados em producao. O produto nao publica no Strava em nome do atleta e aplica escopo de plano e perfil antes de devolver atividades, saude ou detalhes.</p>
+      </LegalSection>
+
+      <LegalSection title="IA e operadores de dados">
+        <p>Para usuarios autorizados, um resumo estruturado do dashboard pode ser enviado ao Google Gemini para gerar uma leitura textual. O Gemini nao recebe acesso direto a conta Strava. Firestore, Strava, Garmin e Google atuam conforme suas proprias politicas e apenas nas funcoes descritas nesta pagina.</p>
+      </LegalSection>
+
+      <LegalSection title="Retencao e controle">
+        <p>Atividades, saude, caches e tokens permanecem enquanto a conta estiver ativa ou ate a exclusao solicitada no painel. Registros tecnicos minimos de seguranca e limitacao de abuso podem ser mantidos pelo prazo necessario para proteger o servico. Duvidas de privacidade podem ser encaminhadas pelo canal de suporte informado no proprio servico.</p>
       </LegalSection>
 
       <LegalSection title="Exclusao e revogacao">

@@ -153,5 +153,5 @@ export const readingLayers = [
   { title: 'Volume', copy: 'distancia, tempo e frequencia' },
   { title: 'Desempenho', copy: 'pace, velocidade e tendencia' },
   { title: 'Comparativo', copy: 'janela atual versus periodo anterior' },
-  { title: 'Consistencia', copy: 'carga sustentada e deload' },
+  { title: 'Consistencia', copy: 'volume recente e continuidade' },
 ]

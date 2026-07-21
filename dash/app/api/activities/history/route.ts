@@ -66,8 +66,8 @@ function buildEffectiveSportSet(scope: UserScope, requestedSports: string[]) {
 
 function matchesActivity(activity: ActivityRow, sportSet: Set<string> | null, startIso: string | null, endIso: string | null) {
   if (sportSet && !sportSet.has(activity.type)) return false
-  if (startIso && activity.date < startIso) return false
-  if (endIso && activity.date > endIso) return false
+  if (startIso && activity.localDate < startIso) return false
+  if (endIso && activity.localDate > endIso) return false
   return true
 }
 
@@ -256,8 +256,8 @@ export async function GET(req: Request) {
   const sportSet = buildEffectiveSportSet(scope, requestedSports)
   const start = parseDate(url.searchParams.get('start'))
   const end = parseDate(url.searchParams.get('end'), true)
-  const startIso = start?.toISOString() ?? null
-  const endIso = end?.toISOString() ?? null
+  const startIso = start?.toISOString().slice(0, 10) ?? null
+  const endIso = end?.toISOString().slice(0, 10) ?? null
   const page = Math.max(1, Number(url.searchParams.get('page') ?? 1) || 1)
   const pageSize = Math.max(1, Math.min(MAX_PAGE_SIZE, Number(url.searchParams.get('pageSize') ?? DEFAULT_PAGE_SIZE) || DEFAULT_PAGE_SIZE))
 

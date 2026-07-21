@@ -114,7 +114,7 @@ export function DashboardInterpretationSection({
         subtitle={showOperatorNotes ? 'Esses blocos ajudam a interpretar os numeros principais sem transformar o painel em uma planilha crua.' : 'Blocos de apoio para interpretar a fase atual sem mergulhar direto no bruto.'}
       />
       <section className={`insight-grid ${showOperatorNotes ? 'insight-grid-expanded' : 'athlete-insight-grid'}`}>
-        <Panel eyebrow="Recordes" title="Melhores marcas do recorte" subtitle="Prioriza best efforts oficiais do Strava. Quando nao houver detalhamento disponivel, cai para aproximacao pela atividade inteira.">
+        <Panel eyebrow="Recordes" title="Melhores marcas do recorte" subtitle="Usa somente best efforts oficiais do Strava com tempo decorrido.">
           {records.length ? (
             <div className="record-grid">
               {records.map((record) => (
@@ -122,20 +122,18 @@ export function DashboardInterpretationSection({
                   <p className="metric-label">{record.targetKm} km</p>
                   <strong>{fmt.clock(record.displayDurationSec)}</strong>
                   <span className="compare-previous">
-                    {record.source === 'strava-best-effort'
-                      ? `best effort oficial - ${fmt.pace(record.displayPaceSec)}/km`
-                      : `aproximado pela atividade - ${fmt.pace(record.displayPaceSec)}/km`}
+                    {`best effort oficial - ${fmt.pace(record.displayPaceSec)}/km`}
                   </span>
                   <span className="compare-previous">{getDisplayName(record.activity.name)} | {fmt.fullDate(record.activity.date)}</span>
                 </article>
               ))}
             </div>
           ) : (
-            <p className="empty-copy">Ainda nao ha atividades proximas das distancias de referencia neste recorte.</p>
+            <p className="empty-copy">Ainda nao ha best efforts oficiais para as distancias de referencia neste recorte.</p>
           )}
         </Panel>
 
-        <Panel eyebrow="VDOT" title="Zonas estimadas de corrida" subtitle="Estimativa por marca de corrida; use como referencia inicial, nao prescricao fechada.">
+        <Panel eyebrow="VDOT" title="Zonas estimadas de corrida" subtitle="Estimativa derivada de best effort oficial; use como referencia inicial, nao como prescricao.">
           {vdotEstimate ? (
             <div className="vdot-card">
               <div className="vdot-summary">
@@ -166,7 +164,7 @@ export function DashboardInterpretationSection({
             <div className="insight-list">
               <InsightItem title="Janelas agora mudam a leitura">Voce pode alternar entre ano, mes ativo, semana ativa e 28 dias sem perder o mesmo recorte base de esporte e ano.</InsightItem>
               <InsightItem title="2026 agora carrega completo">O primeiro ano selecionado deixa de ficar preso ao recorte inicial de 160 atividades e passa a buscar o ano inteiro sob demanda.</InsightItem>
-              <InsightItem title="Carga atual e heuristica">A leitura semanal serve para consistencia e deload, nao como equivalencia cientifica de TRIMP ou TSS.</InsightItem>
+              <InsightItem title="Volume semanal">A leitura semanal mostra minutos ativos para contexto de volume; nao equivale a TRIMP, TSS ou carga fisiologica.</InsightItem>
             </div>
           </Panel>
         )}

@@ -32,7 +32,7 @@ function loadEnvFile(fileName) {
 
 function isValidEncryptionKey(raw) {
   const value = raw?.trim()
-  if (!value) return true
+  if (!value) return false
   if (/^[a-fA-F0-9]{64}$/.test(value)) return true
   if (value.length === 32) return true
 
@@ -55,6 +55,7 @@ const required = [
   'STRAVA_WEBHOOK_VERIFY_TOKEN',
   'NEXTAUTH_URL',
   'NEXTAUTH_SECRET',
+  'OAUTH_TOKEN_ENCRYPTION_KEY',
   'FIREBASE_SERVICE_ACCOUNT',
 ]
 
