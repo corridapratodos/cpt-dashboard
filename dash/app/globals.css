@@ -379,6 +379,26 @@ button {
 /* hero section removed — header is now sticky app-header */
 .hero { display: none; }
 
+/* Standalone legal pages and the post-login consent gate still use the hero shell. */
+.hero.legal-hero {
+  display: block;
+  position: relative;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  background:
+    linear-gradient(135deg, rgba(255, 90, 31, 0.16), transparent 34%),
+    linear-gradient(160deg, rgba(46, 197, 255, 0.08), transparent 40%),
+    var(--surface);
+  box-shadow: var(--shadow);
+  padding: 32px;
+  margin-bottom: 24px;
+}
+
+.hero.legal-hero .hero-grid {
+  display: grid;
+  gap: 24px;
+}
+
 .hero-empty {
   min-height: 60vh;
   display: grid;

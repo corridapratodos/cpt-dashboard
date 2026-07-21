@@ -85,6 +85,7 @@ test('exclusao de conta exige sessao e apaga a base do usuario', () => {
 test('login e painel expoem links legais e consumo de analytics cache', () => {
   const login = read('app/login/page.tsx')
   const gate = read('components/LegalGate.tsx')
+  const styles = read('app/globals.css')
   const dashboard = read('components/DashboardClient.tsx')
   const dashboardLegalSection = read('components/dashboard/DashboardLegalSection.tsx')
   const dashboardHistorySection = read('components/dashboard/DashboardHistorySection.tsx')
@@ -97,6 +98,7 @@ test('login e painel expoem links legais e consumo de analytics cache', () => {
   assert.match(login, /\/privacy/)
   assert.match(login, /\/terms/)
   assert.match(gate, /Aceitar e entrar no painel/)
+  assert.match(styles, /\.hero\.legal-hero\s*\{[^}]*display:\s*block/s)
   assert.match(dashboard, /DashboardLegalSection/)
   assert.match(dashboardHistorySection, /Historico navegavel do recorte/)
   assert.match(dashboardLegalSection, /Excluir meus dados/)
