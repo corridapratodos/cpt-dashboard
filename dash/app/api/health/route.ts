@@ -1,7 +1,7 @@
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { hasAdminAccess } from '@/lib/access'
-import { sleepRef, userRef, weightRef } from '@/lib/firebase'
+import { sleepRef, userRef, vo2MaxRef, weightRef } from '@/lib/firebase'
 
 export async function GET(req: Request) {
   const session = await getServerSession(authOptions)
@@ -24,13 +24,14 @@ export async function GET(req: Request) {
     return snap.docs.map((d) => d.data())
   }
 
-  const [sleep, weight] = await Promise.all([
+  const [sleep, weight, vo2Max] = await Promise.all([
     queryRange(sleepRef(session.stravaId)),
     queryRange(weightRef(session.stravaId)),
+    queryRange(vo2MaxRef(session.stravaId)),
   ])
 
   return Response.json(
-    { sleep, weight },
+    { sleep, weight, vo2Max },
     { headers: { 'Cache-Control': 'private, max-age=300' } }
   )
 }

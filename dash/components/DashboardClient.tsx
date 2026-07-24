@@ -29,6 +29,7 @@ export default function DashboardClient({ initialActivities, initialAnalytics, i
   const [cacheRevision, setCacheRevision] = useState(0)
   const [deleting, setDeleting] = useState(false)
   const [page, setPage] = useState(1)
+  const [healthRefreshKey, setHealthRefreshKey] = useState(0)
   const [selectedActivity, setSelectedActivity] = useState<Activity | null>(null)
 
   const viewerRole = String(meta?.viewerRole ?? 'unknown')
@@ -125,10 +126,11 @@ export default function DashboardClient({ initialActivities, initialAnalytics, i
     vdotEstimate,
   } = computed
 
-  const { sleepData, weightData } = useHealthData({
+  const { sleepData, weightData, vo2MaxData } = useHealthData({
     isAdmin,
     actualYears,
     selectedYears,
+    refreshKey: healthRefreshKey,
   })
 
   const {
@@ -377,9 +379,11 @@ export default function DashboardClient({ initialActivities, initialAnalytics, i
               syncing={dashboardSync.syncing}
               deleting={deleting}
               backfilling={dashboardSync.backfilling}
+              backfillTargetYear={dashboardSync.backfillTargetYear}
               loadingYears={loadingYears.length}
               onFullSync={() => dashboardSync.handleSync('full')}
               onBackfill={dashboardSync.handleBackfillBestEfforts}
+              onHealthUploadComplete={() => setHealthRefreshKey((current) => current + 1)}
             />
           )}
 
@@ -440,6 +444,7 @@ export default function DashboardClient({ initialActivities, initialAnalytics, i
                 isAdmin={isAdmin}
                 sleepData={sleepData}
                 weightData={weightData}
+                vo2MaxData={vo2MaxData}
                 selectedYears={selectedYears}
                 activeWindow={activeWindow}
                 yearLabel={yearLabel}

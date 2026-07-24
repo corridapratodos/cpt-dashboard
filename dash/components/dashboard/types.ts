@@ -96,6 +96,12 @@ export type WeightRecord = {
   waterPct: number | null
 }
 
+
+export type Vo2MaxRecord = {
+  date: string
+  monthLabel: string
+  vo2Max: number
+}
 export type RecordEntry = {
   targetKm: number
   activity: Activity

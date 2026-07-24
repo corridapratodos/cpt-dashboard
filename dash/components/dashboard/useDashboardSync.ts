@@ -23,6 +23,7 @@ export function useDashboardSync({
   const [backfilling, setBackfilling] = useState(false)
   const [syncMsg, setSyncMsg] = useState('')
   const [blockingAlert, setBlockingAlert] = useState<SyncAlert | null>(null)
+  const backfillTargetYear = selectedYears.length === 1 ? selectedYears[0] : null
 
   const clearBlockingAlert = () => setBlockingAlert(null)
 
@@ -69,14 +70,23 @@ export function useDashboardSync({
     setSyncMsg('')
 
     try {
-      const res = await fetch('/api/admin/backfill-efforts', { method: 'POST' })
+      const params = new URLSearchParams()
+      if (backfillTargetYear) params.set('year', backfillTargetYear)
+      const query = params.toString()
+      const res = await fetch(`/api/admin/backfill-efforts${query ? `?${query}` : ''}`, { method: 'POST' })
       const data = await res.json()
       if (!res.ok) throw new Error(data?.error ?? 'Erro no backfill')
 
-      setSyncMsg(`Best efforts: ${data.enriched} enriquecidas de ${data.processed} processadas. Restam ${data.remaining}.`)
+      const scopeLabel = data.year ? ` de ${data.year}` : ''
+      setSyncMsg(`Best efforts${scopeLabel}: ${data.enriched} enriquecidas de ${data.processed} processadas. Restam ${data.remaining}.`)
 
       if (data.enriched > 0) {
-        onYearsDirty(selectedYears)
+        const dirtyYears = Array.isArray(data.rebuiltYears) && data.rebuiltYears.length
+          ? data.rebuiltYears.map(String)
+          : data.year
+            ? [String(data.year)]
+            : selectedYears
+        onYearsDirty(dirtyYears)
         onCacheBump()
       }
     } catch (error) {
@@ -89,6 +99,7 @@ export function useDashboardSync({
   return {
     syncing,
     backfilling,
+    backfillTargetYear,
     syncMsg,
     setSyncMsg,
     blockingAlert,

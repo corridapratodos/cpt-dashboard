@@ -11,7 +11,7 @@ import {
   YAxis,
 } from 'recharts'
 import type { DashboardSlices } from './analytics'
-import type { SleepRecord, WeightRecord } from './types'
+import type { SleepRecord, Vo2MaxRecord, WeightRecord } from './types'
 import { chartCursor, chartTooltip, chartTooltipItem, chartTooltipLabel } from './helpers'
 import { Panel, SectionLead } from './ui'
 
@@ -21,6 +21,7 @@ type Props = {
   isAdmin: boolean
   sleepData: SleepRecord[]
   weightData: WeightRecord[]
+  vo2MaxData: Vo2MaxRecord[]
   selectedYears: string[]
   activeWindow: DashboardSlices['activeWindow']
   yearLabel: string
@@ -44,8 +45,15 @@ function smoothWeight(weightFiltered: WeightRecord[]): WeightTrendRecord[] {
   })
 }
 
-export function DashboardHealthSection({ isAdmin, sleepData, weightData, selectedYears, activeWindow, yearLabel, activeAccent }: Props) {
-  if (!isAdmin || (!sleepData.length && !weightData.length)) return null
+function formatVo2Delta(first: Vo2MaxRecord | undefined, last: Vo2MaxRecord | undefined) {
+  if (!first || !last) return ''
+  const delta = Number((last.vo2Max - first.vo2Max).toFixed(1))
+  const sign = delta > 0 ? '+' : ''
+  return `${first.vo2Max} -> ${last.vo2Max} ml/kg/min (${sign}${delta})`
+}
+
+export function DashboardHealthSection({ isAdmin, sleepData, weightData, vo2MaxData, selectedYears, activeWindow, yearLabel, activeAccent }: Props) {
+  if (!isAdmin || (!sleepData.length && !weightData.length && !vo2MaxData.length)) return null
 
   const healthWindowStart = activeWindow.start
   const healthWindowEnd = activeWindow.end
@@ -55,9 +63,10 @@ export function DashboardHealthSection({ isAdmin, sleepData, weightData, selecte
 
   const sleepFiltered = sleepData.filter((record) => inActiveWindow(record.date, selectedYears, healthWindowStart, healthWindowEnd))
   const weightFiltered = weightData.filter((record) => inActiveWindow(record.date, selectedYears, healthWindowStart, healthWindowEnd))
+  const vo2MaxFiltered = vo2MaxData.filter((record) => inActiveWindow(record.date, selectedYears, healthWindowStart, healthWindowEnd))
   const weightSmoothed = smoothWeight(weightFiltered)
 
-  if (!sleepFiltered.length && !weightSmoothed.length) return null
+  if (!sleepFiltered.length && !weightSmoothed.length && !vo2MaxFiltered.length) return null
 
   const avgSleep = sleepFiltered.length
     ? (sleepFiltered.reduce((sum, record) => sum + record.durationMin, 0) / sleepFiltered.length / 60).toFixed(1)
@@ -65,6 +74,8 @@ export function DashboardHealthSection({ isAdmin, sleepData, weightData, selecte
 
   const firstWeight = weightSmoothed[0]
   const lastWeight = weightSmoothed[weightSmoothed.length - 1]
+  const firstVo2 = vo2MaxFiltered[0]
+  const lastVo2 = vo2MaxFiltered[vo2MaxFiltered.length - 1]
 
   return (
     <section id="saude" className="dashboard-health">
@@ -129,6 +140,31 @@ export function DashboardHealthSection({ isAdmin, sleepData, weightData, selecte
               Ultima leitura: gordura {lastWeight.fatPct}% | musculo {lastWeight.muscleMassKg} kg | agua {lastWeight.waterPct}%
             </p>
           )}
+        </Panel>
+      )}
+
+      {vo2MaxFiltered.length > 0 && (
+        <SectionLead
+          eyebrow="Saude & Desempenho"
+          title="VO2 max"
+          subtitle={healthWindowSubtitle}
+        />
+      )}
+      {vo2MaxFiltered.length > 0 && (
+        <Panel
+          eyebrow="VO2 max"
+          title={lastVo2 ? `${lastVo2.vo2Max} ml/kg/min` : 'Evolucao mensal'}
+          subtitle={formatVo2Delta(firstVo2, lastVo2)}
+        >
+          <ResponsiveContainer width="100%" height={220}>
+            <LineChart data={vo2MaxFiltered} margin={{ top: 8, right: 8, bottom: 4, left: -16 }}>
+              <CartesianGrid strokeDasharray="4 4" stroke="var(--grid)" />
+              <XAxis dataKey="monthLabel" tick={{ fill: 'var(--text-muted)', fontSize: 11 }} axisLine={false} tickLine={false} interval={Math.floor(vo2MaxFiltered.length / 8)} />
+              <YAxis tick={{ fill: 'var(--text-muted)', fontSize: 11 }} axisLine={false} tickLine={false} domain={['auto', 'auto']} />
+              <Tooltip contentStyle={chartTooltip} itemStyle={chartTooltipItem} labelStyle={chartTooltipLabel} cursor={chartCursor} formatter={(value: number) => [`${value} ml/kg/min`, 'VO2 max']} labelFormatter={(label: string) => label} />
+              <Line type="monotone" dataKey="vo2Max" dot={{ r: 3 }} stroke="var(--accent-2)" strokeWidth={2.5} />
+            </LineChart>
+          </ResponsiveContainer>
         </Panel>
       )}
     </section>

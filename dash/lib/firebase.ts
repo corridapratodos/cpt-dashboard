@@ -56,3 +56,6 @@ export const sleepRef = (stravaId: number) =>
 
 export const weightRef = (stravaId: number) =>
   userRef(stravaId).collection('weight')
+
+export const vo2MaxRef = (stravaId: number) =>
+  userRef(stravaId).collection('vo2Max')
