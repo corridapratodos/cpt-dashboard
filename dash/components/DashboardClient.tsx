@@ -20,6 +20,7 @@ import { DashboardExecutiveSection } from './dashboard/DashboardExecutiveSection
 import { DashboardAnalysisSection } from './dashboard/DashboardAnalysisSection'
 import { DashboardInterpretationSection } from './dashboard/DashboardInterpretationSection'
 import { DashboardHealthSection } from './dashboard/DashboardHealthSection'
+import { DashboardHydrationCard } from './dashboard/DashboardHydrationCard'
 import { DashboardHistorySection } from './dashboard/DashboardHistorySection'
 import { DashboardLegalSection } from './dashboard/DashboardLegalSection'
 import { SyncStatusModal } from './dashboard/SyncStatusModal'
@@ -450,6 +451,13 @@ export default function DashboardClient({ initialActivities, initialAnalytics, i
                 yearLabel={yearLabel}
                 activeAccent={activeAccent}
               />
+
+              {isAdmin && (
+                <DashboardHydrationCard
+                  viewerKey={String(meta?.viewerStravaId ?? userName)}
+                  activities={historyActivities}
+                />
+              )}
 
               <DashboardHistorySection
                 historyCount={historyCount}

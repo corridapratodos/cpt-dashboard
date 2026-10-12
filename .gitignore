@@ -1,2 +1,6 @@
 .vercel
 .env*
+
+# intervals.icu API (local only)
+.icu-credentials
+plano-maratona-curitiba/.icu-credentials

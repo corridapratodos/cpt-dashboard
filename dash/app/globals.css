@@ -2013,3 +2013,80 @@ button {
   color: var(--text-soft);
   font-size: 12px;
 }
+
+/* Card de hidratacao */
+.hydration-form {
+  display: grid;
+  gap: 14px;
+  margin-bottom: 18px;
+  padding: 16px;
+  border: 1px solid var(--border);
+  background: var(--surface-soft);
+}
+
+.hydration-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 12px;
+}
+
+.hydration-field {
+  display: grid;
+  gap: 6px;
+  align-content: start;
+}
+
+.hydration-hint {
+  color: var(--text-soft);
+  font-size: 11px;
+}
+
+.hydration-errors {
+  list-style: none;
+  display: grid;
+  gap: 4px;
+}
+
+.hydration-list {
+  display: grid;
+  gap: 16px;
+}
+
+.hydration-row {
+  border: 1px solid var(--border);
+  padding: 14px 16px;
+}
+
+.hydration-row-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.hydration-flag {
+  margin-top: 10px;
+  padding: 8px 12px;
+  border-left: 2px solid var(--border-strong);
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.hydration-flag[data-tone='warn'] {
+  border-left-color: var(--warning);
+}
+
+.hydration-notes {
+  margin-top: 18px;
+  display: grid;
+  gap: 8px;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.hydration-notes ul {
+  display: grid;
+  gap: 8px;
+  padding-left: 18px;
+}
