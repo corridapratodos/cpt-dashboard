@@ -682,7 +682,7 @@ export function computeDashboardSlices(params: {
     const avgSessionKm = stats.totalDist / stats.count
     const avgSessionMinutes = stats.totalDur / stats.count / 60
     const longestSharePct = stats.totalDist > 0 ? Math.round((stats.longest.distanceKm / stats.totalDist) * 100) : 0
-    const sessionsPerWeek = activeWeeks ? stats.count / activeWeeks : stats.count
+    const activeDaysPerActiveWeek = activeWeeks ? analyzedDays.length / activeWeeks : analyzedDays.length
 
     return {
       activeDays: analyzedDays.length,
@@ -691,7 +691,7 @@ export function computeDashboardSlices(params: {
       avgSessionKm: round1(avgSessionKm),
       avgSessionMinutes: Math.round(avgSessionMinutes),
       longestSharePct,
-      sessionsPerWeek: round1(sessionsPerWeek),
+      activeDaysPerActiveWeek: round1(activeDaysPerActiveWeek),
     }
   })()
 

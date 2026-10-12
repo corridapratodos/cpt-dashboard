@@ -37,7 +37,7 @@ export function buildAnalysisInsights({
     } else {
       insights.push({
         title: 'Volume em faixa parecida',
-        copy: `O recorte atual esta perto do bloco anterior: distancia em ${fmt.pct(periodComparison.distanceChange)} e sessoes em ${fmt.pct(periodComparison.sessionChange)}.`,
+        copy: `O recorte atual esta perto do bloco anterior: distancia em ${fmt.pct(periodComparison.distanceChange)} e atividades em ${fmt.pct(periodComparison.sessionChange)}.`,
       })
     }
 
@@ -76,7 +76,7 @@ export function buildAnalysisInsights({
   if (periodContext) {
     insights.push({
       title: 'Densidade de treino do recorte',
-      copy: `${periodContext.activeDays} dias ativos em ${periodContext.spanDays} dias de janela, com densidade de ${periodContext.densityPct}% e media de ${periodContext.sessionsPerWeek} sessoes por semana ativa.`,
+      copy: `${periodContext.activeDays} dias ativos em ${periodContext.spanDays} dias de janela, com densidade de ${periodContext.densityPct}% e media de ${periodContext.activeDaysPerActiveWeek} dias ativos por semana ativa.`,
     })
   }
 

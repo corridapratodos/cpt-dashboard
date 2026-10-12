@@ -79,7 +79,7 @@ const contextValidator: Validator = (value) => value == null || hasShape(value, 
   avgSessionKm: isNumber,
   avgSessionMinutes: isNumber,
   longestSharePct: isNumber,
-  sessionsPerWeek: isNumber,
+  activeDaysPerActiveWeek: isNumber,
 })
 
 const radarValidator: Validator = (value) => value == null || hasShape(value, {

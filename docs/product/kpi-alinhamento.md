@@ -8,21 +8,21 @@ Definir quais indicadores o CPT Dashboard deve mostrar, o que cada um significa 
 
 ### KPIs principais atuais
 
-- `Sessoes`: quantidade de atividades no recorte ativo.
+- `Atividades`: quantidade de atividades individuais do Strava no recorte ativo (aquecimento, treino principal e desaquecimento registrados em separado contam como atividades distintas).
 - `Distancia`: soma de `distanceKm` no recorte ativo.
 - `Tempo ativo`: soma de `durationSec` no recorte ativo.
 - `Pace medio`: soma do tempo confiavel dividida pela soma da distancia confiavel no recorte.
 - `Velocidade media`: usada quando o filtro principal e ciclismo.
 - `Peso corrida`: quando o filtro e `Tudo`, mostra o percentual de atividades do tipo `Run` dentro da selecao.
-- `Maior sessao`: atividade com maior distancia no recorte.
+- `Maior atividade`: atividade com maior distancia no recorte.
 - `Melhor pace medio`: menor pace medio entre atividades confiaveis do recorte.
-- `Esporte dominante`: esporte com maior numero de sessoes no recorte `Tudo`.
+- `Esporte dominante`: esporte com maior numero de atividades no recorte `Tudo`.
 
 ### Blocos analiticos atuais
 
 - `Volume mensal`: km por mes.
 - `Evolucao recente`: ultimas 24 atividades com pace ou velocidade.
-- `Comparativo 28 dias`: distancia, sessoes, tempo e pace da janela atual versus 28 dias anteriores.
+- `Comparativo 28 dias`: distancia, atividades, tempo e pace da janela atual versus 28 dias anteriores.
 - `Minutos ativos semanais`: tempo incluido por semana; e volume externo, nao carga fisiologica.
 - `Leituras rapidas`: textos fixos de produto.
 - `Ultimos treinos`: cards qualitativos com amostra recente.
@@ -32,7 +32,7 @@ Definir quais indicadores o CPT Dashboard deve mostrar, o que cada um significa 
 
 ### Mistura de metricas de treino com metricas de catalogo
 
-Hoje `Sessoes`, `Distancia` e `Tempo` tratam qualquer atividade do recorte como equivalente. Isso funciona para volume bruto, mas confunde leitura de treino quando misturamos corrida, caminhada, treino funcional, bike e atividades com GPS ruim.
+Hoje `Atividades`, `Distancia` e `Tempo` tratam qualquer atividade do recorte como equivalente. Isso funciona para volume bruto, mas confunde leitura de treino quando misturamos corrida, caminhada, treino funcional, bike e atividades com GPS ruim.
 
 ### Ambiguidade no KPI de desempenho
 
@@ -52,11 +52,11 @@ Minutos ativos sao uteis para contexto de volume, mas nao representam TRIMP, TSS
 
 Essa deve ser a primeira linha do painel.
 
-- `Sessoes`
+- `Atividades`
 - `Distancia`
 - `Tempo ativo`
 - `Esporte dominante` ou `Pace medio` dependendo do foco
-- `Maior sessao`
+- `Maior atividade`
 - `Melhor marca do recorte`
 
 ### Camada B - Volume e frequencia
@@ -64,7 +64,7 @@ Essa deve ser a primeira linha do painel.
 Foco em carga externa.
 
 - `Km por mes`
-- `Sessoes por semana`
+- `Dias ativos por semana ativa` (card `Cadencia`; semanas sem treino nao entram no denominador)
 - `Tempo por semana`
 - `Sequencia de semanas ativas`
 - `Semanas dentro da faixa de carga`

@@ -51,7 +51,7 @@ export type DashboardAiPayload = {
     avgSessionKm: number
     avgSessionMinutes: number
     longestSharePct: number
-    sessionsPerWeek: number
+    activeDaysPerActiveWeek: number
   } | null
   periodRadar: {
     biggestGapDays: number

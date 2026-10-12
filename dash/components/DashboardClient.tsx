@@ -190,7 +190,19 @@ export default function DashboardClient({ initialActivities, initialAnalytics, i
     [loadInsight, periodBenchmark, periodComparison, periodContext, windowMode]
   )
 
-  const effortHighlights = useMemo(() => historyActivities.slice(0, 4), [historyActivities])
+  const effortHighlights = useMemo(() => {
+    const startIso = activeWindow.start?.toISOString().slice(0, 10) ?? null
+    const endIso = activeWindow.end?.toISOString().slice(0, 10) ?? null
+
+    return historyActivities
+      .filter((activity) => {
+        const dateKey = activity.localDate || activity.date.slice(0, 10)
+        if (startIso && dateKey < startIso) return false
+        if (endIso && dateKey > endIso) return false
+        return true
+      })
+      .slice(0, 4)
+  }, [activeWindow.end, activeWindow.start, historyActivities])
   const activeActivities = activeWindow.days
   const loadingYears = loadingAnalyticsYears
   const pageCount = historyPageCount
@@ -263,7 +275,7 @@ export default function DashboardClient({ initialActivities, initialAnalytics, i
           avgSessionKm: periodContext.avgSessionKm,
           avgSessionMinutes: periodContext.avgSessionMinutes,
           longestSharePct: periodContext.longestSharePct,
-          sessionsPerWeek: periodContext.sessionsPerWeek,
+          activeDaysPerActiveWeek: periodContext.activeDaysPerActiveWeek,
         }
       : null,
     periodRadar: periodRadar

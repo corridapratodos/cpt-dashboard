@@ -47,9 +47,9 @@ export function DashboardInterpretationSection({
           {periodContext && stats ? (
             <div className="analysis-grid">
               <AnalysisTile label="Densidade" value={`${periodContext.densityPct}%`} meta={`${periodContext.activeDays} dias ativos em ${periodContext.spanDays} dias`} />
-              <AnalysisTile label="Sessao media" value={`${fmt.dist(periodContext.avgSessionKm)} km`} meta={`${periodContext.avgSessionMinutes} min por sessao`} />
+              <AnalysisTile label="Atividade media" value={`${fmt.dist(periodContext.avgSessionKm)} km`} meta={`${periodContext.avgSessionMinutes} min por atividade`} />
               <AnalysisTile label="Peso do longao" value={`${periodContext.longestSharePct}%`} meta={`${fmt.dist(stats.longest.distanceKm)} km do volume total`} />
-              <AnalysisTile label="Cadencia" value={`${periodContext.sessionsPerWeek.toFixed(1)}/sem`} meta="sessoes por semana ativa" />
+              <AnalysisTile label="Cadencia" value={`${periodContext.activeDaysPerActiveWeek.toFixed(1)}/sem`} meta="dias ativos por semana ativa" />
             </div>
           ) : (
             <p className="empty-copy">Ainda nao ha base suficiente para contextualizar a janela ativa.</p>
@@ -81,7 +81,7 @@ export function DashboardInterpretationSection({
           {periodBenchmark && (
             <div className="analysis-grid analysis-grid-compact">
               <AnalysisTile label="Posicao em volume" value={`#${periodBenchmark.rank}/${periodBenchmark.total}`} meta={`${periodBenchmark.label} do recorte`} />
-              <AnalysisTile label="Media comparavel" value={`${fmt.dist(periodBenchmark.averageDistance)} km`} meta={`${periodBenchmark.averageSessions.toFixed(1)} sessoes por periodo`} />
+              <AnalysisTile label="Media comparavel" value={`${fmt.dist(periodBenchmark.averageDistance)} km`} meta={`${periodBenchmark.averageSessions.toFixed(1)} atividades por periodo`} />
               <AnalysisTile label="Melhor janela" value={`${fmt.dist(periodBenchmark.best.distance)} km`} meta={periodBenchmark.best.label} />
               <AnalysisTile label="Janela atual" value={`${fmt.dist(periodBenchmark.current.distance)} km`} meta={periodBenchmark.current.label} />
             </div>
@@ -93,8 +93,8 @@ export function DashboardInterpretationSection({
             <div className="analysis-grid">
               <AnalysisTile label="Dia mais forte" value={`${fmt.dist(periodRadar.strongestDay.distance)} km`} meta={`${periodRadar.strongestDay.label} | ${periodRadar.strongestDaySharePct}% do volume`} />
               <AnalysisTile label="Maior intervalo" value={`${periodRadar.biggestGapDays}d`} meta="entre dias ativos do recorte" />
-              <AnalysisTile label="Dia dominante" value={periodRadar.topWeekdayLabel} meta={`${periodRadar.topWeekdaySharePct}% das sessoes`} />
-              <AnalysisTile label="Fim de semana" value={`${periodRadar.weekendSharePct}%`} meta="das sessoes em sabado e domingo" />
+              <AnalysisTile label="Dia dominante" value={periodRadar.topWeekdayLabel} meta={`${periodRadar.topWeekdaySharePct}% das atividades`} />
+              <AnalysisTile label="Fim de semana" value={`${periodRadar.weekendSharePct}%`} meta="das atividades em sabado e domingo" />
             </div>
           ) : (
             <p className="empty-copy">Ainda nao ha base suficiente para ler a distribuicao interna do recorte.</p>

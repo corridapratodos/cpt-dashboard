@@ -43,6 +43,9 @@ export function useDashboardHistory({
 
     async function loadHistoryPage() {
       setHistoryLoading(true)
+      setHistoryActivities([])
+      setHistoryCount(0)
+      setHistoryPageCount(1)
 
       try {
         const params = new URLSearchParams()

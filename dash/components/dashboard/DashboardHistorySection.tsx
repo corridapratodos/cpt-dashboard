@@ -37,7 +37,7 @@ export function DashboardHistorySection({
             <p className="panel-eyebrow">Historico filtrado</p>
             <h3>Atividades recentes</h3>
           </div>
-          <span className="pill pill-ghost">{historyCount} itens na janela ativa</span>
+          <span className="pill pill-ghost">{historyLoading && !visibleActivities.length ? 'Carregando...' : `${historyCount} itens na janela ativa`}</span>
         </div>
 
         {historyLoading && !visibleActivities.length && <p className="sync-message">Carregando historico...</p>}
@@ -80,7 +80,7 @@ export function DashboardHistorySection({
           <table className="activity-table">
             <thead>
               <tr>
-                {['Data', 'Tipo', 'Sessao', 'Distancia', 'Tempo', 'Ritmo/Vel.', 'FC media', 'Altimetria', 'Detalhe'].map((header) => <th key={header}>{header}</th>)}
+                {['Data', 'Tipo', 'Atividade', 'Distancia', 'Tempo', 'Ritmo/Vel.', 'FC media', 'Altimetria', 'Detalhe'].map((header) => <th key={header}>{header}</th>)}
               </tr>
             </thead>
             <tbody>
