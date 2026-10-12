@@ -88,7 +88,7 @@ test('resumo sem testes devolve null e plano tambem', () => {
   assert.equal(planIntake(null), null)
 })
 
-test('resumo agrega faixa de taxa de suor e tolerancia gastrica', () => {
+test('resumo separa o volume ja testado do limite com desconforto forte', () => {
   const summary = summarizeTests([
     analyzeTest(makeTest({ id: 'a', fluidMl: 750, gi: 'mild' })),
     analyzeTest(makeTest({ id: 'b', fluidMl: 1500, gi: 'strong', postKg: 96.5 })),
@@ -96,25 +96,46 @@ test('resumo agrega faixa de taxa de suor e tolerancia gastrica', () => {
   assert.ok(summary)
   assert.equal(summary.count, 2)
   assert.ok(summary.sweatRateMax >= summary.sweatRateMin)
-  // volume com desconforto forte nao entra como tolerado
-  assert.equal(Math.round(summary.toleratedIntakeMlH ?? 0), 300)
+  assert.equal(Math.round(summary.testedIntakeMlH ?? 0), 300)
+  assert.equal(Math.round(summary.strongDiscomfortMlH ?? 0), 600)
 })
 
-test('plano repoe 50 a 70% do suor medio quando nao ha teto de tolerancia', () => {
-  const summary = summarizeTests([analyzeTest(makeTest({ fluidMl: 1200, urineMl: null }))])
-  const plan = planIntake({ ...summary!, toleratedIntakeMlH: null })
+test('plano repoe 50 a 70% do suor medio e nao e travado pelo volume testado', () => {
+  const summary = summarizeTests([analyzeTest(makeTest({ fluidMl: 750, gi: 'none' }))])
+  const plan = planIntake(summary)
   assert.ok(plan)
-  assert.equal(plan.cappedByTolerance, false)
+  assert.equal(plan.testedMlH, 300)
+  assert.equal(plan.cappedByLimit, false)
+  assert.equal(plan.aboveTested, true)
   assert.ok(Math.abs(plan.lowMlH / plan.meanSweatMlH - 0.5) < 0.05)
   assert.ok(Math.abs(plan.highMlH / plan.meanSweatMlH - 0.7) < 0.05)
 })
 
-test('plano e limitado pelo maior volume ja tolerado', () => {
-  const summary = summarizeTests([analyzeTest(makeTest({ fluidMl: 750, gi: 'mild' }))])
+test('desconforto forte registrado limita o alvo', () => {
+  const summary = summarizeTests([analyzeTest(makeTest({ fluidMl: 750, gi: 'strong' }))])
   const plan = planIntake(summary)
   assert.ok(plan)
-  assert.equal(plan.toleranceCapMlH, 300)
-  assert.equal(plan.cappedByTolerance, true)
+  assert.equal(plan.limitMlH, 300)
+  assert.equal(plan.cappedByLimit, true)
   assert.ok(plan.highMlH <= 300)
   assert.ok(plan.lowMlH <= plan.highMlH)
+})
+
+test('alvo dentro do que ja foi testado nao pede cautela extra', () => {
+  // pouco suor e bastante ingestao: o alvo (50-70% do suor) fica abaixo do que ja foi bebido
+  const summary = summarizeTests([analyzeTest(makeTest({ postKg: 99.5, fluidMl: 1000, gi: 'none' }))])
+  const plan = planIntake(summary)
+  assert.ok(plan)
+  assert.equal(plan.aboveTested, false)
+})
+
+test('texto do alerta de 2% depende da temperatura registrada', () => {
+  const find = (tempC: number | null) =>
+    analyzeTest(makeTest({ tempC })).flags.find((flag) => flag.text.includes('2%'))
+  const warm = find(20)
+  const cool = find(8)
+  const unknown = find(null)
+  assert.ok(warm && warm.text.includes('20 C') && !warm.text.includes('clima frio'))
+  assert.ok(cool && cool.text.includes('clima frio'))
+  assert.ok(unknown && !unknown.text.includes('clima frio') && !unknown.text.includes(' C a perda'))
 })

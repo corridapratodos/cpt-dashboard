@@ -33,6 +33,7 @@ export const SCALE_ERROR_KG = 0.1
 export const SWEAT_SODIUM_MG_PER_L = { low: 500, typical: 900, high: 1500 }
 export const REPLACEMENT_FRACTION = { low: 0.5, high: 0.7 }
 export const DEHYDRATION_REFERENCE_PCT = 2
+export const COOL_TEMP_C = 15
 
 export type Range = { low: number; central: number; high: number }
 
@@ -60,15 +61,20 @@ export type HydrationSummary = {
   sweatRateMax: number
   sweatRateMean: number
   massLossPctMax: number
-  toleratedIntakeMlH: number | null
+  // maior ingestao por hora ja feita sem desconforto forte (piso de capacidade, nao teto)
+  testedIntakeMlH: number | null
+  // menor ingestao por hora em que houve desconforto forte (limite observado)
+  strongDiscomfortMlH: number | null
 }
 
 export type IntakePlan = {
   lowMlH: number
   highMlH: number
   meanSweatMlH: number
-  toleranceCapMlH: number | null
-  cappedByTolerance: boolean
+  testedMlH: number | null
+  limitMlH: number | null
+  cappedByLimit: boolean
+  aboveTested: boolean
 }
 
 export function validateTest(test: Omit<HydrationTest, 'id'>): string[] {
@@ -127,7 +133,14 @@ export function analyzeTest(test: HydrationTest): TestAnalysis {
   if (massLossKg < 0) {
     flags.push({ tone: 'warn', text: 'Peso subiu durante o treino: voce bebeu mais do que suou. Em prova longa isso e o cenario de risco para hiponatremia.' })
   } else if (massLossPct > DEHYDRATION_REFERENCE_PCT) {
-    flags.push({ tone: 'info', text: `Perda de ${massLossPct.toFixed(1)}% do peso, acima da referencia de ${DEHYDRATION_REFERENCE_PCT}%. E um sinal de atencao, nao um corte: em clima frio e ritmo moderado a tolerancia costuma ser maior.` })
+    const head = `Perda de ${massLossPct.toFixed(1)}% do peso, acima da referencia de ${DEHYDRATION_REFERENCE_PCT}%.`
+    let tail = 'E um sinal de atencao, nao um corte: o peso dessa perda depende de temperatura, ritmo e duracao.'
+    if (test.tempC != null && test.tempC < COOL_TEMP_C) {
+      tail = 'E um sinal de atencao, nao um corte: em clima frio e ritmo moderado a tolerancia costuma ser maior.'
+    } else if (test.tempC != null) {
+      tail = `Com ${test.tempC.toFixed(0)} C a perda pesa mais; vale testar mais ingestao, sempre abaixo do suor.`
+    }
+    flags.push({ tone: 'info', text: `${head} ${tail}` })
   }
   if (replacementPct != null && replacementPct > 100) {
     flags.push({ tone: 'warn', text: 'Ingestao acima da estimativa de suor. Revise as pesagens ou o volume bebido.' })
@@ -159,8 +172,11 @@ export function analyzeTest(test: HydrationTest): TestAnalysis {
 export function summarizeTests(analyses: TestAnalysis[]): HydrationSummary | null {
   if (!analyses.length) return null
   const rates = analyses.map((analysis) => analysis.sweatRateLH.central)
-  const tolerated = analyses
+  const tested = analyses
     .filter((analysis) => analysis.test.gi !== 'strong')
+    .map((analysis) => analysis.intakeMlH)
+  const strong = analyses
+    .filter((analysis) => analysis.test.gi === 'strong')
     .map((analysis) => analysis.intakeMlH)
 
   return {
@@ -169,7 +185,8 @@ export function summarizeTests(analyses: TestAnalysis[]): HydrationSummary | nul
     sweatRateMax: Math.max(...rates),
     sweatRateMean: rates.reduce((sum, rate) => sum + rate, 0) / rates.length,
     massLossPctMax: Math.max(...analyses.map((analysis) => analysis.massLossPct)),
-    toleratedIntakeMlH: tolerated.length ? Math.max(...tolerated) : null,
+    testedIntakeMlH: tested.length ? Math.max(...tested) : null,
+    strongDiscomfortMlH: strong.length ? Math.min(...strong) : null,
   }
 }
 
@@ -177,28 +194,34 @@ function roundTo(value: number, step: number) {
   return Math.round(value / step) * step
 }
 
-// Heuristica: repor parte do suor (50-70%), limitada ao maior volume por hora ja tolerado
-// sem desconforto forte. Nao e resultado de estudo; serve como ponto de partida para testar.
+// Heuristica: repor parte do suor (50-70%). So um desconforto forte registrado limita o alvo;
+// o maior volume ja tolerado e apenas o que foi testado, nao o limite do estomago.
+// Nao e resultado de estudo; serve como ponto de partida para testar em etapas.
 export function planIntake(summary: HydrationSummary | null): IntakePlan | null {
   if (!summary) return null
 
   const meanSweatMlH = summary.sweatRateMean * 1000
   let low = meanSweatMlH * REPLACEMENT_FRACTION.low
   let high = meanSweatMlH * REPLACEMENT_FRACTION.high
-  const cap = summary.toleratedIntakeMlH
-  let cappedByTolerance = false
+  const limit = summary.strongDiscomfortMlH
+  let cappedByLimit = false
 
-  if (cap != null && high > cap) {
-    cappedByTolerance = true
-    high = cap
-    if (low > cap) low = cap
+  if (limit != null && high > limit) {
+    cappedByLimit = true
+    high = limit
+    if (low > limit) low = limit
   }
+
+  const tested = summary.testedIntakeMlH
+  const highRounded = roundTo(high, 10)
 
   return {
     lowMlH: roundTo(low, 10),
-    highMlH: roundTo(high, 10),
+    highMlH: highRounded,
     meanSweatMlH: roundTo(meanSweatMlH, 10),
-    toleranceCapMlH: cap != null ? roundTo(cap, 10) : null,
-    cappedByTolerance,
+    testedMlH: tested != null ? roundTo(tested, 10) : null,
+    limitMlH: limit != null ? roundTo(limit, 10) : null,
+    cappedByLimit,
+    aboveTested: tested == null || highRounded > roundTo(tested, 10),
   }
 }

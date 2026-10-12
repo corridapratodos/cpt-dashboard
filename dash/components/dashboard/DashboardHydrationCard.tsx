@@ -340,12 +340,12 @@ export function DashboardHydrationCard({ viewerKey, activities }: Props) {
                 <AnalysisTile
                   label="Reposicao sugerida"
                   value={`${plan.lowMlH}-${plan.highMlH} ml/h`}
-                  meta={`${Math.round(REPLACEMENT_FRACTION.low * 100)}-${Math.round(REPLACEMENT_FRACTION.high * 100)}% do suor medio${plan.cappedByTolerance ? ' | limitada pelo seu estomago' : ''}`}
+                  meta={`${Math.round(REPLACEMENT_FRACTION.low * 100)}-${Math.round(REPLACEMENT_FRACTION.high * 100)}% do suor medio${plan.cappedByLimit ? ` | limitada pelo desconforto forte a ${plan.limitMlH} ml/h` : ''}`}
                 />
                 <AnalysisTile
-                  label="Maior volume tolerado"
-                  value={plan.toleranceCapMlH != null ? `${plan.toleranceCapMlH} ml/h` : '-'}
-                  meta={plan.toleranceCapMlH != null ? 'sem desconforto forte; treinavel com o tempo' : 'todos os testes com desconforto forte'}
+                  label="Maior volume testado"
+                  value={plan.testedMlH != null ? `${plan.testedMlH} ml/h` : '-'}
+                  meta={plan.testedMlH != null ? 'sem desconforto forte; nao e o seu limite' : 'todos os testes com desconforto forte'}
                 />
                 <AnalysisTile
                   label="Maior perda de peso"
@@ -353,6 +353,11 @@ export function DashboardHydrationCard({ viewerKey, activities }: Props) {
                   meta={`referencia ${DEHYDRATION_REFERENCE_PCT}%, nao e um corte rigido`}
                 />
               </div>
+              {plan.aboveTested && (
+                <p className="hydration-flag" data-tone="info">
+                  O alvo esta acima do que voce ja testou{plan.testedMlH != null ? ` (${plan.testedMlH} ml/h)` : ''}. Suba em etapas nos longos e registre o estomago de cada teste; o estomago se adapta com treino.
+                </p>
+              )}
               {summary.count < 3 && (
                 <p className="hydration-flag" data-tone="info">
                   Com {summary.count} {summary.count === 1 ? 'teste' : 'testes'} a faixa ainda e fragil. Repita em condicoes parecidas com a da prova antes de confiar.
